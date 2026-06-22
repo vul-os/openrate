@@ -1,0 +1,16 @@
+# Go
+/openrate
+*.test
+*.out
+
+# Node / Vite
+web/node_modules/
+web/.vite/
+
+# web/dist is committed (the built UI is embedded into the binary so a clone is
+# self-contained); regenerate with `npm --prefix web run build`.
+
+# Local
+.env
+*.log
+.DS_Store
