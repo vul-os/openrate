@@ -13,6 +13,11 @@
 - [x] **Store fix** — refresh no longer holds the lock during I/O; progressive materialization
 - [x] **Vulos design system** — themed UI (near-black/teal/Inter), redesigned converter + accuracy + nav
 - [x] **Anti-scraping** — per-IP token-bucket rate limiter (`-ratelimit`), robots.txt (Disallow /api/), security headers
+- [x] **Paid sources via .env** — OXR, Twelve Data, Polygon, TraderMade; auto-enable when keyed (.env loader, .env.example)
+- [x] **Cross-source dispersion stats** — mean/stdev/stdev_bps/min/max/spread per pair; per-source `quotes` in /convert
+- [x] **Light/dark toggle** (Vulos light tokens, persisted) + segmented Convert/Accuracy switch
+- [x] **Real Vulos mark** (vendored brand asset via CSS mask) in footer
+- [x] **Show-the-math panel** — derivation + per-source quotes + financial dispersion in the converter
 
 ## Sources (the "open way" — see SOURCES.md for the full survey)
 - [x] **Coinbase** — free/no-auth real-time fiat incl. ZAR (best open intraday source)

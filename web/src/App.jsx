@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMeta, getRates, convert, ageLabel } from "./api.js";
-import { Reveal, Eyebrow } from "./ui.jsx";
+import { Reveal, Eyebrow, ThemeToggle } from "./ui.jsx";
 import CurrencySelect from "./CurrencySelect.jsx";
 import Footer from "./Footer.jsx";
 import { ccyFlag } from "./currencies.js";
@@ -42,10 +42,11 @@ export default function App() {
         </div>
         <span className="pill"><span className="dot" />open · {base}-anchored</span>
         <div className="spacer" />
-        <div className="tabs">
+        <div className="switch">
           <button className={tab === "convert" ? "on" : ""} onClick={() => setTab("convert")}>Convert</button>
           <button className={tab === "accuracy" ? "on" : ""} onClick={() => setTab("accuracy")}>Accuracy</button>
         </div>
+        <ThemeToggle />
       </nav>
 
       <div className="wrap">
@@ -120,6 +121,7 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
   const [to, setTo] = useState(defaultTo);
   const [amount, setAmount] = useState(100);
   const [out, setOut] = useState(null);
+  const [showMath, setShowMath] = useState(false);
 
   useEffect(() => { setTo(defaultTo); }, [defaultTo]);
   useEffect(() => {
@@ -177,12 +179,65 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
               {q.caveats?.length > 0 && (
                 <ul className="caveats">{q.caveats.map((c, i) => <li key={i}><span>⚠</span><span>{c}</span></li>)}</ul>
               )}
+              <button className="math-toggle" onClick={() => setShowMath((s) => !s)}>
+                {showMath ? "▾ hide the math" : "▸ show the math"}
+              </button>
+              {showMath && <Math out={out} from={from} to={to} fmt={fmt} />}
             </div>
           )}
         </div>
       )}
     </section>
   );
+}
+
+// Math — transparent derivation + cross-source financial stats.
+function Math({ out, from, to, fmt }) {
+  const r = out.rate, c = r.quality.corroboration;
+  const quotes = (out.quotes || []).slice().sort((a, b) => a.rate - b.rate);
+  const lo = quotes.length ? quotes[0].rate : 0;
+  const hi = quotes.length ? quotes[quotes.length - 1].rate : 1;
+  const span = hi - lo || 1;
+  return (
+    <div className="math">
+      <div className="math-row">
+        <span className="ml">derivation</span>
+        <span className="mv">
+          {r.hops <= 1 ? "directly quoted" : `${r.hops}-hop cross`} · path {r.path.join(" → ")} · chosen source <b>{r.sources.join(", ")}</b>
+        </span>
+      </div>
+
+      {quotes.length > 0 && (
+        <>
+          <div className="math-row"><span className="ml">sources</span><span className="mv">{quotes.length} quoting {from}→{to} directly</span></div>
+          <div className="quotes">
+            {quotes.map((qq) => (
+              <div className="qrow" key={qq.source}>
+                <span className="qsrc">{qq.source}</span>
+                <span className="qbar"><span className="qfill" style={{ left: `${((qq.rate - lo) / span) * 100}%` }} /></span>
+                <span className="qrate">{fmt(qq.rate, 6)}</span>
+                <span className="qage muted">{Math.round(qq.age_sec)}s</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {c.sources > 1 && (
+        <div className="stats-grid">
+          <Stt l="mean" v={fmt(c.mean, 6)} />
+          <Stt l="std dev" v={`${fmt(c.stdev, 6)} · ${c.stdev_bps}bps`} />
+          <Stt l="min–max" v={`${fmt(c.min, 6)} – ${fmt(c.max, 6)}`} />
+          <Stt l="spread" v={`${c.spread_bps} bps`} accent={c.spread_bps > 50} />
+        </div>
+      )}
+      {c.sources <= 1 && <p className="math-note">Single direct source — no cross-source dispersion to report. Add a paid source (see .env.example) for corroboration.</p>}
+    </div>
+  );
+}
+
+function Stt({ l, v, accent }) {
+  return <div className={`stt ${accent ? "warn" : ""}`}><span className="stt-l">{l}</span><span className="stt-v">{v}</span></div>;
 }
 
 function Bit({ label, v }) {
