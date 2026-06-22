@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMeta, getRates, convert, ageLabel } from "./api.js";
-import { Reveal, Eyebrow, ThemeToggle, useScrollSpy } from "./ui.jsx";
+import { Reveal, Eyebrow, ThemeToggle, useScrollSpy, GitHubIcon } from "./ui.jsx";
 import CurrencySelect from "./CurrencySelect.jsx";
 import Footer from "./Footer.jsx";
 import { ccyFlag } from "./currencies.js";
 import Accuracy from "./Accuracy.jsx";
 import Pricing from "./Pricing.jsx";
+import Docs from "./Docs.jsx";
+
+const REPO = "https://github.com/vul-os/openrate";
 
 const GRADE_CLASS = { A: "bA", B: "bB", C: "bC", D: "bD" };
 const fmt = (n, d = 4) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
@@ -31,16 +34,30 @@ export default function App() {
   const [base, setBase] = useState("ZAR");
   const [rates, setRates] = useState(null);
   const [err, setErr] = useState(null);
+  const [route, setRoute] = useState(() => (location.hash.startsWith("#docs") ? "docs" : "home"));
   const active = useScrollSpy(["convert", "accuracy", "pricing"]);
 
   useEffect(() => { getMeta().then(setMeta).catch((e) => setErr(e.message)); }, []);
   useEffect(() => { getRates(base).then(setRates).catch((e) => setErr(e.message)); }, [base]);
+  useEffect(() => {
+    const onHash = () => {
+      const r = location.hash.startsWith("#docs") ? "docs" : "home";
+      setRoute(r);
+      if (r === "docs") window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
+  // home-section nav: smooth-scroll (switching back from docs first if needed)
   const go = (e, id) => {
     e.preventDefault();
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const scroll = () => { document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); };
     history.replaceState(null, "", id === "convert" ? "#" : `#${id}`);
+    if (route !== "home") { setRoute("home"); requestAnimationFrame(() => requestAnimationFrame(scroll)); }
+    else scroll();
   };
+  const goDocs = (e) => { e.preventDefault(); setRoute("docs"); history.replaceState(null, "", "#docs"); window.scrollTo(0, 0); };
 
   const currencies = meta?.currencies ?? [];
   const liveSources = (meta?.sources ?? []).filter((s) => !s.last_error && s.edges > 0).length;
@@ -59,13 +76,18 @@ export default function App() {
         <div className="spacer" />
         <div className="navlinks">
           {NAV.map((n) => (
-            <a key={n.id} href={`#${n.id}`} className={active === n.id ? "on" : ""} onClick={(e) => go(e, n.id)}>{n.label}</a>
+            <a key={n.id} href={`#${n.id}`} className={route === "home" && active === n.id ? "on" : ""} onClick={(e) => go(e, n.id)}>{n.label}</a>
           ))}
+          <a href="#docs" className={route === "docs" ? "on" : ""} onClick={goDocs}>Docs</a>
         </div>
+        <a className="nav-icon" href={REPO} target="_blank" rel="noreferrer" title="GitHub" aria-label="GitHub"><GitHubIcon size={18} /></a>
         <a className="nav-cta" href="#pricing" onClick={(e) => go(e, "pricing")}>Get API key</a>
         <ThemeToggle />
       </nav>
 
+      {route === "docs" ? (
+        <main><div className="wrap"><Docs /></div></main>
+      ) : (
       <main>
         <section id="convert" className="sect">
           <div className="wrap">
@@ -116,7 +138,8 @@ export default function App() {
           <div className="wrap"><Pricing /></div>
         </section>
       </main>
-      <Footer meta={meta} base={base} />
+      )}
+      <Footer meta={meta} base={base} onDocs={goDocs} />
     </>
   );
 }
