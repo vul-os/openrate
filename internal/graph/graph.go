@@ -32,6 +32,17 @@ type Pair struct {
 	AsOf    time.Time `json:"as_of"`
 	Path    []string  `json:"path"`
 	Sources []string  `json:"sources"` // distinct sources of the edges on the path
+	Legs    []Leg     `json:"legs"`    // each hop's actual rate + source (the calculation)
+}
+
+// Leg is one hop of a (possibly triangulated) conversion: 1 From = Rate To, as
+// published by Source at Time. The product of all legs' rates is Pair.Rate.
+type Leg struct {
+	From   string    `json:"from"`
+	To     string    `json:"to"`
+	Rate   float64   `json:"rate"`
+	Source string    `json:"source"`
+	Time   time.Time `json:"time"`
 }
 
 // Quote is a single source's direct quote for an ordered pair, used to measure
@@ -161,12 +172,14 @@ func (g *Graph) Materialize(now time.Time) *Snapshot {
 					asOf = e.Time
 				}
 				path := append(append([]string{}, base.Path...), e.To)
+				leg := Leg{From: cur, To: e.To, Rate: e.Rate, Source: e.Source, Time: e.Time}
 				row[e.To] = Pair{
 					Rate:    base.Rate * e.Rate,
 					Hops:    base.Hops + 1,
 					AsOf:    asOf,
 					Path:    path,
 					Sources: addDistinct(base.Sources, e.Source),
+					Legs:    append(append([]Leg{}, base.Legs...), leg),
 				}
 				queue = append(queue, e.To)
 			}

@@ -381,8 +381,17 @@ body {
 .rates th:last-child, .rates td:last-child { padding-right: 16px; }
 .pad0 .foot { padding: 10px 16px 6px; margin: 0; }
 .inverse b { color: var(--text); font-weight: 600; }
-.math-sec { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); margin: 16px 0 9px; }
+.math-sec { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); margin: 16px 0 9px; display: flex; align-items: center; gap: 10px; }
 .math > .math-sec:first-child { margin-top: 0; }
+.sec-tag { text-transform: none; letter-spacing: 0; font-size: 11px; color: var(--text-mut); border: 1px solid var(--border-strong); border-radius: 100px; padding: 2px 9px; }
+.legs { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+.leg { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; align-items: center; padding: 11px 14px; background: var(--bg-surface); font-family: var(--mono); font-size: 13px; }
+.leg-pair { color: var(--text-3); } .leg-pair b { color: var(--text); font-weight: 600; }
+.leg-rate { color: var(--text); font-variant-numeric: tabular-nums; }
+.leg-src { color: var(--text-mut); font-size: 11.5px; min-width: 120px; text-align: right; }
+.leg-calc { color: var(--text-faint); font-size: 11.5px; }
+.leg-total { background: var(--bg-elevated); border-top: 1px solid var(--border-strong); }
+.leg-total .leg-rate { color: var(--good); font-weight: 700; }
 .qrow .qage { color: var(--text-faint); font-size: 11px; }
 
 /* ─── responsive ──────────────────────────────────────────────────────── */

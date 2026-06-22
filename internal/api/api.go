@@ -38,6 +38,14 @@ type quoteView struct {
 	AgeSec float64 `json:"age_sec"`
 }
 
+type legView struct {
+	From   string  `json:"from"`
+	To     string  `json:"to"`
+	Rate   float64 `json:"rate"`
+	Source string  `json:"source"`
+	AgeSec float64 `json:"age_sec"`
+}
+
 type rateView struct {
 	Rate    float64            `json:"rate"`
 	Hops    int                `json:"hops"`
@@ -46,6 +54,7 @@ type rateView struct {
 	Path    []string           `json:"path"`
 	Sources []string           `json:"sources"`
 	Quality quality.Assessment `json:"quality"`
+	Legs    []legView          `json:"legs"`   // each hop's actual rate + source (the calculation)
 	Quotes  []quoteView        `json:"quotes"` // per-source direct quotes behind the number
 }
 
@@ -56,6 +65,10 @@ func view(snap *graph.Snapshot, from, to string, p graph.Pair, now time.Time) ra
 	for _, q := range snap.DirectQuotes(from, to) {
 		quotes = append(quotes, quoteView{Source: q.Source, Rate: q.Rate, AgeSec: now.Sub(q.Time).Seconds()})
 	}
+	var legs []legView
+	for _, l := range p.Legs {
+		legs = append(legs, legView{From: l.From, To: l.To, Rate: l.Rate, Source: l.Source, AgeSec: now.Sub(l.Time).Seconds()})
+	}
 	return rateView{
 		Rate:    p.Rate,
 		Hops:    p.Hops,
@@ -64,6 +77,7 @@ func view(snap *graph.Snapshot, from, to string, p graph.Pair, now time.Time) ra
 		Path:    p.Path,
 		Sources: p.Sources,
 		Quality: quality.Assess(from, to, p, snap.DirectQuotes(from, to), now),
+		Legs:    legs,
 		Quotes:  quotes,
 	}
 }

@@ -199,12 +199,27 @@ function Calc({ rate, from, to }) {
   const lo = quotes.length ? quotes[0].rate : 0;
   const hi = quotes.length ? quotes[quotes.length - 1].rate : 1;
   const span = hi - lo || 1;
+  const legs = rate.legs || [];
   return (
     <div className="math">
-      <div className="math-sec">Calculation</div>
-      <div className="math-row">
-        <span className="ml">method</span>
-        <span className="mv">{rate.hops <= 1 ? "directly quoted" : `${rate.hops}-hop cross-rate`} · path <b>{rate.path.join(" → ")}</b> · chosen <b>{rate.sources.join(", ")}</b></span>
+      <div className="math-sec">
+        Calculation<span className="sec-tag">{rate.hops <= 1 ? "directly quoted" : `${rate.hops}-hop cross-rate`}</span>
+      </div>
+      <div className="legs">
+        {legs.map((l, i) => (
+          <div className="leg" key={i}>
+            <span className="leg-pair"><b>{l.from}</b> → <b>{l.to}</b></span>
+            <span className="leg-rate">{fmt(l.rate, 6)}</span>
+            <span className="leg-src">{l.source} · {Math.round(l.age_sec)}s</span>
+          </div>
+        ))}
+        {legs.length > 1 && (
+          <div className="leg leg-total">
+            <span className="leg-pair"><b>{from}</b> → <b>{to}</b></span>
+            <span className="leg-rate">= {fmt(rate.rate, 6)}</span>
+            <span className="leg-calc">{legs.map((l) => fmt(l.rate, 4)).join(" × ")}</span>
+          </div>
+        )}
       </div>
 
       {quotes.length > 0 && (
