@@ -14,11 +14,15 @@
 - [x] **Frankfurter** — JSON ECB mirror (opt-in)
 - [x] **Yahoo Finance** — unofficial ~1min quotes (opt-in; IP-rate-limited)
 - [x] **Source registry + `-sources` flag** — pick the enabled set
-- [ ] **SARB live** — authoritative ZAR pairs; wire the web statistical query/web service
-- [ ] **More central banks** — Fed H.10, BoE, BoC Valet, SNB, RBA, IMF SDR (daily, free files)
-- [ ] **More crypto venues** — Kraken/Bitstamp fiat books; **Wise** mid-market (free token)
-- [ ] **Stooq** — revisit free FX CSV (endpoint 404'd from sandbox IP)
+- [x] **SARB live** — authoritative ZAR (USD/GBP/EUR/JPY) via SarbWebApi; bounded dialer + retries for the slow host
+- [x] **open.er-api** — daily incl. weekends (fills ECB Fri→Mon gap)
+- [x] **fawazahmed0** — ~400 currencies, dual-CDN, no limits
+- [x] **Bank of Canada Valet** — clean REST cross-check (FXZARCAD)
+- [ ] **More crypto venues** — Kraken/Bitstamp USD-EUR-GBP legs, **VALR** (SA ZAR, Luno failover), Binance (verify ZAR symbols)
+- [ ] **More central banks** — Fed H.10 (via FRED key), BoE IADB `XUDLZRD`, SNB cubes, RBA F11
+- [ ] **Wise** mid-market — needs Affiliate-partner auth (not free personal token); revisit if onboarded
 - [ ] **Generic scraper source** — HTML/JSON scraper for page-only banks (robots/ToS-gated)
+- [ ] **SARB resilience** — cache last-good across restarts (host drops TCP connects intermittently)
 
 ## Freshness roadmap (how to get below daily — partly DONE)
 - [x] **Intraday the open way** — Coinbase gives real-time fiat incl. ZAR; graph prefers

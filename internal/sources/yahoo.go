@@ -13,9 +13,11 @@ import (
 
 // Yahoo ingests FX quotes from Yahoo Finance's unofficial v8 chart endpoint
 // (query1.finance.yahoo.com). It is free and near-real-time (~1 min during
-// market hours) but UNOFFICIAL: no SLA, ToS-gray, and IP-rate-limited. Kept off
-// by default; enable with -sources only if you accept that. Symbol "USD<CCY>=X"
-// reads as "1 USD = price CCY".
+// market hours) but comes with real caveats: no SLA, aggressive per-IP rate
+// limiting (HTTP 429), and — importantly — Yahoo's Terms prohibit automated
+// extraction and its robots.txt disallows crawlers. Kept OFF by default; enable
+// with -sources ONLY if your use is permitted. Symbol "USD<CCY>=X" reads as
+// "1 USD = price CCY".
 type Yahoo struct {
 	Symbols []string // e.g. ["USDZAR=X","USDEUR=X"]
 	Client  *http.Client

@@ -59,17 +59,21 @@ Every rate includes `hops`, `as_of`, `age_sec`, and the `path` taken.
 
 Selectable with `-sources` (or `OPENRATE_SOURCES`). Default: `ecb,coinbase,luno,sarb`.
 
-| Source | Status | Cadence | Notes |
+| Source | Default | Cadence | Notes |
 |---|---|---|---|
-| **ECB** daily file | ✅ live | daily | EUR-base, ~30 currencies, ~16:00 CET |
-| **Coinbase** | ✅ live | real-time | free/no-auth fiat (incl. **ZAR**) + crypto — best open intraday source |
-| **Luno** | ✅ live | real-time | SA exchange, live BTC/ZAR & ETH/ZAR; bridges to fiat via BTC |
-| **Frankfurter** | ✅ opt-in | daily | clean JSON ECB mirror |
-| **Yahoo Finance** | ⚠️ opt-in | ~1 min | unofficial, IP-rate-limited, ToS-gray |
-| **SARB** | 🟡 stub | daily | authoritative ZAR — endpoint wiring pending |
+| **ECB** daily file | ✅ | daily | EUR-base, ~30 currencies, ~16:00 CET |
+| **Coinbase** | ✅ | real-time | free/no-auth fiat (incl. **ZAR**) + crypto — best open intraday source |
+| **Luno** | ✅ | real-time | SA exchange, live BTC/ETH/USDT vs ZAR; bridges to fiat via BTC |
+| **SARB** | ✅ | daily | **authoritative ZAR** (per USD/GBP/EUR/JPY); slow host → bounded dialer + retries |
+| **Frankfurter** | opt-in | daily | clean JSON ECB mirror |
+| **open.er-api** | opt-in | daily incl. **weekends** | fills the ECB Fri→Mon gap |
+| **fawazahmed0** | opt-in | daily | ~400 currencies, dual-CDN, no limits |
+| **Bank of Canada** | opt-in | daily | Valet REST, independent cross-check |
+| **Yahoo Finance** | opt-in | ~1 min | unofficial, **ToS-prohibited**, rate-limited — last resort |
 
-Because the graph prefers the freshest direct edge, enabling Coinbase makes
-`USD→ZAR` resolve in **1 hop, seconds old** instead of ECB's day-old EUR cross.
+Because the graph prefers the freshest direct edge, `USD→ZAR` resolves to the
+live Coinbase quote (~seconds old) while `EUR/GBP/JPY→ZAR` resolve to SARB's
+authoritative direct quotes — each chosen automatically, no special-casing.
 Add a source by implementing `sources.Source` and registering it in
 `internal/sources/registry.go`. Full catalog + freshness notes: [SOURCES.md](SOURCES.md).
 

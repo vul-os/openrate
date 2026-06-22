@@ -10,11 +10,15 @@ var constructors = map[string]func() Source{
 	"sarb":        func() Source { return NewSARB() },
 	"frankfurter": func() Source { return NewFrankfurter() },
 	"yahoo":       func() Source { return NewYahoo() },
+	"erapi":       func() Source { return NewERAPI() },
+	"fawazahmed0": func() Source { return NewFawaz() },
+	"boc":         func() Source { return NewBoC() },
 }
 
-// DefaultSources are enabled out of the box: verified free + open, and together
-// they give daily fiat breadth (ecb), real-time fiat incl. ZAR (coinbase), and a
-// live SA crypto/ZAR cross-check (luno). yahoo/frankfurter are opt-in.
+// DefaultSources are enabled out of the box: verified free + open. Together they
+// give daily fiat breadth (ecb), real-time fiat incl. ZAR (coinbase), a live SA
+// crypto/ZAR cross-check (luno), and the authoritative daily ZAR reference
+// (sarb). Opt-in extras: frankfurter, erapi, fawazahmed0, boc, yahoo.
 var DefaultSources = []string{"ecb", "coinbase", "luno", "sarb"}
 
 // Build resolves a comma/space separated list of names into Source instances,

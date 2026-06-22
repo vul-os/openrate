@@ -73,7 +73,7 @@ func (s *Store) refresh(ctx context.Context) {
 	results := make(chan result, len(s.srcs))
 	for _, src := range s.srcs {
 		go func(src sources.Source) {
-			c, cancel := context.WithTimeout(ctx, 20*time.Second)
+			c, cancel := context.WithTimeout(ctx, 50*time.Second) // SARB host can be slow to connect
 			defer cancel()
 			edges, err := src.Fetch(c)
 			results <- result{src.Name(), edges, err}
