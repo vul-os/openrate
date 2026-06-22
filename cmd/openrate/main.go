@@ -23,9 +23,14 @@ func main() {
 	addr := flag.String("addr", env("OPENRATE_ADDR", ":8080"), "listen address")
 	base := flag.String("base", env("OPENRATE_BASE", "ZAR"), "default presentation base currency")
 	refresh := flag.Duration("refresh", envDur("OPENRATE_REFRESH", time.Hour), "source refresh interval")
+	srcSpec := flag.String("sources", env("OPENRATE_SOURCES", ""), "comma-separated sources (default: ecb,coinbase,luno,sarb; also: frankfurter,yahoo)")
 	flag.Parse()
 
-	st := store.New(*refresh, sources.NewECB(), sources.NewSARB())
+	srcs := sources.Build(*srcSpec)
+	if len(srcs) == 0 {
+		log.Fatal("no valid sources configured")
+	}
+	st := store.New(*refresh, srcs...)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

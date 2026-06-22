@@ -57,14 +57,21 @@ Every rate includes `hops`, `as_of`, `age_sec`, and the `path` taken.
 
 ## Sources
 
-| Source | Status | Notes |
-|---|---|---|
-| **ECB** daily reference file | ✅ live | EUR-base, ~30 currencies, daily ~16:00 CET |
-| **SARB** | 🟡 stubbed | authoritative ZAR pairs — see `internal/sources/sarb.go` |
+Selectable with `-sources` (or `OPENRATE_SOURCES`). Default: `ecb,coinbase,luno,sarb`.
 
-Add a source by implementing `sources.Source` and registering it in `main.go`.
-The freshness ceiling is set by the source, not the code — see [tasks.md](tasks.md)
-for the hourly/intraday roadmap.
+| Source | Status | Cadence | Notes |
+|---|---|---|---|
+| **ECB** daily file | ✅ live | daily | EUR-base, ~30 currencies, ~16:00 CET |
+| **Coinbase** | ✅ live | real-time | free/no-auth fiat (incl. **ZAR**) + crypto — best open intraday source |
+| **Luno** | ✅ live | real-time | SA exchange, live BTC/ZAR & ETH/ZAR; bridges to fiat via BTC |
+| **Frankfurter** | ✅ opt-in | daily | clean JSON ECB mirror |
+| **Yahoo Finance** | ⚠️ opt-in | ~1 min | unofficial, IP-rate-limited, ToS-gray |
+| **SARB** | 🟡 stub | daily | authoritative ZAR — endpoint wiring pending |
+
+Because the graph prefers the freshest direct edge, enabling Coinbase makes
+`USD→ZAR` resolve in **1 hop, seconds old** instead of ECB's day-old EUR cross.
+Add a source by implementing `sources.Source` and registering it in
+`internal/sources/registry.go`. Full catalog + freshness notes: [SOURCES.md](SOURCES.md).
 
 ## Web UI
 
