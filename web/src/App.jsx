@@ -5,6 +5,7 @@ import CurrencySelect from "./CurrencySelect.jsx";
 import Footer from "./Footer.jsx";
 import { ccyFlag } from "./currencies.js";
 import Accuracy from "./Accuracy.jsx";
+import Pricing from "./Pricing.jsx";
 
 const GRADE_CLASS = { A: "bA", B: "bB", C: "bC", D: "bD" };
 const fmt = (n, d = 4) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
@@ -20,8 +21,11 @@ export function Grade({ q, size = "sm" }) {
 }
 
 export default function App() {
-  const [tab, setTabState] = useState(() => (location.hash === "#accuracy" ? "accuracy" : "convert"));
-  const setTab = (t) => { setTabState(t); history.replaceState(null, "", t === "accuracy" ? "#accuracy" : "#"); };
+  const [tab, setTabState] = useState(() => {
+    const h = location.hash.replace("#", "");
+    return ["accuracy", "pricing"].includes(h) ? h : "convert";
+  });
+  const setTab = (t) => { setTabState(t); history.replaceState(null, "", t === "convert" ? "#" : `#${t}`); window.scrollTo(0, 0); };
   const [meta, setMeta] = useState(null);
   const [base, setBase] = useState("ZAR");
   const [rates, setRates] = useState(null);
@@ -48,6 +52,7 @@ export default function App() {
         <div className="switch">
           <button className={tab === "convert" ? "on" : ""} onClick={() => setTab("convert")}>Convert</button>
           <button className={tab === "accuracy" ? "on" : ""} onClick={() => setTab("accuracy")}>Accuracy</button>
+          <button className={tab === "pricing" ? "on" : ""} onClick={() => setTab("pricing")}>Pricing</button>
         </div>
         <ThemeToggle />
       </nav>
@@ -55,6 +60,8 @@ export default function App() {
       <div className="wrap">
         {tab === "accuracy" ? (
           <Accuracy />
+        ) : tab === "pricing" ? (
+          <Pricing />
         ) : (
           <>
             <Reveal as="header" className="hero">

@@ -34,6 +34,10 @@ yet — it is the contract for what Vulos Cloud must add around the engine.
       max-conn ceiling model used elsewhere in Vulos Cloud.
 - [ ] **Plans / ceilings.** Free (daily ECB only) → paid tiers unlock SARB +
       higher refresh cadence + history. Ceiling, not reservation.
+      **Billing model is done** — see `vulos-cloud/billingmodel/openrate/`
+      (model.py + TIERS.md + COSTS.md): Free $0 / Developer $9 / Startup $39 /
+      Business $149 / Enterprise, request-billed, ~98% margin by 1k customers,
+      break-even ~29 signups. The openrate landing Pricing tab reflects it.
 - [ ] **Freshness tiers as a product axis.** The engine's refresh interval is the
       lever: free = daily, paid = hourly, premium = streaming push. Gate per
       plan at the Cloud layer; the engine just takes `-refresh` / a feed handle.

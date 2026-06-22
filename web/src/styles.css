@@ -373,6 +373,41 @@ body {
 .stt.warn .stt-v { color: var(--warn); }
 .math-note { margin-top: 12px; font-size: 12px; color: var(--text-mut); font-family: var(--sans); line-height: 1.6; }
 
+/* ─── pricing ─────────────────────────────────────────────────────────── */
+.tier-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.tier { position: relative; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 22px 18px; display: flex; flex-direction: column; }
+.tier.pop { border-color: color-mix(in srgb, var(--brand) 50%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent), var(--shadow); }
+.tier-badge { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--brand); color: #160a1f; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 100px; white-space: nowrap; }
+.tier-name { font-family: var(--mono); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.tier-price { display: flex; align-items: baseline; gap: 8px; margin: 12px 0 4px; flex-wrap: wrap; }
+.tp-zar { font-family: var(--sans); font-size: 28px; font-weight: 800; letter-spacing: -.03em; color: var(--text); }
+.tp-usd { font-family: var(--mono); font-size: 12px; color: var(--text-mut); }
+.tier-reqs { font-family: var(--mono); font-size: 12px; color: var(--text-mut); padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.tier-feat { list-style: none; margin: 16px 0; padding: 0; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+.tier-feat li { font-family: var(--sans); font-size: 12.5px; color: var(--text-2); line-height: 1.45; padding-left: 18px; position: relative; }
+.tier-feat li::before { content: "→"; position: absolute; left: 0; color: var(--good); }
+.tier-cta { display: block; text-align: center; font-family: var(--mono); font-size: 13px; padding: 10px; border-radius: var(--r); border: 1px solid var(--border-strong); color: var(--text-2); transition: all .18s var(--ease); }
+.tier-cta:hover { border-color: var(--border-em); color: var(--text); }
+.tier-cta.primary { background: var(--grad); color: #07120f; border-color: transparent; font-weight: 700; }
+.tier-cta.primary:hover { color: #07120f; opacity: .92; }
+
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+.step { display: flex; gap: 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; }
+.step-n { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--bg-sel); border: 1px solid var(--bg-sel-border); color: var(--good); font-family: var(--mono); font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.step b { font-family: var(--mono); font-size: 14px; }
+.step p { font-family: var(--sans); font-size: 12.5px; color: var(--text-mut); line-height: 1.55; margin-top: 5px; }
+
+.cmp-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-lg); }
+.cmp { width: 100%; border-collapse: collapse; min-width: 680px; }
+.cmp th, .cmp td { padding: 13px 16px; text-align: center; font-family: var(--mono); font-size: 12.5px; border-bottom: 1px solid var(--border); }
+.cmp thead th { color: var(--text-mut); font-weight: 500; font-size: 11px; letter-spacing: .04em; }
+.cmp th.us, .cmp td.us { background: color-mix(in srgb, var(--good) 7%, transparent); }
+.cmp thead th.us { color: var(--good); font-weight: 700; }
+.cmp td.cmp-feat { text-align: left; color: var(--text-2); font-family: var(--sans); }
+.cmp tbody tr:last-child td { border-bottom: none; }
+.cmp td.yes { color: var(--good); font-weight: 600; }
+.cmp td.no { color: var(--text-faint); }
+
 /* helpers + math sections */
 .card.pad0 { padding: 6px; }
 .pad { padding: 24px; }
@@ -403,6 +438,8 @@ body {
   .qtiles { grid-template-columns: repeat(3, 1fr); }
   .bands { grid-template-columns: repeat(2, 1fr); }
   .cov-grid { grid-template-columns: 1fr; }
+  .tier-grid { grid-template-columns: repeat(2, 1fr); }
+  .steps { grid-template-columns: 1fr; }
   .foot-grid { grid-template-columns: 1fr 1fr; gap: var(--sp-5) var(--sp-4); }
   .foot-brand { grid-column: 1 / -1; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
