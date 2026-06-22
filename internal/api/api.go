@@ -96,12 +96,23 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
+	// Per-source direct quotes for this pair — the raw inputs behind the number.
+	type quoteView struct {
+		Source string  `json:"source"`
+		Rate   float64 `json:"rate"`
+		AgeSec float64 `json:"age_sec"`
+	}
+	var quotes []quoteView
+	for _, q := range snap.DirectQuotes(from, to) {
+		quotes = append(quotes, quoteView{Source: q.Source, Rate: q.Rate, AgeSec: now.Sub(q.Time).Seconds()})
+	}
 	writeJSON(w, map[string]any{
 		"from":   from,
 		"to":     to,
 		"amount": amount,
 		"result": amount * p.Rate,
 		"rate":   view(snap, from, to, p, now),
+		"quotes": quotes,
 	})
 }
 

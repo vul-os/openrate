@@ -24,19 +24,25 @@ type Assessment struct {
 	Caveats       []string      `json:"caveats,omitempty"`
 }
 
-// Corroboration captures cross-source agreement for the exact pair.
+// Corroboration captures cross-source agreement for the exact pair, including
+// the financial dispersion across independent direct quotes.
 type Corroboration struct {
 	Sources   int     `json:"sources"`    // number of independent direct quotes
 	SpreadBps float64 `json:"spread_bps"` // (max-min)/min across those quotes, in basis points
 	Agree     bool    `json:"agree"`      // spread within tolerance
+	Mean      float64 `json:"mean,omitempty"`
+	Stdev     float64 `json:"stdev,omitempty"`     // sample standard deviation of the quotes
+	StdevBps  float64 `json:"stdev_bps,omitempty"` // stdev relative to mean, in basis points
+	Min       float64 `json:"min,omitempty"`
+	Max       float64 `json:"max,omitempty"`
 }
 
 // sourceRank ranks source authority (higher = more authoritative). The weakest
 // link on a path determines the reported source class.
 var sourceRank = map[string]int{
 	"sarb": 4, "ecb": 4, "boc": 4, "frankfurter": 4, // central-bank / official data
-	"coinbase": 3, "luno": 3, // real exchange venues
-	"erapi": 2, "fawazahmed0": 2, // aggregators
+	"coinbase": 3, "luno": 3, "polygon": 3, "tradermade": 3, "twelvedata": 3, // real-time market data / venues
+	"erapi": 2, "fawazahmed0": 2, "oxr": 2, // aggregators
 	"yahoo": 1, // unofficial
 }
 
@@ -158,10 +164,23 @@ func corroborate(quotes []graph.Quote) (Corroboration, float64) {
 	if n == 1 {
 		return Corroboration{Sources: 1, SpreadBps: 0, Agree: false}, 0.88 // single source, uncorroborated
 	}
-	min, max := math.Inf(1), math.Inf(-1)
+	min, max, sum := math.Inf(1), math.Inf(-1), 0.0
 	for _, r := range seen {
 		min = math.Min(min, r)
 		max = math.Max(max, r)
+		sum += r
+	}
+	mean := sum / float64(n)
+	// sample variance (n-1)
+	var ss float64
+	for _, r := range seen {
+		d := r - mean
+		ss += d * d
+	}
+	stdev := math.Sqrt(ss / float64(n-1))
+	stdevBps := 0.0
+	if mean > 0 {
+		stdevBps = stdev / mean * 10000
 	}
 	spread := (max - min) / min * 10000 // bps
 	agree := spread <= 50
@@ -176,7 +195,10 @@ func corroborate(quotes []graph.Quote) (Corroboration, float64) {
 	default:
 		factor = 0.72
 	}
-	return Corroboration{Sources: n, SpreadBps: round2(spread), Agree: agree}, factor
+	return Corroboration{
+		Sources: n, SpreadBps: round2(spread), Agree: agree,
+		Mean: mean, Stdev: stdev, StdevBps: round2(stdevBps), Min: min, Max: max,
+	}, factor
 }
 
 func grade(conf float64) string {
