@@ -4,7 +4,7 @@ import { ccyName, ccyFlag } from "./currencies.js";
 // CurrencySelect — a searchable currency dropdown (code + full name + flag),
 // replacing the native <select>. Keyboard: type to filter, ↑/↓ to move, Enter
 // to choose, Esc to close. Closes on outside click.
-export default function CurrencySelect({ label, value, onChange, options }) {
+export default function CurrencySelect({ label, value, onChange, options, compact = false }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -37,9 +37,9 @@ export default function CurrencySelect({ label, value, onChange, options }) {
   };
 
   return (
-    <div className="field csel" ref={rootRef}>
-      <label>{label}</label>
-      <button type="button" className={`csel-btn ${open ? "open" : ""}`} onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
+    <div className={`${compact ? "csel csel-c" : "field csel"}`} ref={rootRef}>
+      {!compact && <label>{label}</label>}
+      <button type="button" className={`csel-btn ${open ? "open" : ""} ${compact ? "compact" : ""}`} onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
         <span className="csel-flag">{ccyFlag(value)}</span>
         <span className="csel-code">{value}</span>
         <span className="csel-name">{ccyName(value)}</span>
