@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMeta, getRates, convert, ageLabel } from "./api.js";
+import { Reveal, Eyebrow } from "./ui.jsx";
 import Accuracy from "./Accuracy.jsx";
 
 const GRADE_CLASS = { A: "bA", B: "bB", C: "bC", D: "bD" };
@@ -27,6 +28,7 @@ export default function App() {
   useEffect(() => { getRates(base).then(setRates).catch((e) => setErr(e.message)); }, [base]);
 
   const currencies = meta?.currencies ?? [];
+  const liveSources = (meta?.sources ?? []).filter((s) => !s.last_error && s.edges > 0).length;
 
   return (
     <>
@@ -35,7 +37,7 @@ export default function App() {
           <img src="/openrate.svg" alt="" className="logo" />
           <span className="name">open<b>rate</b></span>
         </div>
-        <span className="pill">open · {base}-anchored</span>
+        <span className="pill"><span className="dot" />open · {base}-anchored</span>
         <div className="spacer" />
         <div className="tabs">
           <button className={tab === "convert" ? "on" : ""} onClick={() => setTab("convert")}>Convert</button>
@@ -44,44 +46,68 @@ export default function App() {
       </nav>
 
       <div className="wrap">
-        <header className="hero">
-          <h1>Exchange rates, <span className="accent">graded for accuracy</span>.</h1>
-          <p>
-            An open, {base}-anchored rate engine. Rates come from central banks and live
-            venues — never a paid API — and every price ships with a quality grade so you
-            know exactly how much to trust it.
-          </p>
-        </header>
-
-        {err && <div className="err">{err}</div>}
-
         {tab === "accuracy" ? (
           <Accuracy />
         ) : (
           <>
-            <Converter currencies={currencies} defaultFrom="USD" defaultTo={base} />
-            <section className="card">
-              <div className="row between">
-                <h2>Rates · 1 {base} =</h2>
-                <label className="baselbl">
-                  base
-                  <select value={base} onChange={(e) => setBase(e.target.value)}>
-                    {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </label>
+            <Reveal as="header" className="hero">
+              <Eyebrow>Open exchange-rate engine</Eyebrow>
+              <h1 className="display d1">Exchange rates,<br /><span className="accent-word">graded for accuracy</span>.</h1>
+              <p className="prose">
+                A {base}-anchored rate engine built the open way — central banks and live
+                venues, never a paid API. Every price ships with a quality grade, so you
+                know exactly how much to trust it.
+              </p>
+              <div className="stats">
+                <Stat v={currencies.length || "—"} l="currencies" />
+                <Stat v={liveSources || "—"} l="live sources" accent />
+                <Stat v="~1 min" l="freshness" />
               </div>
-              <RatesTable rates={rates?.rates} />
-              {rates && (
-                <p className="foot">
-                  built {new Date(rates.built_at).toLocaleString()} · sources:{" "}
-                  {(meta?.sources ?? []).map((s) => `${s.name}(${s.edges})`).join(", ")}
-                </p>
-              )}
-            </section>
+            </Reveal>
+
+            {err && <div className="err">{err}</div>}
+
+            <Reveal className="section" delay={60}>
+              <Converter currencies={currencies} defaultFrom="USD" defaultTo={base} />
+            </Reveal>
+
+            <Reveal className="section" delay={40}>
+              <div className="sec-head">
+                <Eyebrow>Live board</Eyebrow>
+                <h2 className="display d2">All rates, 1&nbsp;{base}&nbsp;=</h2>
+              </div>
+              <div className="card">
+                <div className="row between" style={{ marginBottom: 12 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>{Object.keys(rates?.rates || {}).length} currencies</span>
+                  <label className="muted" style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
+                    base
+                    <select value={base} onChange={(e) => setBase(e.target.value)} style={{ padding: "6px 10px", fontSize: 13 }}>
+                      {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <RatesTable rates={rates?.rates} />
+                {rates && (
+                  <p className="foot">
+                    built {new Date(rates.built_at).toLocaleString()} · sources:{" "}
+                    {(meta?.sources ?? []).map((s) => `${s.name}(${s.edges})`).join(", ")}
+                  </p>
+                )}
+              </div>
+            </Reveal>
           </>
         )}
       </div>
     </>
+  );
+}
+
+function Stat({ v, l, accent }) {
+  return (
+    <div className="stat">
+      <span className="v">{accent ? <em>{v}</em> : v}</span>
+      <span className="l">{l}</span>
+    </div>
   );
 }
 
@@ -99,13 +125,15 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
 
   const q = out?.rate?.quality;
   return (
-    <section className="card conv">
+    <section className="conv">
       <div className="conv-grid">
-        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="amount" />
-        <Select value={from} onChange={setFrom} options={currencies} />
-        <button className="swap" title="swap" onClick={() => { setFrom(to); setTo(from); }}>⇄</button>
-        <Select value={to} onChange={setTo} options={currencies} />
-        <span />
+        <div className="field">
+          <label>Amount</label>
+          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <Field label="From" value={from} onChange={setFrom} options={currencies} />
+        <div className="swap-wrap"><button className="swap" title="swap" onClick={() => { setFrom(to); setTo(from); }}>⇄</button></div>
+        <Field label="To" value={to} onChange={setTo} options={currencies} />
       </div>
       {out && (
         <div className="result">
@@ -125,7 +153,7 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
                 <Bit label="corroboration" v={`${q.corroboration.sources} src${q.corroboration.sources > 1 ? ` · ${q.corroboration.spread_bps}bps` : ""}`} />
               </div>
               {q.caveats?.length > 0 && (
-                <ul className="caveats">{q.caveats.map((c, i) => <li key={i}>⚠ {c}</li>)}</ul>
+                <ul className="caveats">{q.caveats.map((c, i) => <li key={i}><span>⚠</span><span>{c}</span></li>)}</ul>
               )}
             </div>
           )}
@@ -139,11 +167,14 @@ function Bit({ label, v }) {
   return <span className="bit"><em>{label}</em>{v}</span>;
 }
 
-function Select({ value, onChange, options }) {
+function Field({ label, value, onChange, options }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="currency">
-      {options.map((c) => <option key={c} value={c}>{c}</option>)}
-    </select>
+    <div className="field">
+      <label>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+        {options.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+    </div>
   );
 }
 
