@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/internal/quality"
 	"github.com/vul-os/openrate/internal/store"
 )
 
@@ -32,15 +33,27 @@ func (s *Server) Routes(mux *http.ServeMux) {
 }
 
 type rateView struct {
-	Rate   float64   `json:"rate"`
-	Hops   int       `json:"hops"`
-	AsOf   time.Time `json:"as_of"`
-	AgeSec float64   `json:"age_sec"`
-	Path   []string  `json:"path"`
+	Rate    float64            `json:"rate"`
+	Hops    int                `json:"hops"`
+	AsOf    time.Time          `json:"as_of"`
+	AgeSec  float64            `json:"age_sec"`
+	Path    []string           `json:"path"`
+	Sources []string           `json:"sources"`
+	Quality quality.Assessment `json:"quality"`
 }
 
-func view(p graph.Pair, now time.Time) rateView {
-	return rateView{Rate: p.Rate, Hops: p.Hops, AsOf: p.AsOf, AgeSec: now.Sub(p.AsOf).Seconds(), Path: p.Path}
+// view builds a rate view; from/to scope the quality assessment (currency
+// caveats + cross-source corroboration for that exact pair).
+func view(snap *graph.Snapshot, from, to string, p graph.Pair, now time.Time) rateView {
+	return rateView{
+		Rate:    p.Rate,
+		Hops:    p.Hops,
+		AsOf:    p.AsOf,
+		AgeSec:  now.Sub(p.AsOf).Seconds(),
+		Path:    p.Path,
+		Sources: p.Sources,
+		Quality: quality.Assess(from, to, p, snap.DirectQuotes(from, to), now),
+	}
 }
 
 // GET /api/v1/rates?base=ZAR  -> { base, built_at, rates: { CCY: rateView } }
@@ -51,7 +64,7 @@ func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	rates := map[string]rateView{}
 	for ccy, p := range snap.Rebase(base) {
-		rates[ccy] = view(p, now)
+		rates[ccy] = view(snap, base, ccy, p, now)
 	}
 	writeJSON(w, map[string]any{
 		"base":     base,
@@ -88,7 +101,7 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		"to":     to,
 		"amount": amount,
 		"result": amount * p.Rate,
-		"rate":   view(p, now),
+		"rate":   view(snap, from, to, p, now),
 	})
 }
 

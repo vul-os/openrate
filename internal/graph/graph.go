@@ -27,10 +27,19 @@ type Edge struct {
 // provenance that matters for a freshness-focused API: how many hops the cross
 // rate traversed and the oldest ("as of") timestamp on that path.
 type Pair struct {
-	Rate  float64   `json:"rate"`
-	Hops  int       `json:"hops"`
-	AsOf  time.Time `json:"as_of"`
-	Path  []string  `json:"path"`
+	Rate    float64   `json:"rate"`
+	Hops    int       `json:"hops"`
+	AsOf    time.Time `json:"as_of"`
+	Path    []string  `json:"path"`
+	Sources []string  `json:"sources"` // distinct sources of the edges on the path
+}
+
+// Quote is a single source's direct quote for an ordered pair, used to measure
+// cross-source agreement (corroboration) for an exactly-quoted pair.
+type Quote struct {
+	Source string    `json:"source"`
+	Rate   float64   `json:"rate"`
+	Time   time.Time `json:"time"`
 }
 
 // Snapshot is an immutable all-pairs view built at BuiltAt. It is safe to share
@@ -39,6 +48,7 @@ type Snapshot struct {
 	BuiltAt    time.Time                  `json:"built_at"`
 	Currencies []string                   `json:"currencies"`
 	matrix     map[string]map[string]Pair // matrix[from][to]
+	direct     map[string][]Quote         // "FROM>TO" -> direct quotes (both directions)
 }
 
 // Lookup returns the materialized pair from->to, or ok=false if unreachable.
@@ -52,6 +62,12 @@ func (s *Snapshot) Lookup(from, to string) (Pair, bool) {
 	}
 	p, ok := row[to]
 	return p, ok
+}
+
+// DirectQuotes returns every source's directly-quoted rate for from->to (inverse
+// edges are folded in), used to assess cross-source agreement.
+func (s *Snapshot) DirectQuotes(from, to string) []Quote {
+	return s.direct[from+">"+to]
 }
 
 // Rebase returns every currency expressed against base: result[X] reads as
@@ -85,14 +101,17 @@ func (g *Graph) Replace(source string, edges []Edge) {
 	g.bySource[source] = edges
 }
 
-// adjacency builds From -> []Edge including implied inverse edges. When multiple
-// edges connect the same ordered pair, the freshest wins (it sorts first), which
-// gives us the "prefer the most recent quote" tie-break among equal-length paths.
-func (g *Graph) adjacency() (map[string][]Edge, []string) {
+// adjacency builds From -> []Edge including implied inverse edges, and a "FROM>TO"
+// -> direct-quotes index (every source's direct rate for each ordered pair, both
+// directions). When multiple edges connect the same ordered pair, the freshest
+// wins (it sorts first), giving the "prefer the most recent quote" tie-break.
+func (g *Graph) adjacency() (map[string][]Edge, []string, map[string][]Quote) {
 	adj := map[string][]Edge{}
+	direct := map[string][]Quote{}
 	seen := map[string]bool{}
 	add := func(e Edge) {
 		adj[e.From] = append(adj[e.From], e)
+		direct[e.From+">"+e.To] = append(direct[e.From+">"+e.To], Quote{Source: e.Source, Rate: e.Rate, Time: e.Time})
 		seen[e.From] = true
 		seen[e.To] = true
 	}
@@ -114,7 +133,7 @@ func (g *Graph) adjacency() (map[string][]Edge, []string) {
 		currencies = append(currencies, c)
 	}
 	sort.Strings(currencies)
-	return adj, currencies
+	return adj, currencies, direct
 }
 
 // Materialize computes the all-pairs matrix via breadth-first search from every
@@ -122,7 +141,7 @@ func (g *Graph) adjacency() (map[string][]Edge, []string) {
 // quoted pair (1 hop) always beats a triangulated one — exactly the
 // "prefer direct, else shortest path, else freshest" rule.
 func (g *Graph) Materialize(now time.Time) *Snapshot {
-	adj, currencies := g.adjacency()
+	adj, currencies, direct := g.adjacency()
 	matrix := make(map[string]map[string]Pair, len(currencies))
 
 	for _, start := range currencies {
@@ -142,11 +161,28 @@ func (g *Graph) Materialize(now time.Time) *Snapshot {
 					asOf = e.Time
 				}
 				path := append(append([]string{}, base.Path...), e.To)
-				row[e.To] = Pair{Rate: base.Rate * e.Rate, Hops: base.Hops + 1, AsOf: asOf, Path: path}
+				row[e.To] = Pair{
+					Rate:    base.Rate * e.Rate,
+					Hops:    base.Hops + 1,
+					AsOf:    asOf,
+					Path:    path,
+					Sources: addDistinct(base.Sources, e.Source),
+				}
 				queue = append(queue, e.To)
 			}
 		}
 		matrix[start] = row
 	}
-	return &Snapshot{BuiltAt: now, Currencies: currencies, matrix: matrix}
+	return &Snapshot{BuiltAt: now, Currencies: currencies, matrix: matrix, direct: direct}
+}
+
+func addDistinct(xs []string, x string) []string {
+	for _, v := range xs {
+		if v == x {
+			return xs
+		}
+	}
+	out := make([]string, len(xs), len(xs)+1)
+	copy(out, xs)
+	return append(out, x)
 }
