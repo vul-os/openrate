@@ -11,6 +11,8 @@
       source authority, cross-source corroboration, currency caveats — see ACCURACY.md
 - [x] **Web Accuracy page** + grade badge in converter; dropped defunct HRK
 - [x] **Store fix** — refresh no longer holds the lock during I/O; progressive materialization
+- [x] **Vulos design system** — themed UI (near-black/teal/Inter), redesigned converter + accuracy + nav
+- [x] **Anti-scraping** — per-IP token-bucket rate limiter (`-ratelimit`), robots.txt (Disallow /api/), security headers
 
 ## Sources (the "open way" — see SOURCES.md for the full survey)
 - [x] **Coinbase** — free/no-auth real-time fiat incl. ZAR (best open intraday source)
