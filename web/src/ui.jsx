@@ -43,7 +43,7 @@ export function useScrollSpy(ids) {
 
 // ThemeToggle — dark/light, persisted to localStorage, sticks to Vulos tokens.
 export function ThemeToggle() {
-  const [theme, setTheme] = useState(() => localStorage.getItem("or-theme") || "dark");
+  const [theme, setTheme] = useState(() => localStorage.getItem("or-theme") || "light");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("or-theme", theme);

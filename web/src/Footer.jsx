@@ -13,7 +13,7 @@ export default function Footer({ meta, base }) {
           <div className="foot-brand">
             <div className="foot-mark">
               <img src="/openrate.svg" width="28" height="28" alt="" />
-              <span className="name">open<b>rate</b></span>
+              <span className="name">open <b>rate</b></span>
             </div>
             <p>Open, {base}-anchored exchange rates — graded for accuracy. Central banks and live venues, never a paid API.</p>
             <a className="foot-vulos" href="https://vulos.org" target="_blank" rel="noreferrer">

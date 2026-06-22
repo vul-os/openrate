@@ -49,8 +49,8 @@ export default function App() {
     <>
       <nav className="nav">
         <a className="brand" href="#convert" onClick={(e) => go(e, "convert")}>
-          <img src="/openrate.svg" alt="openrate" className="logo" />
-          <span className="name">open<b>rate</b></span>
+          <img src="/openrate.svg" alt="open rate" className="logo" />
+          <span className="name">open <b>rate</b></span>
         </a>
         <div className="nav-anchor">
           <span className="anchor-lbl">Anchor</span>
