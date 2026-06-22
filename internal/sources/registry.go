@@ -1,6 +1,9 @@
 package sources
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 // constructors maps a source name to its factory. Add new sources here.
 var constructors = map[string]func() Source{
@@ -13,6 +16,20 @@ var constructors = map[string]func() Source{
 	"erapi":       func() Source { return NewERAPI() },
 	"fawazahmed0": func() Source { return NewFawaz() },
 	"boc":         func() Source { return NewBoC() },
+	"oxr":         func() Source { return NewOXR() },
+	"twelvedata":  func() Source { return NewTwelveData() },
+	"polygon":     func() Source { return NewPolygon() },
+	"tradermade":  func() Source { return NewTraderMade() },
+}
+
+// paidKeyEnv maps each paid source to the env var that enables it. If the var is
+// set, the source is auto-added (no need to list it in -sources). This is the
+// ".env and it just works" path for the OSS project.
+var paidKeyEnv = map[string]string{
+	"oxr":        "OPENRATE_OXR_APP_ID",
+	"twelvedata": "OPENRATE_TWELVEDATA_KEY",
+	"polygon":    "OPENRATE_POLYGON_KEY",
+	"tradermade": "OPENRATE_TRADERMADE_KEY",
 }
 
 // DefaultSources are enabled out of the box: verified free + open. Together they
@@ -28,10 +45,19 @@ func Build(spec string) []Source {
 	if len(names) == 0 {
 		names = DefaultSources
 	}
+	chosen := map[string]bool{}
 	var out []Source
 	for _, n := range names {
-		if mk, ok := constructors[n]; ok {
+		if mk, ok := constructors[n]; ok && !chosen[n] {
 			out = append(out, mk())
+			chosen[n] = true
+		}
+	}
+	// Auto-enable any paid source whose API key is present in the environment.
+	for name, env := range paidKeyEnv {
+		if !chosen[name] && os.Getenv(env) != "" {
+			out = append(out, constructors[name]())
+			chosen[name] = true
 		}
 	}
 	return out

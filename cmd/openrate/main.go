@@ -23,6 +23,7 @@ import (
 )
 
 func main() {
+	loadDotEnv(".env")
 	addr := flag.String("addr", env("OPENRATE_ADDR", ":8080"), "listen address")
 	base := flag.String("base", env("OPENRATE_BASE", "ZAR"), "default presentation base currency")
 	refresh := flag.Duration("refresh", envDur("OPENRATE_REFRESH", time.Hour), "source refresh interval")
@@ -90,6 +91,30 @@ func guard(mux http.Handler, limiter *ratelimit.Limiter) http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// loadDotEnv reads a .env file (if present) and sets any KEY=VALUE pairs that
+// aren't already in the environment. Dependency-free; real env vars win.
+func loadDotEnv(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		v = strings.Trim(strings.TrimSpace(v), `"'`)
+		if k != "" && os.Getenv(k) == "" {
+			_ = os.Setenv(k, v)
+		}
+	}
 }
 
 func env(k, def string) string {
