@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMeta, getRates, convert, ageLabel } from "./api.js";
 import { Reveal, Eyebrow } from "./ui.jsx";
+import CurrencySelect from "./CurrencySelect.jsx";
+import Footer from "./Footer.jsx";
+import { ccyFlag } from "./currencies.js";
 import Accuracy from "./Accuracy.jsx";
 
 const GRADE_CLASS = { A: "bA", B: "bB", C: "bC", D: "bD" };
@@ -98,6 +101,7 @@ export default function App() {
           </>
         )}
       </div>
+      <Footer meta={meta} base={base} />
     </>
   );
 }
@@ -124,6 +128,10 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
   }, [from, to, amount]);
 
   const q = out?.rate?.quality;
+  const r = out?.rate?.rate;
+  const QUICK = [1, 10, 100, 1000, 10000];
+  const fmt = (n, d = 4) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
+
   return (
     <section className="conv">
       <div className="conv-grid">
@@ -131,20 +139,34 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
           <label>Amount</label>
           <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
-        <Field label="From" value={from} onChange={setFrom} options={currencies} />
+        <CurrencySelect label="From" value={from} onChange={setFrom} options={currencies} />
         <div className="swap-wrap"><button className="swap" title="swap" onClick={() => { setFrom(to); setTo(from); }}>⇄</button></div>
-        <Field label="To" value={to} onChange={setTo} options={currencies} />
+        <CurrencySelect label="To" value={to} onChange={setTo} options={currencies} />
       </div>
+
+      <div className="quick">
+        {QUICK.map((n) => (
+          <button key={n} className={`chip ${Number(amount) === n ? "on" : ""}`} onClick={() => setAmount(n)}>
+            {n.toLocaleString()}
+          </button>
+        ))}
+      </div>
+
       {out && (
         <div className="result">
           <div className="resline">
-            <strong>{Number(out.result).toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong>
+            <strong>{fmt(out.result)}</strong>
             <span className="unit">{out.to}</span>
             <Grade q={q} size="lg" />
           </div>
+          <div className="inverse">
+            <span>1 {from} = {fmt(r, 6)} {to}</span>
+            <span className="sep">·</span>
+            <span>1 {to} = {fmt(1 / r, 6)} {from}</span>
+          </div>
           {q && (
             <div className="prov">
-              rate {Number(out.rate.rate).toPrecision(6)} · {out.rate.hops} hop{out.rate.hops === 1 ? "" : "s"} · {ageLabel(out.rate.age_sec)} · via {out.rate.path.join(" → ")}
+              {out.rate.hops} hop{out.rate.hops === 1 ? "" : "s"} · {ageLabel(out.rate.age_sec)} · via {out.rate.path.join(" → ")}
               <div className="qbits">
                 <Bit label="confidence" v={`${(q.confidence * 100).toFixed(0)}%`} />
                 <Bit label="freshness" v={q.freshness} />
@@ -167,17 +189,6 @@ function Bit({ label, v }) {
   return <span className="bit"><em>{label}</em>{v}</span>;
 }
 
-function Field({ label, value, onChange, options }) {
-  return (
-    <div className="field">
-      <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        {options.map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
-    </div>
-  );
-}
-
 function RatesTable({ rates }) {
   const rows = useMemo(() => {
     if (!rates) return [];
@@ -194,7 +205,7 @@ function RatesTable({ rates }) {
       <tbody>
         {rows.map(([ccy, p]) => (
           <tr key={ccy}>
-            <td className="ccy">{ccy}</td>
+            <td className="ccy"><span className="rflag">{ccyFlag(ccy)}</span> {ccy}</td>
             <td className="num">{Number(p.rate).toPrecision(6)}</td>
             <td><Grade q={p.quality} /></td>
             <td className="muted">{ageLabel(p.age_sec)}</td>
