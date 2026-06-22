@@ -75,7 +75,7 @@
 }
 
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; overflow-x: hidden; scroll-padding-top: var(--nav-h); }
+html { scroll-behavior: smooth; overflow-x: clip; scroll-padding-top: var(--nav-h); }
 html, body { transition: background .3s var(--ease), color .3s var(--ease); }
 body {
   background: var(--bg-base);
@@ -84,7 +84,7 @@ body {
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 ::selection { background: color-mix(in srgb, var(--blue) 22%, transparent); }
 :focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
@@ -148,7 +148,6 @@ a.brand { text-decoration: none; }
 
 /* ─── layout ──────────────────────────────────────────────────────────── */
 .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
-main { overflow-x: clip; } /* defensive guard against accidental horizontal overflow */
 .sect { padding: clamp(56px, 9vw, 112px) 0; scroll-margin-top: var(--nav-h); position: relative; }
 #convert { padding-top: clamp(40px, 6vw, 72px); }
 .sect.alt { background: color-mix(in srgb, var(--bg-base) 55%, var(--bg-surface)); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
