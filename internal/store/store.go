@@ -80,23 +80,27 @@ func (s *Store) refresh(ctx context.Context) {
 		}(src)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now().UTC()
+	// Apply each result as it arrives, re-materializing progressively. Fast
+	// sources (Coinbase ~1s) populate the snapshot immediately rather than waiting
+	// for the slowest (SARB). The lock is held only for the fast apply+materialize,
+	// never during network I/O, so reads are never blocked on a slow source.
 	for range s.srcs {
 		r := <-results
+		s.mu.Lock()
+		now := time.Now().UTC()
 		st := s.status[r.name]
 		if r.err != nil {
 			st.LastError = r.err.Error()
 			log.Printf("source %s: %v", r.name, r.err)
-			continue
+		} else {
+			st.LastError = ""
+			st.LastOK = now
+			st.Edges = len(r.edges)
+			s.g.Replace(r.name, r.edges)
 		}
-		st.LastError = ""
-		st.LastOK = now
-		st.Edges = len(r.edges)
-		s.g.Replace(r.name, r.edges)
+		s.snap = s.g.Materialize(now)
+		s.mu.Unlock()
 	}
-	s.snap = s.g.Materialize(now)
 }
 
 // Run does an immediate refresh, then refreshes on the configured interval until
