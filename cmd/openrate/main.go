@@ -10,10 +10,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/vul-os/openrate/internal/api"
+	"github.com/vul-os/openrate/internal/ratelimit"
 	"github.com/vul-os/openrate/internal/sources"
 	"github.com/vul-os/openrate/internal/store"
 	"github.com/vul-os/openrate/web"
@@ -24,6 +27,7 @@ func main() {
 	base := flag.String("base", env("OPENRATE_BASE", "ZAR"), "default presentation base currency")
 	refresh := flag.Duration("refresh", envDur("OPENRATE_REFRESH", time.Hour), "source refresh interval")
 	srcSpec := flag.String("sources", env("OPENRATE_SOURCES", ""), "comma-separated sources (default: ecb,coinbase,luno,sarb; also: frankfurter,yahoo)")
+	rpm := flag.Int("ratelimit", envInt("OPENRATE_RATELIMIT", 120), "per-IP API requests/minute (anti-scraping; 0 disables)")
 	flag.Parse()
 
 	srcs := sources.Build(*srcSpec)
@@ -45,7 +49,11 @@ func main() {
 		log.Printf("web ui unavailable: %v", err)
 	}
 
-	srv := &http.Server{Addr: *addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	var limiter *ratelimit.Limiter
+	if *rpm > 0 {
+		limiter = ratelimit.New(*rpm, *rpm/2+1)
+	}
+	srv := &http.Server{Addr: *addr, Handler: guard(mux, limiter), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		log.Printf("openrate listening on %s (base=%s, refresh=%s)", *addr, *base, *refresh)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -60,9 +68,42 @@ func main() {
 	log.Println("openrate stopped")
 }
 
+// guard wraps the mux with anti-scraping + hardening: a restrictive robots.txt,
+// security headers, no-store caching on the API, and per-IP rate limiting on
+// /api/ paths. The embedded UI and its assets are not rate-limited.
+func guard(mux http.Handler, limiter *ratelimit.Limiter) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/robots.txt" {
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte("User-agent: *\nDisallow: /api/\n"))
+			return
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+			if limiter != nil {
+				limiter.Middleware(mux).ServeHTTP(w, r)
+				return
+			}
+		}
+		mux.ServeHTTP(w, r)
+	})
+}
+
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
+	}
+	return def
+}
+
+func envInt(k string, def int) int {
+	if v := os.Getenv(k); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return def
 }

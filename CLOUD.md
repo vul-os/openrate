@@ -16,7 +16,7 @@ yet — it is the contract for what Vulos Cloud must add around the engine.
 | JSON API + embedded UI | ✅ owns | proxies / brands |
 | API keys, auth, per-project isolation | ❌ | ✅ owns |
 | Usage metering + billing (per request / per plan) | ❌ | ✅ owns |
-| Rate limiting / quotas / plan ceilings | ❌ (engine has none) | ✅ owns |
+| Rate limiting / quotas / plan ceilings | 🟡 best-effort per-IP (`-ratelimit`) | ✅ owns per-key quotas + WAF/CDN |
 | TLS, custom domains, CDN edge cache | ❌ | ✅ owns |
 | Multi-region deploy + failover | ❌ | ✅ owns |
 | Historical storage + time-series endpoints | basic / TODO | long-retention store |
