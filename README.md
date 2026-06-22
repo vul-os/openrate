@@ -53,7 +53,28 @@ Config via flags or env: `OPENRATE_ADDR`, `OPENRATE_BASE`, `OPENRATE_REFRESH`.
 | `GET /api/v1/meta` | Sources, freshness, currency list |
 | `GET /healthz` | Liveness |
 
-Every rate includes `hops`, `as_of`, `age_sec`, and the `path` taken.
+Every rate includes `hops`, `as_of`, `age_sec`, the `path` and `sources`, plus a
+**`quality`** block (grade A–D + confidence) — see below.
+
+## Accuracy
+
+Every price carries a `quality` assessment so you know how much to trust it:
+
+```json
+"quality": {
+  "grade": "B", "confidence": 0.89,
+  "freshness": "realtime", "directness": "direct", "source_class": "exchange",
+  "corroboration": { "sources": 4, "spread_bps": 29, "agree": true },
+  "caveats": []
+}
+```
+
+The grade combines **freshness** (edge age), **directness** (hop count),
+**source authority** (official > exchange > aggregator > unofficial),
+**cross-source agreement** (spread in bps), and per-currency **caveats**
+(e.g. NGN/EGP/CNY official-vs-parallel-rate flags). Full model:
+[ACCURACY.md](ACCURACY.md). The web UI shows the grade in the converter and a
+dedicated **Accuracy** page documenting the methodology.
 
 ## Sources
 

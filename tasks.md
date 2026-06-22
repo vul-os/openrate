@@ -7,6 +7,10 @@
 - [x] JSON API: `/rates`, `/convert`, `/meta`, `/healthz` with per-rate provenance
 - [x] React JSX UI (converter + rates table + freshness), embedded via `go:embed`
 - [x] Logo, README, CLOUD.md (cloud deferred to Vulos Cloud)
+- [x] **Per-rate accuracy grade** (A–D + confidence) on every price: freshness, directness,
+      source authority, cross-source corroboration, currency caveats — see ACCURACY.md
+- [x] **Web Accuracy page** + grade badge in converter; dropped defunct HRK
+- [x] **Store fix** — refresh no longer holds the lock during I/O; progressive materialization
 
 ## Sources (the "open way" — see SOURCES.md for the full survey)
 - [x] **Coinbase** — free/no-auth real-time fiat incl. ZAR (best open intraday source)

@@ -51,3 +51,40 @@ select, input {
 .h3 { background: #3a2330; color: #fca5a5; }
 .foot { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
 .err { background: #3a2330; color: #fca5a5; padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; }
+
+/* header / tabs */
+.hd .grow { flex: 1; }
+.tabs { display: flex; gap: 6px; }
+.tabs button { background: #0e131c; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 14px; }
+.tabs button.on { color: var(--fg); border-color: var(--accent); background: #0f2e2a44; }
+
+/* grade badge */
+.grade { display: inline-flex; align-items: center; justify-content: center; border: 1px solid; border-radius: 7px; font-weight: 700; }
+.grade.sm { min-width: 22px; height: 22px; font-size: 12px; padding: 0 4px; }
+.grade.lg { min-width: 34px; height: 34px; font-size: 18px; margin-left: 10px; vertical-align: middle; }
+.grade.bA { background: #2dd4bf22; color: #2dd4bf; border-color: #2dd4bf55; }
+.grade.bC { background: #fbbf2422; color: #fbbf24; border-color: #fbbf2455; }
+.grade.bD { background: #fca5a522; color: #fca5a5; border-color: #fca5a555; }
+
+/* converter quality breakdown */
+.resline { display: flex; align-items: center; }
+.qbits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bit { background: #0e131c; border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; font-size: 12px; color: var(--fg); }
+.bit em { color: var(--muted); font-style: normal; margin-right: 4px; }
+.caveats { margin: 10px 0 0; padding-left: 0; list-style: none; }
+.caveats li { color: #fbbf24; font-size: 12.5px; margin: 3px 0; }
+
+/* accuracy doc */
+.doc h2 { font-size: 18px; }
+.bands { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+.band { background: #0e131c; border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; }
+.band .bg { display: block; font-size: 26px; font-weight: 800; }
+.band.bA .bg { color: #2dd4bf; } .band.bB .bg { color: #a5b4fc; } .band.bC .bg { color: #fbbf24; } .band.bD .bg { color: #fca5a5; }
+.band b { display: block; margin: 4px 0 2px; }
+.band em { color: var(--muted); font-style: normal; font-size: 12px; }
+.factor { padding: 12px 0; border-bottom: 1px solid #1a212e; }
+.factor:last-child { border-bottom: none; }
+.fhead b { font-size: 15px; }
+.fbody { margin-top: 6px; font-size: 13.5px; line-height: 1.7; }
+.fbody code { background: #0e131c; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; margin: 0 2px; color: var(--accent); font-size: 12px; }
+.code-block { background: #0e131c; border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x: auto; font-size: 12.5px; color: #cbd5e1; }
