@@ -38,7 +38,7 @@ export default function CurrencySelect({ label, value, onChange, options, compac
 
   return (
     <div className={`${compact ? "csel csel-c" : "field csel"}`} ref={rootRef}>
-      {!compact && <label>{label}</label>}
+      {!compact && label && <label>{label}</label>}
       <button type="button" className={`csel-btn ${open ? "open" : ""} ${compact ? "compact" : ""}`} onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
         <span className="csel-flag">{ccyFlag(value)}</span>
         <span className="csel-code">{value}</span>

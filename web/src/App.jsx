@@ -12,17 +12,16 @@ const fmt = (n, d = 4) => Number(n).toLocaleString(undefined, { maximumFractionD
 export function Grade({ q, size = "sm" }) {
   if (!q) return null;
   return (
-    <span
-      className={`grade ${size} ${GRADE_CLASS[q.grade] || ""}`}
-      title={`confidence ${(q.confidence * 100).toFixed(0)}% · ${q.freshness} · ${q.directness} · ${q.source_class} source · ${q.corroboration.sources} corroborating`}
-    >
+    <span className={`grade ${size} ${GRADE_CLASS[q.grade] || ""}`}
+      title={`confidence ${(q.confidence * 100).toFixed(0)}% · ${q.freshness} · ${q.directness} · ${q.source_class} source · ${q.corroboration.sources} corroborating`}>
       {q.grade}
     </span>
   );
 }
 
 export default function App() {
-  const [tab, setTab] = useState("convert");
+  const [tab, setTabState] = useState(() => (location.hash === "#accuracy" ? "accuracy" : "convert"));
+  const setTab = (t) => { setTabState(t); history.replaceState(null, "", t === "accuracy" ? "#accuracy" : "#"); };
   const [meta, setMeta] = useState(null);
   const [base, setBase] = useState("ZAR");
   const [rates, setRates] = useState(null);
@@ -40,6 +39,10 @@ export default function App() {
         <div className="brand">
           <img src="/openrate.svg" alt="" className="logo" />
           <span className="name">open<b>rate</b></span>
+        </div>
+        <div className="nav-anchor">
+          <span className="anchor-lbl">Anchor</span>
+          <CurrencySelect compact value={base} onChange={setBase} options={currencies} />
         </div>
         <div className="spacer" />
         <div className="switch">
@@ -62,16 +65,10 @@ export default function App() {
                 price ships with a quality grade and the stats behind it, so you know exactly
                 how much to trust it.
               </p>
-              <div className="hero-controls">
-                <div className="anchor-ctl">
-                  <span className="anchor-lbl">Anchored to</span>
-                  <CurrencySelect compact value={base} onChange={setBase} options={currencies} />
-                </div>
-                <div className="stats">
-                  <Stat v={currencies.length || "—"} l="currencies" />
-                  <Stat v={liveSources || "—"} l="live sources" accent />
-                  <Stat v="~1 min" l="freshness" />
-                </div>
+              <div className="stats">
+                <Stat v={currencies.length || "—"} l="currencies" />
+                <Stat v={liveSources || "—"} l="live sources" accent />
+                <Stat v="~1 min" l="freshness" />
               </div>
             </Reveal>
 
@@ -85,14 +82,13 @@ export default function App() {
               <div className="sec-head">
                 <Eyebrow>Live board</Eyebrow>
                 <h2 className="display d2">All rates, 1&nbsp;{base}&nbsp;=</h2>
-                <p className="prose" style={{ fontSize: "0.95rem" }}>Click any row for the calculation, sources and dispersion stats.</p>
+                <p className="board-hint">Click any row for the calculation, sources and dispersion stats.</p>
               </div>
-              <div className="card">
+              <div className="card pad0">
                 <RatesTable rates={rates?.rates} base={base} />
                 {rates && (
                   <p className="foot">
-                    built {new Date(rates.built_at).toLocaleString()} · sources:{" "}
-                    {(meta?.sources ?? []).map((s) => `${s.name}(${s.edges})`).join(", ")}
+                    built {new Date(rates.built_at).toLocaleString()} · {(meta?.sources ?? []).map((s) => `${s.name}(${s.edges})`).join(" · ")}
                   </p>
                 )}
               </div>
@@ -131,17 +127,28 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
   const q = rate?.quality;
   const r = rate?.rate;
   const QUICK = [1, 10, 100, 1000, 10000];
+  const swap = () => { setFrom(to); setTo(from); };
 
   return (
     <section className="conv">
-      <div className="conv-grid">
-        <div className="field">
-          <label>Amount</label>
-          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+      <div className="conv-stack">
+        <div className="cfield">
+          <label>You convert</label>
+          <div className="cf-row">
+            <input className="cf-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <CurrencySelect value={from} onChange={setFrom} options={currencies} />
+          </div>
         </div>
-        <CurrencySelect label="From" value={from} onChange={setFrom} options={currencies} />
-        <div className="swap-wrap"><button className="swap" title="swap" onClick={() => { setFrom(to); setTo(from); }}>⇄</button></div>
-        <CurrencySelect label="To" value={to} onChange={setTo} options={currencies} />
+
+        <div className="conv-divider"><button className="swap-mid" title="swap" onClick={swap}>⇄</button></div>
+
+        <div className="cfield">
+          <div className="cf-head"><label>You get</label>{q && <span className="cf-grade"><Grade q={q} size="lg" /></span>}</div>
+          <div className="cf-row">
+            <div className="cf-result">{out ? fmt(out.result) : "—"}</div>
+            <CurrencySelect value={to} onChange={setTo} options={currencies} />
+          </div>
+        </div>
       </div>
 
       <div className="quick">
@@ -150,50 +157,43 @@ function Converter({ currencies, defaultFrom, defaultTo }) {
         ))}
       </div>
 
-      {out && rate && (
-        <div className="result">
-          <div className="resline">
-            <div className="res-main">
-              <strong>{fmt(out.result)}</strong>
-              <span className="unit">{out.to}</span>
-            </div>
-            <Grade q={q} size="lg" />
-          </div>
+      {out && rate && q && (
+        <div className="conv-detail">
           <div className="inverse">
-            <span>1 {from} = {fmt(r, 6)} {to}</span>
+            <span>1 {from} = <b>{fmt(r, 6)}</b> {to}</span>
             <span className="sep">·</span>
-            <span>1 {to} = {fmt(1 / r, 6)} {from}</span>
+            <span>1 {to} = <b>{fmt(1 / r, 6)}</b> {from}</span>
           </div>
-          {q && (
-            <>
-              <div className="qbits">
-                <Bit label="confidence" v={`${(q.confidence * 100).toFixed(0)}%`} />
-                <Bit label="freshness" v={q.freshness} />
-                <Bit label="directness" v={q.directness.replace("_", " ")} />
-                <Bit label="source" v={q.source_class} />
-                <Bit label="corroboration" v={`${q.corroboration.sources} src${q.corroboration.sources > 1 ? ` · ${q.corroboration.spread_bps}bps` : ""}`} />
-              </div>
-              {q.caveats?.length > 0 && (
-                <ul className="caveats">{q.caveats.map((c, i) => <li key={i}><span>⚠</span><span>{c}</span></li>)}</ul>
-              )}
-              <button className="math-toggle" onClick={() => setShowMath((s) => !s)}>
-                {showMath ? "▾ hide the math" : "▸ show the math"}
-              </button>
-              {showMath && <Math rate={rate} from={from} to={to} />}
-            </>
+
+          <div className="qtiles">
+            <QT l="grade" v={q.grade} grade={GRADE_CLASS[q.grade]} />
+            <QT l="confidence" v={`${(q.confidence * 100).toFixed(0)}%`} />
+            <QT l="freshness" v={q.freshness} />
+            <QT l="directness" v={q.directness.replace("_", " ")} />
+            <QT l="source" v={q.source_class} />
+            <QT l="corroboration" v={`${q.corroboration.sources}${q.corroboration.sources > 1 ? ` · ${q.corroboration.spread_bps}bps` : ""}`} />
+          </div>
+
+          {q.caveats?.length > 0 && (
+            <ul className="caveats">{q.caveats.map((c, i) => <li key={i}><span>⚠</span><span>{c}</span></li>)}</ul>
           )}
+
+          <button className="math-toggle" onClick={() => setShowMath((s) => !s)}>
+            {showMath ? "▾ hide the math" : "▸ show the math"}
+          </button>
+          {showMath && <Calc rate={rate} from={from} to={to} />}
         </div>
       )}
     </section>
   );
 }
 
-function Bit({ label, v }) {
-  return <span className="bit"><em>{label}</em>{v}</span>;
+function QT({ l, v, grade }) {
+  return <div className="qt"><span className="qt-l">{l}</span><span className={`qt-v ${grade ? "g " + grade : ""}`}>{v}</span></div>;
 }
 
-// Math — transparent derivation + cross-source financial stats for a rate view.
-function Math({ rate, from, to }) {
+// Calc — transparent derivation + cross-source financial stats for a rate view.
+function Calc({ rate, from, to }) {
   const c = rate.quality.corroboration;
   const quotes = (rate.quotes || []).slice().sort((a, b) => a.rate - b.rate);
   const lo = quotes.length ? quotes[0].rate : 0;
@@ -201,33 +201,29 @@ function Math({ rate, from, to }) {
   const span = hi - lo || 1;
   return (
     <div className="math">
+      <div className="math-sec">Calculation</div>
       <div className="math-row">
-        <span className="ml">calculation</span>
-        <span className="mv">
-          {rate.hops <= 1 ? "directly quoted" : `${rate.hops}-hop cross-rate`} · path {rate.path.join(" → ")} · chosen <b>{rate.sources.join(", ")}</b>
-        </span>
-      </div>
-      <div className="math-row">
-        <span className="ml">accuracy</span>
-        <span className="mv">grade <b>{rate.quality.grade}</b> · {(rate.quality.confidence * 100).toFixed(0)}% confidence · {rate.quality.freshness} · {rate.quality.source_class}</span>
+        <span className="ml">method</span>
+        <span className="mv">{rate.hops <= 1 ? "directly quoted" : `${rate.hops}-hop cross-rate`} · path <b>{rate.path.join(" → ")}</b> · chosen <b>{rate.sources.join(", ")}</b></span>
       </div>
 
       {quotes.length > 0 && (
         <>
-          <div className="math-row"><span className="ml">sources</span><span className="mv">{quotes.length} quoting {from}→{to} directly</span></div>
+          <div className="math-sec">Sources · {quotes.length} quoting {from}→{to}</div>
           <div className="quotes">
             {quotes.map((qq) => (
               <div className="qrow" key={qq.source}>
                 <span className="qsrc">{qq.source}</span>
                 <span className="qbar"><span className="qfill" style={{ left: `${((qq.rate - lo) / span) * 100}%` }} /></span>
                 <span className="qrate">{fmt(qq.rate, 6)}</span>
-                <span className="qage muted">{Math.round(qq.age_sec)}s</span>
+                <span className="qage">{Math.round(qq.age_sec)}s</span>
               </div>
             ))}
           </div>
         </>
       )}
 
+      <div className="math-sec">Dispersion</div>
       {c.sources > 1 ? (
         <div className="stats-grid">
           <Stt l="mean" v={fmt(c.mean, 6)} />
@@ -253,25 +249,25 @@ function RatesTable({ rates, base }) {
     return Object.entries(rates).sort(([a], [b]) => a.localeCompare(b));
   }, [rates]);
 
-  if (!rates) return <p className="muted">loading…</p>;
+  if (!rates) return <p className="muted pad">loading…</p>;
 
   return (
     <table className="rates">
       <thead>
-        <tr><th>CCY</th><th className="num">Rate</th><th>Grade</th><th>Freshness</th><th>Source</th></tr>
+        <tr><th>Currency</th><th className="num">Rate</th><th>Grade</th><th>Freshness</th><th>Source</th></tr>
       </thead>
       <tbody>
         {rows.map(([ccy, p]) => (
           <React.Fragment key={ccy}>
             <tr className={`rrow ${openCcy === ccy ? "open" : ""}`} onClick={() => setOpenCcy(openCcy === ccy ? null : ccy)}>
-              <td className="ccy"><span className="rflag">{ccyFlag(ccy)}</span> {ccy}<span className="rcaret">{openCcy === ccy ? "▾" : "▸"}</span></td>
+              <td className="ccy"><span className="rcaret">{openCcy === ccy ? "▾" : "▸"}</span><span className="rflag">{ccyFlag(ccy)}</span>{ccy}</td>
               <td className="num">{Number(p.rate).toPrecision(6)}</td>
               <td><Grade q={p.quality} /></td>
               <td className="muted">{ageLabel(p.age_sec)}</td>
               <td className="muted">{p.quality?.source_class}</td>
             </tr>
             {openCcy === ccy && (
-              <tr className="rdetail"><td colSpan={5}><Math rate={p} from={base} to={ccy} /></td></tr>
+              <tr className="rdetail"><td colSpan={5}><Calc rate={p} from={base} to={ccy} /></td></tr>
             )}
           </React.Fragment>
         ))}
