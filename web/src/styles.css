@@ -69,7 +69,7 @@
 }
 
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; overflow-x: hidden; }
+html { scroll-behavior: smooth; overflow-x: hidden; scroll-padding-top: var(--nav-h); }
 html, body { transition: background .3s var(--ease), color .3s var(--ease); }
 body {
   background: var(--bg-base);
@@ -125,11 +125,15 @@ body {
 .nav .spacer { flex: 1; }
 .pill { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--text-mut); border: 1px solid var(--border-strong); border-radius: 100px; padding: 4px 11px; }
 .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent); }
-/* segmented control */
-.switch { display: inline-flex; background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 100px; padding: 3px; gap: 2px; }
-.switch button { background: transparent; color: var(--text-3); border: none; border-radius: 100px; padding: 6px 16px; cursor: pointer; font-family: var(--mono); font-size: 13px; transition: color .2s var(--ease), background .2s var(--ease); }
-.switch button:hover { color: var(--text-2); }
-.switch button.on { color: var(--good); background: var(--bg-base); box-shadow: var(--shadow); }
+/* scrollspy nav links */
+.navlinks { display: flex; gap: 4px; }
+.navlinks a { position: relative; color: var(--text-3); font-family: var(--mono); font-size: 13px; padding: 8px 12px; border-radius: var(--r-sm); transition: color .2s var(--ease); }
+.navlinks a:hover { color: var(--text); }
+.navlinks a.on { color: var(--good); }
+.navlinks a.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 2px; height: 2px; background: var(--grad); border-radius: 2px; }
+.nav-cta { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: #07120f; background: var(--grad); padding: 8px 14px; border-radius: 100px; margin-left: 6px; transition: opacity .2s var(--ease); }
+.nav-cta:hover { opacity: .9; color: #07120f; }
+a.brand { text-decoration: none; }
 .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: transparent; border: 1px solid var(--border-strong); color: var(--text-3); cursor: pointer; transition: color .2s var(--ease), border-color .2s var(--ease), transform .3s var(--ease); }
 .theme-toggle:hover { color: var(--good); border-color: var(--border-em); transform: rotate(20deg); }
 .nav-anchor { display: flex; align-items: center; gap: 9px; padding-left: 14px; margin-left: 6px; border-left: 1px solid var(--border); }
@@ -138,8 +142,13 @@ body {
 .field > label { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--text-faint); padding-left: 2px; }
 
 /* ─── layout ──────────────────────────────────────────────────────────── */
-.wrap { max-width: var(--maxw); margin: 0 auto; padding: clamp(40px,6vw,72px) 24px var(--sp-12); }
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+.sect { padding: clamp(56px, 9vw, 112px) 0; scroll-margin-top: var(--nav-h); position: relative; }
+#convert { padding-top: clamp(40px, 6vw, 72px); }
+.sect.alt { background: color-mix(in srgb, var(--bg-base) 55%, var(--bg-surface)); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .section { margin-top: var(--sp-10); }
+.sect-intro { max-width: 680px; margin: 0 auto var(--sp-6); text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.sect-intro .prose { text-align: center; }
 .sec-head { max-width: 640px; margin-bottom: var(--sp-5); }
 .sec-head .eyebrow { margin-bottom: var(--sp-2); }
 .sec-head p { margin-top: 12px; }
@@ -430,8 +439,13 @@ body {
 .qrow .qage { color: var(--text-faint); font-size: 11px; }
 
 /* ─── responsive ──────────────────────────────────────────────────────── */
-@media (max-width: 820px) {
+@media (max-width: 900px) {
   .nav-anchor .anchor-lbl { display: none; }
+  .nav-cta { display: none; }
+}
+@media (max-width: 620px) {
+  .nav-anchor { display: none; }
+  .navlinks a { padding: 8px 9px; }
 }
 @media (max-width: 760px) {
   .cf-row { grid-template-columns: 1fr 150px; }

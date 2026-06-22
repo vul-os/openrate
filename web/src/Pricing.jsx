@@ -23,7 +23,6 @@ const COMPARE = {
     ["Real-time", ["✓", "y"], ["✓ 60s", ""], ["✓", ""], ["hourly", ""], ["✓", ""]],
     ["Accuracy grade + stats", ["✓", "y"], ["✗", "n"], ["✗", "n"], ["✗", "n"], ["✗", "n"]],
     ["Cross-rate calc shown", ["✓", "y"], ["✗", "n"], ["✗", "n"], ["✗", "n"], ["✗", "n"]],
-    ["ZAR-native billing", ["✓", "y"], ["✗", "n"], ["✗", "n"], ["✗", "n"], ["✗", "n"]],
     ["Open-source · self-host", ["✓", "y"], ["✗", "n"], ["✗", "n"], ["✗", "n"], ["✗", "n"]],
   ],
 };
@@ -31,9 +30,9 @@ const COMPARE = {
 export default function Pricing() {
   return (
     <div className="doc">
-      <Reveal as="header" className="hero" style={{ gap: 16 }}>
+      <Reveal className="sect-intro">
         <Eyebrow>openrate Cloud</Eyebrow>
-        <h1 className="display d1">Cheap, fair, <span className="accent-word">scalable</span> pricing.</h1>
+        <h2 className="display d2">Cheap, fair, <span className="accent-word">scalable</span> pricing</h2>
         <p className="prose">
           The engine is free and open-source — <b>self-host it forever at R0</b>. openrate Cloud
           is the managed endpoint: API keys, real-time paid feeds, history and an SLA, billed

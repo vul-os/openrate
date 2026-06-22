@@ -6,9 +6,9 @@ import CodeBlock from "./CodeBlock.jsx";
 export default function Accuracy() {
   return (
     <div className="doc">
-      <Reveal as="header" className="hero" style={{ gap: 16 }}>
+      <Reveal className="sect-intro">
         <Eyebrow>Methodology</Eyebrow>
-        <h1 className="display d1">How every rate is <span className="accent-word">graded</span>.</h1>
+        <h2 className="display d2">How every rate is <span className="accent-word">graded</span></h2>
         <p className="prose">
           An exchange rate is only as trustworthy as its provenance. openrate attaches a
           quality block to every price — a letter grade and a 0–100% confidence — derived

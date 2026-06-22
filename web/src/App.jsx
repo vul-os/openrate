@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMeta, getRates, convert, ageLabel } from "./api.js";
-import { Reveal, Eyebrow, ThemeToggle } from "./ui.jsx";
+import { Reveal, Eyebrow, ThemeToggle, useScrollSpy } from "./ui.jsx";
 import CurrencySelect from "./CurrencySelect.jsx";
 import Footer from "./Footer.jsx";
 import { ccyFlag } from "./currencies.js";
@@ -20,19 +20,27 @@ export function Grade({ q, size = "sm" }) {
   );
 }
 
+const NAV = [
+  { id: "convert", label: "Convert" },
+  { id: "accuracy", label: "Accuracy" },
+  { id: "pricing", label: "Pricing" },
+];
+
 export default function App() {
-  const [tab, setTabState] = useState(() => {
-    const h = location.hash.replace("#", "");
-    return ["accuracy", "pricing"].includes(h) ? h : "convert";
-  });
-  const setTab = (t) => { setTabState(t); history.replaceState(null, "", t === "convert" ? "#" : `#${t}`); window.scrollTo(0, 0); };
   const [meta, setMeta] = useState(null);
   const [base, setBase] = useState("ZAR");
   const [rates, setRates] = useState(null);
   const [err, setErr] = useState(null);
+  const active = useScrollSpy(["convert", "accuracy", "pricing"]);
 
   useEffect(() => { getMeta().then(setMeta).catch((e) => setErr(e.message)); }, []);
   useEffect(() => { getRates(base).then(setRates).catch((e) => setErr(e.message)); }, [base]);
+
+  const go = (e, id) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    history.replaceState(null, "", id === "convert" ? "#" : `#${id}`);
+  };
 
   const currencies = meta?.currencies ?? [];
   const liveSources = (meta?.sources ?? []).filter((s) => !s.last_error && s.edges > 0).length;
@@ -40,30 +48,27 @@ export default function App() {
   return (
     <>
       <nav className="nav">
-        <div className="brand">
-          <img src="/openrate.svg" alt="" className="logo" />
+        <a className="brand" href="#convert" onClick={(e) => go(e, "convert")}>
+          <img src="/openrate.svg" alt="openrate" className="logo" />
           <span className="name">open<b>rate</b></span>
-        </div>
+        </a>
         <div className="nav-anchor">
           <span className="anchor-lbl">Anchor</span>
           <CurrencySelect compact value={base} onChange={setBase} options={currencies} />
         </div>
         <div className="spacer" />
-        <div className="switch">
-          <button className={tab === "convert" ? "on" : ""} onClick={() => setTab("convert")}>Convert</button>
-          <button className={tab === "accuracy" ? "on" : ""} onClick={() => setTab("accuracy")}>Accuracy</button>
-          <button className={tab === "pricing" ? "on" : ""} onClick={() => setTab("pricing")}>Pricing</button>
+        <div className="navlinks">
+          {NAV.map((n) => (
+            <a key={n.id} href={`#${n.id}`} className={active === n.id ? "on" : ""} onClick={(e) => go(e, n.id)}>{n.label}</a>
+          ))}
         </div>
+        <a className="nav-cta" href="#pricing" onClick={(e) => go(e, "pricing")}>Get API key</a>
         <ThemeToggle />
       </nav>
 
-      <div className="wrap">
-        {tab === "accuracy" ? (
-          <Accuracy />
-        ) : tab === "pricing" ? (
-          <Pricing />
-        ) : (
-          <>
+      <main>
+        <section id="convert" className="sect">
+          <div className="wrap">
             <Reveal as="header" className="hero">
               <Eyebrow>Open exchange-rate engine</Eyebrow>
               <h1 className="display d1">Exchange rates,<br /><span className="accent-word">graded for accuracy</span>.</h1>
@@ -100,9 +105,17 @@ export default function App() {
                 )}
               </div>
             </Reveal>
-          </>
-        )}
-      </div>
+          </div>
+        </section>
+
+        <section id="accuracy" className="sect alt">
+          <div className="wrap"><Accuracy /></div>
+        </section>
+
+        <section id="pricing" className="sect">
+          <div className="wrap"><Pricing /></div>
+        </section>
+      </main>
       <Footer meta={meta} base={base} />
     </>
   );

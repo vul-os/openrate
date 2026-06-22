@@ -3,11 +3,68 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a0a0a" />
     <link rel="icon" type="image/svg+xml" href="/openrate.svg" />
-    <title>openrate — open, ZAR-anchored exchange rates</title>
+    <link rel="canonical" href="https://openrate.dev/" />
+
+    <title>openrate — open exchange rates, graded for accuracy</title>
+    <meta name="description" content="Open-source, ZAR-anchored exchange-rate API and converter. Real rates from central banks and live venues — never a paid API — with every price graded for accuracy plus cross-source dispersion stats and the full cross-rate calculation. Free and self-hostable." />
+    <meta name="keywords" content="exchange rate API, ZAR rates, currency converter, South African Rand, open source forex, accurate exchange rates, cross rates, SARB, ECB rates" />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Vulos contributors" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="openrate" />
+    <meta property="og:title" content="openrate — open exchange rates, graded for accuracy" />
+    <meta property="og:description" content="Real ZAR-anchored exchange rates from central banks and live venues, every price graded for accuracy with the stats and calculation behind it. Free & open-source." />
+    <meta property="og:url" content="https://openrate.dev/" />
+    <meta property="og:image" content="https://openrate.dev/openrate.svg" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="openrate — open exchange rates, graded for accuracy" />
+    <meta name="twitter:description" content="Open, ZAR-anchored exchange rates with an accuracy grade on every price. Free & self-hostable." />
+    <meta name="twitter:image" content="https://openrate.dev/openrate.svg" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "openrate",
+          "applicationCategory": "FinanceApplication",
+          "operatingSystem": "Any",
+          "description": "Open, ZAR-anchored exchange-rate engine and API. Rates from central banks and live venues, every price graded for accuracy with cross-source dispersion stats.",
+          "url": "https://openrate.dev/",
+          "isAccessibleForFree": true,
+          "offers": [
+            { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
+            { "@type": "Offer", "name": "Developer", "price": "9", "priceCurrency": "USD" },
+            { "@type": "Offer", "name": "Startup", "price": "39", "priceCurrency": "USD" },
+            { "@type": "Offer", "name": "Business", "price": "149", "priceCurrency": "USD" }
+          ],
+          "author": { "@type": "Organization", "name": "Vulos", "url": "https://vulos.org" }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            { "@type": "Question", "name": "Where do openrate's exchange rates come from?",
+              "acceptedAnswer": { "@type": "Answer", "text": "From open sources — central-bank reference files (ECB, SARB, Bank of Canada) and free public venues (Coinbase, Luno) — never resold from a paid API. Optional paid feeds can be added with your own keys." } },
+            { "@type": "Question", "name": "What does the accuracy grade mean?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Every rate carries a grade A–D and a confidence score derived from freshness, directness (hops), source authority, cross-source agreement, and currency caveats, so you know how much to trust the number." } },
+            { "@type": "Question", "name": "Is openrate free?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. The engine is MIT-licensed and self-hostable at no cost. openrate Cloud offers managed API keys with paid feeds, history and an SLA, starting free up to 10,000 requests per month." } }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>openrate — open, ZAR-anchored exchange rates, graded for accuracy. Free & open-source currency API. Enable JavaScript to use the live converter.</noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
