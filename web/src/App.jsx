@@ -86,7 +86,7 @@ export default function App() {
       </nav>
 
       {route === "docs" ? (
-        <main><div className="wrap"><Docs /></div></main>
+        <main><div className="docs-page"><Docs /></div></main>
       ) : (
       <main>
         <section id="convert" className="sect">

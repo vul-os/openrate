@@ -453,8 +453,10 @@ a.brand { text-decoration: none; }
 .tok-prompt { color: var(--teal); user-select: none; }
 
 /* ─── docs ────────────────────────────────────────────────────────────── */
-.docs-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: clamp(28px, 5vw, 64px); padding: clamp(32px, 5vw, 56px) 0 var(--sp-10); align-items: start; }
-.docs-side { position: sticky; top: calc(var(--nav-h) + 24px); }
+.docs-page { max-width: 1240px; margin: 0 auto; padding: 0 28px; }
+.docs-layout { display: grid; grid-template-columns: 184px minmax(0, 1fr); gap: 36px; padding: clamp(32px, 5vw, 56px) 0 var(--sp-10); align-items: start; }
+.docs-side { position: static; }
+.docs-main { max-width: 820px; }
 .docs-group { margin-bottom: 22px; }
 .docs-group-h { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--text-faint); margin-bottom: 10px; }
 .docs-side a { display: block; color: var(--text-3); font-size: 13.5px; padding: 6px 12px; border-left: 2px solid transparent; transition: color .15s var(--ease), border-color .15s var(--ease); }
