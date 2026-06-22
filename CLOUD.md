@@ -21,11 +21,49 @@ yet — it is the contract for what Vulos Cloud must add around the engine.
 | Multi-region deploy + failover | ❌ | ✅ owns |
 | Historical storage + time-series endpoints | basic / TODO | long-retention store |
 
+## Integration approach (decided)
+
+openrate becomes **`product=openrate`** in the Vulos Cloud control-plane (CP)
+contract — the same pattern as `llm` (llmux), `office`, `mail`, `meet`. There are
+two sides, and the engine stays self-contained.
+
+**Engine side — optional CP seam (mirror `llmux/integration/cp/cp.go`).**
+A separate `internal/cp` package implementing the engine's Identity / Quota /
+UsageLogger interfaces against CP, wired in `main.go` ONLY when `OPENRATE_CP_URL`
+is set. Standalone build never imports it → self-host stays keyless + free. When
+enabled, an API request is: Bearer key → CP `GET /api/entitlements?product=openrate`
+(tier + remaining quota, cached with TTL + degraded fail-bounded mode) → serve from
+snapshot → CP `POST /api/usage {kind:"api_request"}`. Auth via `X-Relay-Auth`
+shared secret (`OPENRATE_CP_SECRET`).
+
+**CP side (in vulos-cloud) — reuse what already exists:**
+- **API keys:** `internal/publicapi` token store (`GenerateToken`/`AuthenticateToken`/
+  `RevokeToken`/`ListTokens`). Add session-gated `…/api/openrate/keys` CRUD routes.
+- **Entitlements:** add an `openrate` case + `openrateLimitsForTier()` to the
+  resolver in `cmd/server/routes_mailbilling.go` (Free 10k/60rpm … Business 50M/2k rpm),
+  driven by `billing.Store.EffectiveTierFor` + `IsSuspended`.
+- **Metering:** reuse the generic counted bucket — `billing.Store.EmitCountedEvent(
+  account, "openrate:requests", n)`; quota read-back via `CountedThisMonthByBucket`.
+  Monthly invoice rollup already aggregates buckets — just price `openrate:requests`.
+- **Tiers:** map this repo's billing model (`vulos-cloud/billingmodel/openrate`)
+  Free/Developer/Startup/Business/Enterprise onto CP tiers; keep openrate's
+  request quotas in `openrateLimitsForTier()` (request-billed, not seat-billed).
+- **Dashboard:** `src/pages/app/Openrate.jsx` (key create/list/revoke + usage/plan),
+  following `Account.jsx`/`Billing.jsx`; sidebar link in `Layout.jsx`.
+
+**Deploy:** engine on Fly (like other products), behind an edge cache keyed by base
+currency (caps origin, most reads free — matches `billingmodel/openrate/COSTS.md`).
+Flip `OPENRATE_CP_URL` on to enter cloud mode.
+
+Phasing: (1) engine CP seam [this repo, no-op standalone] → (2) CP key CRUD +
+entitlements + bucket pricing → (3) dashboard page → (4) deploy + soft-launch Free.
+
 ## TODO — cloud absorption
 
-- [ ] **Embed the engine as a library/sidecar.** Decide: import
-      `internal/*` as a vendored module (promote to `pkg/`), or run the binary
-      as a sidecar that Cloud's gateway proxies. Lean sidecar for isolation.
+- [x] **Integration approach decided** — CP seam (engine) + `product=openrate` in the
+      existing CP contract (keys via publicapi, usage via counted bucket). See above.
+- [ ] **Engine CP seam.** Add `internal/cp` mirroring `llmux/integration/cp`; wire
+      in `main.go` behind `OPENRATE_CP_URL`. Standalone stays default.
 - [ ] **Auth + projects.** Reuse the Vulos Cloud project model (note: term is
       "project", not "tenant"). Issue API keys scoped to a project; map keys →
       plan.
