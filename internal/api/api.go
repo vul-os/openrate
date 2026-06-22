@@ -32,6 +32,12 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) })
 }
 
+type quoteView struct {
+	Source string  `json:"source"`
+	Rate   float64 `json:"rate"`
+	AgeSec float64 `json:"age_sec"`
+}
+
 type rateView struct {
 	Rate    float64            `json:"rate"`
 	Hops    int                `json:"hops"`
@@ -40,11 +46,16 @@ type rateView struct {
 	Path    []string           `json:"path"`
 	Sources []string           `json:"sources"`
 	Quality quality.Assessment `json:"quality"`
+	Quotes  []quoteView        `json:"quotes"` // per-source direct quotes behind the number
 }
 
 // view builds a rate view; from/to scope the quality assessment (currency
-// caveats + cross-source corroboration for that exact pair).
+// caveats + cross-source corroboration) and the per-source quotes for the pair.
 func view(snap *graph.Snapshot, from, to string, p graph.Pair, now time.Time) rateView {
+	var quotes []quoteView
+	for _, q := range snap.DirectQuotes(from, to) {
+		quotes = append(quotes, quoteView{Source: q.Source, Rate: q.Rate, AgeSec: now.Sub(q.Time).Seconds()})
+	}
 	return rateView{
 		Rate:    p.Rate,
 		Hops:    p.Hops,
@@ -53,6 +64,7 @@ func view(snap *graph.Snapshot, from, to string, p graph.Pair, now time.Time) ra
 		Path:    p.Path,
 		Sources: p.Sources,
 		Quality: quality.Assess(from, to, p, snap.DirectQuotes(from, to), now),
+		Quotes:  quotes,
 	}
 }
 
@@ -96,23 +108,12 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
-	// Per-source direct quotes for this pair — the raw inputs behind the number.
-	type quoteView struct {
-		Source string  `json:"source"`
-		Rate   float64 `json:"rate"`
-		AgeSec float64 `json:"age_sec"`
-	}
-	var quotes []quoteView
-	for _, q := range snap.DirectQuotes(from, to) {
-		quotes = append(quotes, quoteView{Source: q.Source, Rate: q.Rate, AgeSec: now.Sub(q.Time).Seconds()})
-	}
 	writeJSON(w, map[string]any{
 		"from":   from,
 		"to":     to,
 		"amount": amount,
 		"result": amount * p.Rate,
 		"rate":   view(snap, from, to, p, now),
-		"quotes": quotes,
 	})
 }
 
