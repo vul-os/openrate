@@ -44,6 +44,27 @@ go build -o openrate ./cmd/openrate && ./openrate -addr :8080 -base ZAR -refresh
 
 Config via flags or env: `OPENRATE_ADDR`, `OPENRATE_BASE`, `OPENRATE_REFRESH`.
 
+## Embed as a Go library
+
+Instead of running the binary, import the root package and run the engine
+in-process — no subprocess, same store/sources/API/hardening as `cmd/openrate`:
+
+```go
+import "github.com/vul-os/openrate"
+
+local, err := openrate.Start(openrate.Options{}) // ZAR base, hourly refresh, ephemeral port
+if err != nil {
+	log.Fatal(err)
+}
+defer local.Close()
+
+resp, _ := http.Get(local.APIBaseURL() + "/rates") // or local.BaseURL + "/healthz"
+```
+
+`Options` mirrors the binary's flags (`Addr`, `Base`, `Refresh`, `Sources`,
+`RateLimit`, `ServeUI`). `Start` returns once `/healthz` is serving. The engine's
+building blocks stay under `internal/`; this package is the supported public API.
+
 ## API
 
 | Endpoint | Description |
@@ -109,6 +130,7 @@ npm --prefix web run build    # regenerates web/dist, embedded into the binary
 ## Layout
 
 ```
+openrate.go       public package: embed the engine in-process (Start/Close)
 cmd/openrate      entrypoint: wires sources -> store -> api + UI
 internal/graph    currency graph, BFS all-pairs materialization
 internal/sources  pluggable open sources (ECB live, SARB stub)
