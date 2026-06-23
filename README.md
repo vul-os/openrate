@@ -6,6 +6,15 @@
 
 <p align="center">Open, ZAR-anchored exchange rates — the open way.</p>
 
+<p align="center">
+  <a href="docs/">Docs</a> ·
+  <a href="docs/api.md">API</a> ·
+  <a href="docs/configuration.md">Configuration</a> ·
+  <a href="docs/library.md">Go library</a> ·
+  <a href="docs/graph-model.md">Graph model</a> ·
+  <a href="ACCURACY.md">Accuracy</a>
+</p>
+
 ---
 
 **openrate** is an open-source exchange-rate engine. It ingests rates "the open
@@ -42,7 +51,15 @@ go run ./cmd/openrate            # serves :8080, base ZAR, hourly refresh
 go build -o openrate ./cmd/openrate && ./openrate -addr :8080 -base ZAR -refresh 1h
 ```
 
-Config via flags or env: `OPENRATE_ADDR`, `OPENRATE_BASE`, `OPENRATE_REFRESH`.
+Config via flags or env: `OPENRATE_ADDR`, `OPENRATE_BASE`, `OPENRATE_REFRESH`,
+`OPENRATE_SOURCES`, `OPENRATE_RATELIMIT`. Full reference:
+[docs/configuration.md](docs/configuration.md).
+
+With Docker:
+
+```bash
+docker build -t openrate . && docker run -p 8080:8080 openrate
+```
 
 ## Embed as a Go library
 
@@ -75,7 +92,8 @@ building blocks stay under `internal/`; this package is the supported public API
 | `GET /healthz` | Liveness |
 
 Every rate includes `hops`, `as_of`, `age_sec`, the `path` and `sources`, plus a
-**`quality`** block (grade A–D + confidence) — see below.
+**`quality`** block (grade A–D + confidence) — see below. Full request/response
+shapes: [docs/api.md](docs/api.md).
 
 ## Accuracy
 
@@ -138,6 +156,20 @@ internal/store    ingest loop + snapshot store
 internal/api      JSON read endpoints
 web               Vite + React JSX UI (embedded via go:embed)
 ```
+
+## Documentation
+
+Full documentation lives in **[`docs/`](docs/)**.
+
+| Guide | What's inside |
+|---|---|
+| [API reference](docs/api.md) | Every endpoint, params, and full response shapes |
+| [Configuration](docs/configuration.md) | Flags, env vars, and the source spec |
+| [Go library](docs/library.md) | Embed the engine in-process with `Start`/`Close` |
+| [Graph model](docs/graph-model.md) | Why currencies are a graph, not a base |
+| [Accuracy & quality](ACCURACY.md) | The grade/confidence model behind every rate |
+| [Sources](SOURCES.md) | Full source catalog, cadence, and provenance |
+| [Web UI](docs/web-ui.md) | The embedded React dashboard |
 
 ## License
 
