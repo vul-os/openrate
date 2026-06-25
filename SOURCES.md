@@ -75,3 +75,47 @@ Real HTML scraping is a **last resort** — fragile and usually ToS-prohibited:
 
 Everything in the implemented + recommended sections is a file or free API, so real
 scraping should be rare, not the strategy.
+
+---
+
+# Open interest-rate sources
+
+A separate engine (interest rates are flat time series, not a currency graph) served
+under `/api/v1/interest/*`. Same philosophy: open data first, optional keys for more
+depth, every series carries a confidence grade. Verified live June 2026.
+
+## Implemented (`-interest-sources`)
+
+| Source | Default | Status | Format | Cadence | Coverage | Auth | Notes |
+|---|---|---|---|---|---|---|---|
+| **bis** | ✅ | live | CSV (SDMX) | ~weekly | **49 central banks' policy rates** + daily history, one call | none | BIS Stats `WS_CBPOL`, daily series, all reference areas. The open backbone for worldwide breadth. Missing days come back as literal `NaN` — skipped. |
+| **sarbrates** | ✅ | live¹ | JSON | daily | ZA ZARONIA overnight + 1W/1M/3M/6M/9M/12M compounded + index, deep history | none | Port of the standalone amortini scraper's ZARONIA path. `resbank.co.za/bin/sarb/ratereform`. **Slow/flaky host** — bounded dialer + 3 retries. |
+| **fred** | key | live | JSON | daily | US SOFR/EFFR/OBFR/prime/2Y/10Y Treasury, deep history | `OPENRATE_FRED_API_KEY` (free) | Auto-enables when the key is present. The "bring your own key for more datapoints" path; enriches the open BIS breadth with high-frequency US benchmarks. |
+
+¹ `sarbrates` is faithful to the proven scraper but the SARB host is geo/latency-restricted
+from some networks (incl. this sandbox); it resolves once deployed where SARB is reachable.
+
+Default set: `bis,sarbrates`. `fred` adds itself when its key is set. Enable explicitly
+with `-interest-sources bis,sarbrates,fred`.
+
+## Coverage today
+
+- **Policy rates:** 49 areas (AR AT AU BE BR CA CH CL CN CO CZ DE DK ES FR GB GR HK HR HU
+  ID IL IN IS IT JP KR KW MA MK MX MY NL NO NZ PE PH PL PT RO RS RU SA SE TH TR US XM ZA)
+  via a single BIS call, each with daily history.
+- **Reference rates:** ZA ZARONIA family (sarbrates) and US SOFR/EFFR/OBFR (fred).
+- **Lending / bond:** US prime + 2Y/10Y Treasury (fred).
+
+## Worth adding next (open or keyed — trivial via the registry)
+
+- **ECB Data Portal** (SDMX): €STR, EURIBOR, ECB policy facilities — base `xm`.
+- **Bank of England** IADB: SONIA, Bank Rate. **Bank of Canada** Valet: CORRA, overnight.
+- **OECD / IMF IFS** (SDMX): lending & deposit rates for ~150–200 economies (lower
+  frequency) — fills the long tail beyond BIS's policy-rate set.
+- **Direct national feeds** for the markets where you want issuer-grade (rank 4) depth
+  rather than BIS's aggregator view (rank 3).
+- **Commercial keyed APIs** (interestratesapi.com, Eulerpool, Twelve Data) as key-gated
+  enrichment for intraday / very deep history.
+
+Each new provider is one file implementing `ratesources.Source` (`Name()` + `Fetch()`)
+plus a line in `ratesources/registry.go` — same plugin shape as the FX sources.

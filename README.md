@@ -95,6 +95,23 @@ Every rate includes `hops`, `as_of`, `age_sec`, the `path` and `sources`, plus a
 **`quality`** block (grade A–D + confidence) — see below. Full request/response
 shapes: [docs/api.md](docs/api.md).
 
+### Interest rates (optional engine)
+
+A separate, flat time-series engine (no currency graph) for central-bank policy
+and reference rates worldwide. Enable with `-interest-sources` (binary) or
+`Options{Interest: true}` (library). Served alongside the FX API:
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/interest/rates?area=US&type=policy` | Latest value per series + confidence grade |
+| `GET /api/v1/interest/series?id=us.policy` | One series with full history (timeseries) |
+| `GET /api/v1/interest/meta` | Areas covered, series catalogue, source status |
+
+Out of the box (`bis,sarbrates`, no keys) this covers **49 central banks' policy
+rates with daily history** plus the South African ZARONIA family; set
+`OPENRATE_FRED_API_KEY` to auto-enable US benchmark series. Each series carries an
+interest-tuned `quality` grade. See [docs/interest-rates.md](docs/interest-rates.md).
+
 ## Accuracy
 
 Every price carries a `quality` assessment so you know how much to trust it:

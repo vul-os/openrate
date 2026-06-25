@@ -17,6 +17,9 @@ import (
 
 	"github.com/vul-os/openrate/internal/api"
 	"github.com/vul-os/openrate/internal/ratelimit"
+	"github.com/vul-os/openrate/internal/ratesapi"
+	"github.com/vul-os/openrate/internal/ratesources"
+	"github.com/vul-os/openrate/internal/ratestore"
 	"github.com/vul-os/openrate/internal/sources"
 	"github.com/vul-os/openrate/internal/store"
 	"github.com/vul-os/openrate/web"
@@ -27,7 +30,9 @@ func main() {
 	addr := flag.String("addr", env("OPENRATE_ADDR", ":8080"), "listen address")
 	base := flag.String("base", env("OPENRATE_BASE", "ZAR"), "default presentation base currency")
 	refresh := flag.Duration("refresh", envDur("OPENRATE_REFRESH", time.Hour), "source refresh interval")
-	srcSpec := flag.String("sources", env("OPENRATE_SOURCES", ""), "comma-separated sources (default: ecb,coinbase,luno,sarb; also: frankfurter,yahoo)")
+	srcSpec := flag.String("sources", env("OPENRATE_SOURCES", ""), "comma-separated FX sources (default: ecb,coinbase,luno,sarb; also: frankfurter,yahoo)")
+	intSpec := flag.String("interest-sources", env("OPENRATE_INTEREST_SOURCES", ""), "comma-separated interest-rate sources (default: bis,sarbrates; fred auto-enables with key)")
+	intRefresh := flag.Duration("interest-refresh", envDur("OPENRATE_INTEREST_REFRESH", 6*time.Hour), "interest-rate refresh interval")
 	rpm := flag.Int("ratelimit", envInt("OPENRATE_RATELIMIT", 120), "per-IP API requests/minute (anti-scraping; 0 disables)")
 	flag.Parse()
 
@@ -43,6 +48,16 @@ func main() {
 
 	mux := http.NewServeMux()
 	api.New(st, *base).Routes(mux)
+
+	// Interest-rate engine: an independent store/snapshot (rates are flat series,
+	// not a currency graph) served under /api/v1/interest/*. Policy rates change
+	// slowly, so it refreshes on its own slower cadence.
+	if intSrcs := ratesources.Build(*intSpec); len(intSrcs) > 0 {
+		ist := ratestore.New(*intRefresh, intSrcs...)
+		go ist.Run(ctx)
+		ratesapi.New(ist).Routes(mux)
+		log.Printf("interest rates: %d source(s), refresh %s", len(intSrcs), *intRefresh)
+	}
 
 	if sub, err := web.FS(); err == nil {
 		mux.Handle("/", http.FileServer(http.FS(sub)))

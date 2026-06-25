@@ -25,6 +25,9 @@ import (
 
 	"github.com/vul-os/openrate/internal/api"
 	"github.com/vul-os/openrate/internal/ratelimit"
+	"github.com/vul-os/openrate/internal/ratesapi"
+	"github.com/vul-os/openrate/internal/ratesources"
+	"github.com/vul-os/openrate/internal/ratestore"
 	"github.com/vul-os/openrate/internal/sources"
 	"github.com/vul-os/openrate/internal/store"
 	"github.com/vul-os/openrate/web"
@@ -44,6 +47,14 @@ type Options struct {
 	// Sources is a comma-separated source spec (e.g. "ecb,coinbase"). If empty,
 	// the default set is used (see sources.Build).
 	Sources string
+	// Interest, when true, also runs the interest-rate engine and mounts its
+	// routes at /api/v1/interest/*. Off by default; the FX engine is unaffected.
+	Interest bool
+	// InterestSources is a comma-separated interest-rate source spec (e.g.
+	// "bis,sarbrates,fred"). Empty uses ratesources.DefaultSources.
+	InterestSources string
+	// InterestRefresh is the interest-rate refresh interval (default 6h).
+	InterestRefresh time.Duration
 	// RateLimit sets per-IP API requests/minute. 0 (the default) disables it —
 	// the anti-scraping limiter is rarely wanted for an embedded engine.
 	RateLimit int
@@ -96,6 +107,19 @@ func Start(opts Options) (*Local, error) {
 
 	mux := http.NewServeMux()
 	api.New(st, base).Routes(mux)
+
+	if opts.Interest {
+		intRefresh := opts.InterestRefresh
+		if intRefresh <= 0 {
+			intRefresh = 6 * time.Hour
+		}
+		if intSrcs := ratesources.Build(opts.InterestSources); len(intSrcs) > 0 {
+			ist := ratestore.New(intRefresh, intSrcs...)
+			go ist.Run(ctx)
+			ratesapi.New(ist).Routes(mux)
+		}
+	}
+
 	if opts.ServeUI {
 		if sub, err := web.FS(); err == nil {
 			mux.Handle("/", http.FileServer(http.FS(sub)))
