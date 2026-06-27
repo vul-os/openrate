@@ -18,9 +18,18 @@ import (
 
 type Server struct {
 	Store *ratestore.Store
+	// CORSOrigin is the Access-Control-Allow-Origin value sent on JSON
+	// responses. Default "*" (public, read-only); set a specific origin to lock
+	// it down.
+	CORSOrigin string
 }
 
-func New(st *ratestore.Store) *Server { return &Server{Store: st} }
+func New(st *ratestore.Store, corsOrigin string) *Server {
+	if corsOrigin == "" {
+		corsOrigin = "*"
+	}
+	return &Server{Store: st, CORSOrigin: corsOrigin}
+}
 
 func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/interest/rates", s.handleRates)
@@ -92,7 +101,7 @@ func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, headline(v, now))
 	}
-	writeJSON(w, map[string]any{
+	s.writeJSON(w, map[string]any{
 		"built_at": snap.BuiltAt,
 		"count":    len(out),
 		"rates":    out,
@@ -114,7 +123,7 @@ func (s *Server) handleSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
-	writeJSON(w, map[string]any{
+	s.writeJSON(w, map[string]any{
 		"built_at": snap.BuiltAt,
 		"series":   headline(v, now),
 		"history":  v.History,
@@ -144,7 +153,7 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Strings(areas)
 
-	writeJSON(w, map[string]any{
+	s.writeJSON(w, map[string]any{
 		"built_at":   snap.BuiltAt,
 		"areas":      areas,
 		"area_count": len(areas),
@@ -155,9 +164,9 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 
 func upper(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
-func writeJSON(w http.ResponseWriter, v any) {
+func (s *Server) writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Origin", s.CORSOrigin)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(v)

@@ -61,6 +61,12 @@ type Options struct {
 	// ServeUI mounts the embedded React UI at "/". Off by default; embedders
 	// usually want only the JSON API.
 	ServeUI bool
+	// CORSOrigin sets Access-Control-Allow-Origin on JSON responses. Empty
+	// defaults to "*" (public, read-only); set a specific origin to lock down.
+	CORSOrigin string
+	// TrustedProxies lists proxy IPs/CIDRs whose X-Forwarded-For is honored for
+	// rate-limiting. Empty (the default) never trusts XFF and uses RemoteAddr.
+	TrustedProxies []string
 	// ReadyTimeout bounds how long Start waits for the server to serve
 	// (default 10s).
 	ReadyTimeout time.Duration
@@ -106,7 +112,7 @@ func Start(opts Options) (*Local, error) {
 	go st.Run(ctx)
 
 	mux := http.NewServeMux()
-	api.New(st, base).Routes(mux)
+	api.New(st, base, opts.CORSOrigin).Routes(mux)
 
 	if opts.Interest {
 		intRefresh := opts.InterestRefresh
@@ -116,7 +122,7 @@ func Start(opts Options) (*Local, error) {
 		if intSrcs := ratesources.Build(opts.InterestSources); len(intSrcs) > 0 {
 			ist := ratestore.New(intRefresh, intSrcs...)
 			go ist.Run(ctx)
-			ratesapi.New(ist).Routes(mux)
+			ratesapi.New(ist, opts.CORSOrigin).Routes(mux)
 		}
 	}
 
@@ -128,7 +134,7 @@ func Start(opts Options) (*Local, error) {
 
 	var limiter *ratelimit.Limiter
 	if opts.RateLimit > 0 {
-		limiter = ratelimit.New(opts.RateLimit, opts.RateLimit/2+1)
+		limiter = ratelimit.New(opts.RateLimit, opts.RateLimit/2+1, opts.TrustedProxies...)
 	}
 
 	l := &Local{

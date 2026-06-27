@@ -34,6 +34,8 @@ func main() {
 	intSpec := flag.String("interest-sources", env("OPENRATE_INTEREST_SOURCES", ""), "comma-separated interest-rate sources (default: bis,sarbrates; fred auto-enables with key)")
 	intRefresh := flag.Duration("interest-refresh", envDur("OPENRATE_INTEREST_REFRESH", 6*time.Hour), "interest-rate refresh interval")
 	rpm := flag.Int("ratelimit", envInt("OPENRATE_RATELIMIT", 120), "per-IP API requests/minute (anti-scraping; 0 disables)")
+	cors := flag.String("cors-origin", env("OPENRATE_CORS_ORIGIN", "*"), "Access-Control-Allow-Origin for the JSON API (default * — public read-only; set an origin to lock down)")
+	trustedProxies := flag.String("trusted-proxies", env("OPENRATE_TRUSTED_PROXIES", ""), "comma-separated proxy IPs/CIDRs whose X-Forwarded-For is trusted for rate-limiting (default none → use RemoteAddr)")
 	flag.Parse()
 
 	srcs := sources.Build(*srcSpec)
@@ -47,7 +49,7 @@ func main() {
 	go st.Run(ctx)
 
 	mux := http.NewServeMux()
-	api.New(st, *base).Routes(mux)
+	api.New(st, *base, *cors).Routes(mux)
 
 	// Interest-rate engine: an independent store/snapshot (rates are flat series,
 	// not a currency graph) served under /api/v1/interest/*. Policy rates change
@@ -55,7 +57,7 @@ func main() {
 	if intSrcs := ratesources.Build(*intSpec); len(intSrcs) > 0 {
 		ist := ratestore.New(*intRefresh, intSrcs...)
 		go ist.Run(ctx)
-		ratesapi.New(ist).Routes(mux)
+		ratesapi.New(ist, *cors).Routes(mux)
 		log.Printf("interest rates: %d source(s), refresh %s", len(intSrcs), *intRefresh)
 	}
 
@@ -67,7 +69,11 @@ func main() {
 
 	var limiter *ratelimit.Limiter
 	if *rpm > 0 {
-		limiter = ratelimit.New(*rpm, *rpm/2+1)
+		var proxies []string
+		if *trustedProxies != "" {
+			proxies = strings.Split(*trustedProxies, ",")
+		}
+		limiter = ratelimit.New(*rpm, *rpm/2+1, proxies...)
 	}
 	srv := &http.Server{Addr: *addr, Handler: guard(mux, limiter), ReadHeaderTimeout: 10 * time.Second}
 	go func() {

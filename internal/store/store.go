@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/internal/redact"
 	"github.com/vul-os/openrate/internal/sources"
 )
 
@@ -90,8 +91,11 @@ func (s *Store) refresh(ctx context.Context) {
 		now := time.Now().UTC()
 		st := s.status[r.name]
 		if r.err != nil {
-			st.LastError = r.err.Error()
-			log.Printf("source %s: %v", r.name, r.err)
+			// Paid sources carry their key in the request URL, which net/http
+			// echoes back inside *url.Error; redact before logging or exposing.
+			safe := redact.Error(r.err)
+			st.LastError = safe.Error()
+			log.Printf("source %s: %v", r.name, safe)
 		} else {
 			st.LastError = ""
 			st.LastOK = now

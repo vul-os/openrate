@@ -1,7 +1,9 @@
 # API reference
 
 openrate serves a small, read-only JSON API under `/api/v1`. All responses are
-`application/json` with `Access-Control-Allow-Origin: *` (browser-friendly).
+`application/json` with `Access-Control-Allow-Origin: *` by default
+(browser-friendly); the origin is configurable via `OPENRATE_CORS_ORIGIN` (see
+[configuration](configuration.md#cors)).
 
 | Endpoint | Description |
 |---|---|

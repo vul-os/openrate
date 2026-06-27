@@ -12,6 +12,7 @@ import (
 
 	"github.com/vul-os/openrate/internal/rates"
 	"github.com/vul-os/openrate/internal/ratesources"
+	"github.com/vul-os/openrate/internal/redact"
 )
 
 // SourceStatus records the outcome of the last fetch for one source.
@@ -89,8 +90,11 @@ func (s *Store) refresh(ctx context.Context) {
 		now := time.Now().UTC()
 		st := s.status[r.name]
 		if r.err != nil {
-			st.LastError = r.err.Error()
-			log.Printf("interest source %s: %v", r.name, r.err)
+			// Keyed APIs (e.g. FRED) embed their key in the request URL, which
+			// net/http echoes inside *url.Error; redact before recording.
+			safe := redact.Error(r.err)
+			st.LastError = safe.Error()
+			log.Printf("interest source %s: %v", r.name, safe)
 		} else {
 			st.LastError = ""
 			st.LastOK = now

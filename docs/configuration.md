@@ -12,6 +12,8 @@ variable. Real environment variables and flags both win over a `.env` file.
 | `-refresh` | `OPENRATE_REFRESH` | `1h` | Source refresh interval (Go duration, e.g. `30m`) |
 | `-sources` | `OPENRATE_SOURCES` | `ecb,coinbase,luno,sarb` | Comma-separated source spec |
 | `-ratelimit` | `OPENRATE_RATELIMIT` | `120` | Per-IP API requests/minute (anti-scraping; `0` disables) |
+| `-cors-origin` | `OPENRATE_CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` for the JSON API |
+| `-trusted-proxies` | `OPENRATE_TRUSTED_PROXIES` | _(none)_ | Comma-separated proxy IPs/CIDRs whose `X-Forwarded-For` is trusted for rate-limiting |
 
 ```bash
 # flags
@@ -26,6 +28,26 @@ OPENRATE_ADDR=:8080 OPENRATE_BASE=ZAR OPENRATE_REFRESH=1h ./openrate
 If a `.env` file is present in the working directory, openrate loads any
 `KEY=VALUE` pairs that aren't already set in the environment (dependency-free; real
 env vars take precedence). Lines beginning with `#` are ignored.
+
+## CORS
+
+The JSON API is public and read-only, so it answers cross-origin requests with
+`Access-Control-Allow-Origin: *` by default. To restrict which web origin may
+call it from a browser, set `-cors-origin` / `OPENRATE_CORS_ORIGIN` to a single
+origin, e.g. `https://app.example.com`. (Non-browser clients are unaffected;
+CORS is a browser policy.)
+
+## Trusted proxies & client IP
+
+The anti-scraping rate limiter buckets by client IP. By default the client IP is
+the connection's `RemoteAddr` and the `X-Forwarded-For` (XFF) header is **not**
+trusted — otherwise a directly exposed client could rotate XFF to mint a fresh
+bucket per request and bypass the limit.
+
+If openrate runs behind a reverse proxy / CDN that sets XFF, list that proxy's
+addresses in `-trusted-proxies` / `OPENRATE_TRUSTED_PROXIES` (comma-separated IPs
+or CIDRs, e.g. `10.0.0.0/8,203.0.113.4`). The left-most XFF hop is then honored,
+but only for requests whose direct peer is one of those trusted proxies.
 
 ## The source spec
 

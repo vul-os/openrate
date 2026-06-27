@@ -19,10 +19,17 @@ import (
 type Server struct {
 	Store       *store.Store
 	DefaultBase string // ZAR — openrate's anchor
+	// CORSOrigin is the Access-Control-Allow-Origin value sent on JSON
+	// responses. Default "*" (the API is public and read-only); set a specific
+	// origin to lock it down.
+	CORSOrigin string
 }
 
-func New(st *store.Store, defaultBase string) *Server {
-	return &Server{Store: st, DefaultBase: strings.ToUpper(defaultBase)}
+func New(st *store.Store, defaultBase, corsOrigin string) *Server {
+	if corsOrigin == "" {
+		corsOrigin = "*"
+	}
+	return &Server{Store: st, DefaultBase: strings.ToUpper(defaultBase), CORSOrigin: corsOrigin}
 }
 
 func (s *Server) Routes(mux *http.ServeMux) {
@@ -92,7 +99,7 @@ func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
 	for ccy, p := range snap.Rebase(base) {
 		rates[ccy] = view(snap, base, ccy, p, now)
 	}
-	writeJSON(w, map[string]any{
+	s.writeJSON(w, map[string]any{
 		"base":     base,
 		"built_at": snap.BuiltAt,
 		"rates":    rates,
@@ -122,7 +129,7 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
-	writeJSON(w, map[string]any{
+	s.writeJSON(w, map[string]any{
 		"from":   from,
 		"to":     to,
 		"amount": amount,
@@ -134,7 +141,7 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/meta -> sources + freshness + currency list
 func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 	snap := s.Store.Snapshot()
-	writeJSON(w, map[string]any{
+	s.writeJSON(w, map[string]any{
 		"default_base": s.DefaultBase,
 		"built_at":     snap.BuiltAt,
 		"currencies":   snap.Currencies,
@@ -151,9 +158,9 @@ func (s *Server) base(r *http.Request) string {
 
 func upper(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
-func writeJSON(w http.ResponseWriter, v any) {
+func (s *Server) writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Origin", s.CORSOrigin)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(v)

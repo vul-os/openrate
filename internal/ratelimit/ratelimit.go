@@ -25,18 +25,51 @@ type Limiter struct {
 	rate    float64
 	burst   float64
 	now     func() time.Time
+	trusted []*net.IPNet // proxies whose X-Forwarded-For we honor
 }
 
 // New builds a limiter allowing rpm requests/minute with the given burst.
-func New(rpm, burst int) *Limiter {
+//
+// trustedProxies lists the downstream addresses (IPs or CIDRs, e.g.
+// "10.0.0.0/8" or "203.0.113.4") permitted to set X-Forwarded-For. Only when a
+// request's RemoteAddr falls in this set is the client IP read from XFF;
+// otherwise RemoteAddr is used. With no trusted proxies (the default) XFF is
+// never trusted, so a directly-exposed client can't mint fresh buckets by
+// rotating the header. Invalid entries are ignored.
+func New(rpm, burst int, trustedProxies ...string) *Limiter {
 	l := &Limiter{
 		buckets: map[string]*bucket{},
 		rate:    float64(rpm) / 60.0,
 		burst:   float64(burst),
 		now:     time.Now,
+		trusted: parseProxies(trustedProxies),
 	}
 	go l.gc()
 	return l
+}
+
+// parseProxies turns IP and CIDR strings into networks. A bare IP becomes a
+// host route (/32 or /128). Unparseable entries are skipped.
+func parseProxies(specs []string) []*net.IPNet {
+	var nets []*net.IPNet
+	for _, s := range specs {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if _, n, err := net.ParseCIDR(s); err == nil {
+			nets = append(nets, n)
+			continue
+		}
+		if ip := net.ParseIP(s); ip != nil {
+			bits := 32
+			if ip.To4() == nil {
+				bits = 128
+			}
+			nets = append(nets, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+		}
+	}
+	return nets
 }
 
 // Allow reports whether a request from key may proceed, consuming one token.
@@ -80,7 +113,7 @@ func (l *Limiter) gc() {
 // client exceeds its budget.
 func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !l.Allow(ClientIP(r)) {
+		if !l.Allow(l.ClientIP(r)) {
 			w.Header().Set("Retry-After", strconv.Itoa(int(1/l.rate)+1))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -91,15 +124,42 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// ClientIP extracts the caller's IP, trusting the left-most X-Forwarded-For hop
-// when present (set by a fronting proxy / Vulos Cloud), else RemoteAddr.
-func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i >= 0 {
-			return strings.TrimSpace(xff[:i])
+// ClientIP extracts the caller's IP. The left-most X-Forwarded-For hop is
+// honored only when the direct peer (RemoteAddr) is a configured trusted proxy;
+// otherwise RemoteAddr is used. This stops a directly-exposed attacker from
+// rotating XFF to get a fresh rate-limit bucket per request.
+func (l *Limiter) ClientIP(r *http.Request) string {
+	host := remoteHost(r)
+	if l.trustsPeer(host) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if i := strings.IndexByte(xff, ','); i >= 0 {
+				return strings.TrimSpace(xff[:i])
+			}
+			return strings.TrimSpace(xff)
 		}
-		return strings.TrimSpace(xff)
 	}
+	return host
+}
+
+// trustsPeer reports whether the direct peer IP is in the trusted-proxy set.
+func (l *Limiter) trustsPeer(host string) bool {
+	if len(l.trusted) == 0 {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, n := range l.trusted {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// remoteHost returns the IP portion of r.RemoteAddr (no port).
+func remoteHost(r *http.Request) string {
 	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		return host
 	}
