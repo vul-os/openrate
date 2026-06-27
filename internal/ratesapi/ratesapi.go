@@ -167,6 +167,12 @@ func upper(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 func (s *Server) writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", s.CORSOrigin)
+	// When the allowed origin is a specific host (not the wildcard), the CORS
+	// response varies by request Origin, so caches must key on it — otherwise a
+	// cached response for one origin could be served to another.
+	if s.CORSOrigin != "*" {
+		w.Header().Set("Vary", "Origin")
+	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(v)
