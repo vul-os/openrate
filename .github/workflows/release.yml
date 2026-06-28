@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Verify tag matches declared version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          go build -ldflags "-X main.Version=${VERSION}" -o /tmp/openrate-check ./cmd/openrate
+          BIN_VER=$(/tmp/openrate-check --version | awk '{print $2}')
+          if [ "${BIN_VER}" != "${VERSION}" ]; then
+            echo "ERROR: binary reports version '${BIN_VER}' but tag is '${TAG}'"
+            exit 1
+          fi
+          echo "Version check passed: ${VERSION}"
+
+      - name: Build source archive
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          git archive --format=zip HEAD -o "openrate_${VERSION}_source.zip"
+
+      - name: Extract CHANGELOG notes
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          SEMVER="${VERSION#v}"
+          NOTES=$(awk "/^## \[${SEMVER}\]/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            PREV_TAG=$(git tag --sort=-v:refname | sed -n '2p' || echo "")
+            if [ -z "$PREV_TAG" ]; then
+              NOTES=$(git log --pretty=format:"- %s (%h)")
+            else
+              NOTES=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD")
+            fi
+          fi
+          {
+            echo "NOTES<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.changelog.outputs.NOTES }}
+          files: openrate_*_source.zip
+          generate_release_notes: true

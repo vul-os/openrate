@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -25,7 +26,16 @@ import (
 	"github.com/vul-os/openrate/web"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=vX.Y.Z".
+// It defaults to "dev" for local builds.
+var Version = "dev"
+
 func main() {
+	// One-shot: print version and exit.
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "version") {
+		fmt.Println("openrate", Version)
+		return
+	}
 	loadDotEnv(".env")
 	addr := flag.String("addr", env("OPENRATE_ADDR", ":8080"), "listen address")
 	base := flag.String("base", env("OPENRATE_BASE", "ZAR"), "default presentation base currency")
