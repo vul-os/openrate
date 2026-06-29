@@ -11,11 +11,10 @@ import (
 )
 
 // pinned returns a Limiter whose clock is frozen at the given instant.
-// The GC goroutine started by New() is harmless in tests.
+// Using newWithClock (rather than assigning l.now after construction) ensures
+// there is no data race between the gc goroutine and the test.
 func pinned(rpm, burst int, at time.Time) *Limiter {
-	l := New(rpm, burst)
-	l.now = func() time.Time { return at }
-	return l
+	return newWithClock(rpm, burst, func() time.Time { return at })
 }
 
 // ─── Token-bucket algorithm correctness ─────────────────────────────────────
@@ -26,7 +25,9 @@ func pinned(rpm, burst int, at time.Time) *Limiter {
 func TestTokenBucketRefillProportional(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	// rpm=60 → rate=1 token/s; burst=5
-	l := pinned(60, 5, base)
+	at := base
+	l := newWithClock(60, 5, func() time.Time { return at })
+	defer l.Stop()
 
 	// Drain: burst=5 calls all pass.
 	for i := range 5 {
@@ -39,7 +40,7 @@ func TestTokenBucketRefillProportional(t *testing.T) {
 	}
 
 	// Advance exactly 1 s → 1 token refilled.
-	l.now = func() time.Time { return base.Add(time.Second) }
+	at = base.Add(time.Second)
 	if !l.Allow("ip") {
 		t.Fatal("after 1 s refill one call must pass")
 	}
@@ -54,6 +55,7 @@ func TestTokenBucketBurstExact(t *testing.T) {
 	const burst = 7
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l := pinned(60, burst, base)
+	defer l.Stop()
 
 	for i := range burst {
 		if !l.Allow("k") {
@@ -70,12 +72,14 @@ func TestTokenBucketBurstExact(t *testing.T) {
 func TestTokenBucketOverflowCapped(t *testing.T) {
 	const burst = 4
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	l := pinned(60, burst, base)
+	at := base
+	l := newWithClock(60, burst, func() time.Time { return at })
+	defer l.Stop()
 
 	l.Allow("k") // seed the bucket (tokens = burst-1 = 3)
 
 	// Advance 24 h — without capping this would add 86 400 tokens.
-	l.now = func() time.Time { return base.Add(24 * time.Hour) }
+	at = base.Add(24 * time.Hour)
 
 	// Exactly burst calls must pass after the cap-to-burst reset.
 	for i := range burst {
@@ -93,7 +97,9 @@ func TestTokenBucketOverflowCapped(t *testing.T) {
 func TestTokenBucketUnderflowSafe(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	// rpm=120 → rate=2 tokens/s; burst=2
-	l := pinned(120, 2, base)
+	at := base
+	l := newWithClock(120, 2, func() time.Time { return at })
+	defer l.Stop()
 
 	l.Allow("k") // tokens → 1
 	l.Allow("k") // tokens → 0
@@ -106,7 +112,7 @@ func TestTokenBucketUnderflowSafe(t *testing.T) {
 	}
 
 	// Advance 1 s → 2 tokens refilled (rate=2/s).
-	l.now = func() time.Time { return base.Add(time.Second) }
+	at = base.Add(time.Second)
 	for i := range 2 {
 		if !l.Allow("k") {
 			t.Fatalf("recovered request %d must pass", i+1)
@@ -123,6 +129,7 @@ func TestBucketsArePerKey(t *testing.T) {
 	const burst = 1
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l := pinned(60, burst, base)
+	defer l.Stop()
 
 	l.Allow("a") // exhaust a's bucket
 	if l.Allow("a") {
@@ -140,8 +147,8 @@ func TestBucketsArePerKey(t *testing.T) {
 func TestConcurrentBurstEnforced(t *testing.T) {
 	const burst = 10
 	pinnedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	l := New(60, burst)
-	l.now = func() time.Time { return pinnedTime }
+	l := newWithClock(60, burst, func() time.Time { return pinnedTime })
+	defer l.Stop()
 
 	const total = burst * 3
 	start := make(chan struct{})
@@ -176,8 +183,8 @@ func TestConcurrentBurstEnforced(t *testing.T) {
 func TestGracefulDegradationUnderSaturation(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	current := base
-	l := New(60, 2)
-	l.now = func() time.Time { return current }
+	l := newWithClock(60, 2, func() time.Time { return current })
+	defer l.Stop()
 
 	allowed := 0
 	for range 10 {
@@ -191,6 +198,69 @@ func TestGracefulDegradationUnderSaturation(t *testing.T) {
 	}
 }
 
+// ─── GC / sweep correctness ──────────────────────────────────────────────────
+
+// TestSweepEvictsStale verifies that sweep removes buckets idle for more than
+// 15 minutes and retains buckets with recent activity.
+func TestSweepEvictsStale(t *testing.T) {
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	l := newWithClock(60, 10, func() time.Time { return base })
+	defer l.Stop()
+
+	// Seed a recent bucket at base.
+	l.Allow("recent")
+
+	// Manually insert a stale bucket (20 min old — past the 15-min cutoff).
+	l.mu.Lock()
+	l.buckets["stale"] = &bucket{tokens: 5, last: base.Add(-20 * time.Minute)}
+	l.mu.Unlock()
+
+	// A second recent bucket should also survive.
+	l.Allow("also-recent")
+
+	// Sweep at base: cutoff = base - 15 min.
+	l.sweep(base)
+
+	l.mu.Lock()
+	_, recentOK := l.buckets["recent"]
+	_, staleOK := l.buckets["stale"]
+	_, alsoOK := l.buckets["also-recent"]
+	l.mu.Unlock()
+
+	if !recentOK {
+		t.Error("recent bucket must survive sweep")
+	}
+	if !alsoOK {
+		t.Error("also-recent bucket must survive sweep")
+	}
+	if staleOK {
+		t.Error("stale bucket (20 min old) must be evicted by sweep")
+	}
+}
+
+// TestSweepRetainsExactBoundary verifies that a bucket last used exactly at the
+// cutoff (b.last == cutoff) is NOT evicted — only strictly-before is stale.
+func TestSweepRetainsExactBoundary(t *testing.T) {
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	cutoff := base.Add(-15 * time.Minute) // sweep(base) uses this as its cutoff
+	l := newWithClock(60, 10, func() time.Time { return base })
+	defer l.Stop()
+
+	l.mu.Lock()
+	l.buckets["boundary"] = &bucket{tokens: 5, last: cutoff} // exactly at cutoff
+	l.mu.Unlock()
+
+	l.sweep(base)
+
+	l.mu.Lock()
+	_, ok := l.buckets["boundary"]
+	l.mu.Unlock()
+
+	if !ok {
+		t.Error("bucket at exact cutoff boundary must not be evicted")
+	}
+}
+
 // ─── Middleware shape ────────────────────────────────────────────────────────
 
 // TestMiddleware429Shape verifies the HTTP shape of a rate-limited response:
@@ -198,6 +268,7 @@ func TestGracefulDegradationUnderSaturation(t *testing.T) {
 func TestMiddleware429Shape(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l := pinned(60, 1, base)
+	defer l.Stop()
 	l.Allow("10.0.0.1") // exhaust the one burst token
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -225,6 +296,7 @@ func TestMiddleware429Shape(t *testing.T) {
 func TestMiddlewarePassThrough(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l := pinned(60, 10, base)
+	defer l.Stop()
 
 	reached := false
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -250,6 +322,7 @@ func TestMiddlewarePassThrough(t *testing.T) {
 // the direct peer is a trusted proxy.
 func TestXFFMultipleHops(t *testing.T) {
 	l := New(60, 10, "10.0.0.0/8")
+	defer l.Stop()
 	got := l.ClientIP(req("10.1.2.3:443", "203.0.113.5, 10.99.0.1, 10.1.2.3"))
 	if got != "203.0.113.5" {
 		t.Errorf("multi-hop XFF: want 203.0.113.5 (left-most), got %q", got)
@@ -260,6 +333,7 @@ func TestXFFMultipleHops(t *testing.T) {
 // XFF header falls back to RemoteAddr without panicking or returning empty.
 func TestTrustedProxyNoXFFUsesRemoteAddr(t *testing.T) {
 	l := New(60, 10, "10.0.0.0/8")
+	defer l.Stop()
 	got := l.ClientIP(req("10.1.2.3:443", ""))
 	if got != "10.1.2.3" {
 		t.Errorf("trusted peer, no XFF: want 10.1.2.3, got %q", got)
@@ -270,6 +344,7 @@ func TestTrustedProxyNoXFFUsesRemoteAddr(t *testing.T) {
 // proxy list.
 func TestIPv6TrustedProxyCIDR(t *testing.T) {
 	l := New(60, 10, "::1/128")
+	defer l.Stop()
 	got := l.ClientIP(req("[::1]:443", "2001:db8::1"))
 	if got != "2001:db8::1" {
 		t.Errorf("IPv6 trusted peer: want 2001:db8::1, got %q", got)
@@ -280,6 +355,7 @@ func TestIPv6TrustedProxyCIDR(t *testing.T) {
 // silently ignored and valid entries still apply.
 func TestParseProxiesSkipsInvalidEntries(t *testing.T) {
 	l := New(60, 10, "not-an-ip", "300.300.300.300", "10.0.0.0/8")
+	defer l.Stop()
 	if !l.trustsPeer("10.0.0.1") {
 		t.Error("10.0.0.1 must be trusted (10.0.0.0/8 is the valid entry)")
 	}
@@ -292,6 +368,7 @@ func TestParseProxiesSkipsInvalidEntries(t *testing.T) {
 // does not panic or return garbage (net.SplitHostPort error path).
 func TestMalformedRemoteAddrFallback(t *testing.T) {
 	l := New(60, 10)
+	defer l.Stop()
 	// RemoteAddr has no port — SplitHostPort will fail; fallback is the raw value.
 	r := &http.Request{RemoteAddr: "192.0.2.9", Header: http.Header{}}
 	got := l.ClientIP(r)

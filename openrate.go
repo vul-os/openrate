@@ -79,6 +79,7 @@ type Local struct {
 	cancel  context.CancelFunc
 	srv     *http.Server
 	done    chan struct{}
+	limiter *ratelimit.Limiter // non-nil only when RateLimit > 0; stopped by Close
 }
 
 // Start builds the engine, launches it in a background goroutine, and returns
@@ -142,6 +143,7 @@ func Start(opts Options) (*Local, error) {
 		cancel:  cancel,
 		srv:     &http.Server{Addr: addr, Handler: guard(mux, limiter), ReadHeaderTimeout: 10 * time.Second},
 		done:    make(chan struct{}),
+		limiter: limiter,
 	}
 
 	go func() {
@@ -163,9 +165,13 @@ func Start(opts Options) (*Local, error) {
 // APIBaseURL returns the .../api/v1 base URL for the JSON API.
 func (l *Local) APIBaseURL() string { return l.BaseURL + "/api/v1" }
 
-// Close stops refreshing, shuts the server down, and waits for it to stop.
+// Close stops refreshing, stops the rate-limiter GC goroutine (if active),
+// shuts the server down, and waits for it to stop.
 func (l *Local) Close() error {
 	l.cancel()
+	if l.limiter != nil {
+		l.limiter.Stop()
+	}
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := l.srv.Shutdown(shutCtx)

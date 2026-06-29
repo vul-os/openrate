@@ -26,9 +26,12 @@ type Limiter struct {
 	burst   float64
 	now     func() time.Time
 	trusted []*net.IPNet // proxies whose X-Forwarded-For we honor
+	done    chan struct{} // closed by Stop to terminate the GC goroutine
 }
 
 // New builds a limiter allowing rpm requests/minute with the given burst.
+// Both rpm and burst are clamped to a minimum of 1 to prevent division-by-zero
+// in the Retry-After calculation.
 //
 // trustedProxies lists the downstream addresses (IPs or CIDRs, e.g.
 // "10.0.0.0/8" or "203.0.113.4") permitted to set X-Forwarded-For. Only when a
@@ -36,16 +39,44 @@ type Limiter struct {
 // otherwise RemoteAddr is used. With no trusted proxies (the default) XFF is
 // never trusted, so a directly-exposed client can't mint fresh buckets by
 // rotating the header. Invalid entries are ignored.
+//
+// Call Stop when the Limiter is no longer needed to release its background
+// goroutine and ticker.
 func New(rpm, burst int, trustedProxies ...string) *Limiter {
+	return newWithClock(rpm, burst, time.Now, trustedProxies...)
+}
+
+// newWithClock is the internal constructor used by New and tests. Accepting the
+// clock at construction time (rather than allowing post-construction field
+// assignment) eliminates the data race that a concurrent gc goroutine would
+// otherwise create against a test reassigning l.now.
+func newWithClock(rpm, burst int, now func() time.Time, trustedProxies ...string) *Limiter {
+	if rpm < 1 {
+		rpm = 1
+	}
+	if burst < 1 {
+		burst = 1
+	}
 	l := &Limiter{
 		buckets: map[string]*bucket{},
 		rate:    float64(rpm) / 60.0,
 		burst:   float64(burst),
-		now:     time.Now,
+		now:     now,
 		trusted: parseProxies(trustedProxies),
+		done:    make(chan struct{}),
 	}
 	go l.gc()
 	return l
+}
+
+// Stop terminates the background GC goroutine and its ticker. It is safe to
+// call Stop more than once.
+func (l *Limiter) Stop() {
+	select {
+	case <-l.done: // already stopped
+	default:
+		close(l.done)
+	}
 }
 
 // parseProxies turns IP and CIDR strings into networks. A bare IP becomes a
@@ -94,18 +125,31 @@ func (l *Limiter) Allow(key string) bool {
 	return true
 }
 
-// gc evicts idle buckets so the map can't grow unbounded.
+// sweep evicts per-IP buckets that have been idle for more than 15 minutes
+// relative to now. It is called periodically by gc and is directly testable.
+func (l *Limiter) sweep(now time.Time) {
+	cutoff := now.Add(-15 * time.Minute)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for k, b := range l.buckets {
+		if b.last.Before(cutoff) {
+			delete(l.buckets, k)
+		}
+	}
+}
+
+// gc evicts idle buckets so the map can't grow unbounded. It stops when Stop
+// closes the done channel.
 func (l *Limiter) gc() {
 	t := time.NewTicker(10 * time.Minute)
-	for range t.C {
-		l.mu.Lock()
-		cutoff := l.now().Add(-15 * time.Minute)
-		for k, b := range l.buckets {
-			if b.last.Before(cutoff) {
-				delete(l.buckets, k)
-			}
+	defer t.Stop()
+	for {
+		select {
+		case <-l.done:
+			return
+		case <-t.C:
+			l.sweep(l.now())
 		}
-		l.mu.Unlock()
 	}
 }
 
