@@ -5,7 +5,13 @@
    hairline), never on the mark. Inter for wordmark/headings/body, JetBrains
    Mono for figures (tabular nums). Sentence case, no ALL CAPS. Light + dark.
    ════════════════════════════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* SOVEREIGNTY: Inter + JetBrains Mono are vendored locally via @fontsource
+ * (self-hosted woff2), NOT fetched from Google Fonts at runtime. A self-host
+ * product must never leak the user's IP to fonts.googleapis.com / gstatic and
+ * must stay air-gappable. Variable wght axes cover the same weights (Inter
+ * 400–800, mono 400–600). System fallbacks preserved in --font-* below. */
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
 
 :root {
   /* ── open rate palette — Exchange Blue + Rate Teal, neutral base ── */
