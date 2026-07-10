@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -278,6 +280,29 @@ func TestConvertMalformedAmountFallsBackToOne(t *testing.T) {
 	// Malformed amount defaults to 1.0.
 	if body["amount"] != 1.0 {
 		t.Errorf("malformed amount: amount = %v, want 1.0 (default)", body["amount"])
+	}
+}
+
+// TestConvertNonFiniteAmountIs400 guards the fix for a robustness bug: Inf/NaN
+// parse successfully via ParseFloat but poison the multiplication and make the
+// JSON encoder fail mid-write, leaving the client a 200 with a truncated body.
+// They must be rejected cleanly with a 400 instead.
+func TestConvertNonFiniteAmountIs400(t *testing.T) {
+	st, cancel := populatedStore(t, testEdges, 3)
+	defer cancel()
+	srv := apiServer(t, st)
+	defer srv.Close()
+
+	for _, amt := range []string{"Inf", "-Inf", "NaN", "inf", "nan", "Infinity"} {
+		resp, err := http.Get(srv.URL + "/api/v1/convert?from=USD&to=ZAR&amount=" + url.QueryEscape(amt))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("amount=%q: status = %d, want 400 (body: %s)", amt, resp.StatusCode, body)
+		}
 	}
 }
 

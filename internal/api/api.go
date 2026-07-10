@@ -6,6 +6,7 @@ package api
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -119,6 +120,14 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 	amount := 1.0
 	if a := r.URL.Query().Get("amount"); a != "" {
 		if v, err := strconv.ParseFloat(a, 64); err == nil {
+			// Reject non-finite amounts (Inf/NaN): they parse fine but poison the
+			// arithmetic and make the JSON encoder fail mid-write, leaving the
+			// client with a 200 and a truncated body. Fail cleanly with a 400.
+			// Genuinely unparseable input keeps the historical default of 1.0.
+			if math.IsInf(v, 0) || math.IsNaN(v) {
+				http.Error(w, `{"error":"invalid amount"}`, http.StatusBadRequest)
+				return
+			}
 			amount = v
 		}
 	}

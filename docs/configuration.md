@@ -10,7 +10,9 @@ variable. Real environment variables and flags both win over a `.env` file.
 | `-addr` | `OPENRATE_ADDR` | `:8080` | Listen address |
 | `-base` | `OPENRATE_BASE` | `ZAR` | Default presentation base currency |
 | `-refresh` | `OPENRATE_REFRESH` | `1h` | Source refresh interval (Go duration, e.g. `30m`) |
-| `-sources` | `OPENRATE_SOURCES` | `ecb,coinbase,luno,sarb` | Comma-separated source spec |
+| `-sources` | `OPENRATE_SOURCES` | `ecb,coinbase,luno,sarb` | Comma-separated FX source spec |
+| `-interest-sources` | `OPENRATE_INTEREST_SOURCES` | `bis,sarbrates` | Comma-separated interest-rate source spec (empty falls back to the default; a spec that matches no source, e.g. `none`, disables the engine) |
+| `-interest-refresh` | `OPENRATE_INTEREST_REFRESH` | `6h` | Interest-rate refresh interval (Go duration) |
 | `-ratelimit` | `OPENRATE_RATELIMIT` | `120` | Per-IP API requests/minute (anti-scraping; `0` disables) |
 | `-cors-origin` | `OPENRATE_CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` for the JSON API |
 | `-trusted-proxies` | `OPENRATE_TRUSTED_PROXIES` | _(none)_ | Comma-separated proxy IPs/CIDRs whose `X-Forwarded-For` is trusted for rate-limiting |
@@ -81,6 +83,14 @@ you don't have to list them in `-sources`:
 | `twelvedata` | `OPENRATE_TWELVEDATA_KEY` |
 | `polygon` | `OPENRATE_POLYGON_KEY` |
 | `tradermade` | `OPENRATE_TRADERMADE_KEY` |
+
+## Interest-rate engine
+
+A separate, flat time-series engine (central-bank policy and reference rates)
+served under `/api/v1/interest/*`. It runs by default from `bis,sarbrates` (49
+central banks' policy rates + the South African ZARONIA family, no keys needed)
+on its own `-interest-refresh` cadence. Set `OPENRATE_FRED_API_KEY` to auto-add
+the US FRED benchmark series. Full detail: [interest-rates.md](interest-rates.md).
 
 ## Anti-scraping & hardening
 

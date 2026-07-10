@@ -65,7 +65,7 @@ Convert an amount between two currencies, with full provenance for the rate used
 |---|---|---|
 | `from` | the server default base | Source currency |
 | `to` | the server default base | Target currency |
-| `amount` | `1` | Amount to convert |
+| `amount` | `1` | Amount to convert. Unparseable values fall back to `1`; non-finite values (`Inf`/`NaN`) are rejected with `400`. |
 
 **Response**
 
@@ -80,7 +80,8 @@ Convert an amount between two currencies, with full provenance for the rate used
 ```
 
 Returns **`404`** with `{"error":"unknown or unreachable currency pair"}` when no
-path connects the two currencies in the current snapshot.
+path connects the two currencies in the current snapshot, and **`400`** with
+`{"error":"invalid amount"}` when `amount` is non-finite (`Inf`/`NaN`).
 
 ---
 
