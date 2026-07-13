@@ -25,7 +25,7 @@ type Limiter struct {
 	rate    float64
 	burst   float64
 	now     func() time.Time
-	trusted []*net.IPNet // proxies whose X-Forwarded-For we honor
+	trusted []*net.IPNet  // proxies whose X-Forwarded-For we honor
 	done    chan struct{} // closed by Stop to terminate the GC goroutine
 }
 
@@ -39,6 +39,14 @@ type Limiter struct {
 // otherwise RemoteAddr is used. With no trusted proxies (the default) XFF is
 // never trusted, so a directly-exposed client can't mint fresh buckets by
 // rotating the header. Invalid entries are ignored.
+//
+// When a trusted proxy is the direct peer, the client IP is selected as the
+// RIGHT-most XFF entry that is not itself a configured trusted proxy — because
+// standard reverse proxies (nginx $proxy_add_x_forwarded_for, Cloudflare)
+// APPEND the address they observed rather than replace, so the genuine client
+// sits to the right and the forgeable, client-supplied hops sit to the left.
+// This prevents a proxied client from rotating a left-most XFF value to mint a
+// fresh rate-limit bucket per request.
 //
 // Call Stop when the Limiter is no longer needed to release its background
 // goroutine and ticker.
@@ -168,19 +176,38 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// ClientIP extracts the caller's IP. The left-most X-Forwarded-For hop is
-// honored only when the direct peer (RemoteAddr) is a configured trusted proxy;
-// otherwise RemoteAddr is used. This stops a directly-exposed attacker from
-// rotating XFF to get a fresh rate-limit bucket per request.
+// ClientIP extracts the caller's IP. X-Forwarded-For is honored only when the
+// direct peer (RemoteAddr) is a configured trusted proxy; otherwise RemoteAddr
+// is used and XFF is ignored entirely, which stops a directly-exposed attacker
+// from rotating the header to get a fresh rate-limit bucket per request.
+//
+// When the peer is trusted, the client IP is the RIGHT-most XFF entry that is
+// not itself a trusted proxy: reverse proxies append the address they observed,
+// so walking from the right past the trusted-proxy hops yields the real client
+// the outermost trusted proxy saw — a value the client cannot forge. Everything
+// to the left of that boundary is client-supplied and forgeable, so it is never
+// used. Blank entries are skipped; a malformed (non-trusted, unparseable) entry
+// marks the untrusted boundary and causes a fail-safe fall back to RemoteAddr.
+// If the header is absent or every hop is trusted, RemoteAddr is used.
 func (l *Limiter) ClientIP(r *http.Request) string {
 	host := remoteHost(r)
-	if l.trustsPeer(host) {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			if i := strings.IndexByte(xff, ','); i >= 0 {
-				return strings.TrimSpace(xff[:i])
-			}
-			return strings.TrimSpace(xff)
+	if !l.trustsPeer(host) {
+		return host
+	}
+	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		p := strings.TrimSpace(parts[i])
+		if p == "" {
+			continue // tolerate stray/trailing commas
 		}
+		ip := net.ParseIP(p)
+		if ip == nil {
+			break // untrusted, forgeable boundary — stop and use the peer
+		}
+		if l.ipTrusted(ip) {
+			continue // a trusted-proxy hop; keep walking left
+		}
+		return p // first genuine (non-trusted) client address from the right
 	}
 	return host
 }
@@ -194,6 +221,11 @@ func (l *Limiter) trustsPeer(host string) bool {
 	if ip == nil {
 		return false
 	}
+	return l.ipTrusted(ip)
+}
+
+// ipTrusted reports whether ip falls within any configured trusted-proxy net.
+func (l *Limiter) ipTrusted(ip net.IP) bool {
 	for _, n := range l.trusted {
 		if n.Contains(ip) {
 			return true
