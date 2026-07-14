@@ -82,6 +82,22 @@ resp, _ := http.Get(local.APIBaseURL() + "/rates") // or local.BaseURL + "/healt
 `RateLimit`, `ServeUI`). `Start` returns once `/healthz` is serving. The engine's
 building blocks stay under `internal/`; this package is the supported public API.
 
+## Deployment modes
+
+openrate ships as sovereign, self-contained infrastructure. The multi-tenant
+hosted side is a **planned** Vulos Cloud layer, not code in this repo. Against the
+wider Vulos [three-shape model](https://github.com/vul-os/vulos/blob/dev/docs/ARCHITECTURE.md#deployment-modes):
+
+| Shape | How | Status |
+|---|---|---|
+| **Self-hosted binary** | `go run ./cmd/openrate` — keyless, all sources, hourly refresh, free | ✅ shipping |
+| **Embedded Go library** | `openrate.Start(...)` in-process — the same engine, no subprocess | ✅ shipping |
+| **Vulos Cloud (multi-tenant)** | An optional engine CP seam (`OPENRATE_CP_URL`) would add API keys, metering, and quotas while the engine stays keyless when it's unset | ⏳ planned — see [CLOUD.md](CLOUD.md); **not yet implemented** |
+
+Self-host is fully open and free. There is no OS-gateway shape — openrate is a
+data engine, not an OS app tile — and the cloud shape is the same engine wrapped
+by Vulos Cloud, not a separate build.
+
 ## API
 
 | Endpoint | Description |
