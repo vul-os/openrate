@@ -25,3 +25,39 @@ jobs:
 
       - name: Vet
         run: go vet ./...
+
+  # The web UI is embedded into the binary (web/embed.go embeds web/dist), so a
+  # bundle that builds but does not RUN ships a blank screen to every user. The
+  # E2E suite boots the BUILT bundle in real chromium and fails on any uncaught
+  # exception or an empty root — the check `vite build` cannot make.
+  web-e2e:
+    name: Web — build & boot the bundle in a real browser
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: npm ci
+
+      - name: Install chromium
+        run: npx playwright install --with-deps chromium
+
+      # `npm test` → pretest:e2e (vite build) → playwright test
+      - name: Boot guard + E2E
+        run: npm test
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openrate-playwright-report
+          path: web/playwright-report/
+          retention-days: 7
