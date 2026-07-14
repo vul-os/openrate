@@ -6,7 +6,17 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: "/",
   plugins: [react()],
-  build: { outDir: "dist", emptyOutDir: true },
+  // Preserve the licence banners upstream packages put in their own source (e.g.
+  // React's "@license React" header). Vite 8 minifies JS with oxc, whose
+  // output.comments.legal defaults to FALSE while minifying — so a default
+  // production build silently strips the very attribution MIT requires us to
+  // keep. Turning it back on means the shipped bundle carries those banners;
+  // the generated notices file served at /licenses.txt covers the rest.
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+    rollupOptions: { output: { comments: { legal: true } } },
+  },
   server: {
     proxy: {
       "/api": "http://localhost:8080",

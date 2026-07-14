@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
   "description": "openrate web — converter + live rates table (Vite + React JSX).",
   "scripts": {
     "dev": "vite",
