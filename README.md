@@ -7,6 +7,10 @@
 <p align="center">Open, ZAR-anchored exchange rates — the open way.</p>
 
 <p align="center">
+  <sub><img src="assets/vulos-logo.png" height="14" alt="VulOS"> Part of <strong><a href="https://vulos.org">VulOS</a></strong> — the open, self-hostable web OS &amp; app suite. Runs standalone.</sub>
+</p>
+
+<p align="center">
   <a href="docs/">Docs</a> ·
   <a href="docs/api.md">API</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
@@ -23,9 +27,27 @@ reselling a paid API — models every currency as a **graph** rather than pickin
 single canonical base, and serves an all-pairs JSON API plus an embedded React
 UI from a single Go binary.
 
-Part of the [Vulos](https://github.com/vul-os) group — a free, open-source,
-self-hostable engine like the rest of the suite. (A hosted/multi-tenant side is
-an **exploratory, unbuilt** idea only — see [CLOUD.md](CLOUD.md); it is not a
+## Part of VulOS
+
+[VulOS](https://vulos.org) is an open, self-hostable web OS + app suite. **Vulos =
+free, open-source software + two paid services.** The **Vulos OS**, all its apps,
+and the app store are OSS and free — you self-host them on your own box; Vulos
+does not host or provision boxes. Vulos bills for only two things: **Vulos Relay**
+(reachability) and **backup storage** (buckets) — there is no compute, mail, or
+app-store billing.
+
+The suite (each free, OSS, and independently self-hostable):
+
+- **Vulos OS** — the web-native desktop shell that hosts the apps
+- **Vulos Office** — documents: docs, sheets, slides, PDF, and whiteboards
+- **Vulos Files** — file storage + P2P sharing, built into the OS
+- **Vulos Relay** — sovereign connectivity / reachability fabric — one of the two paid services
+- **llmux** — sovereign AI gateway
+
+**PIM is bring-your-own** via **lilmail**; **comms are third-party**
+(Matrix/Element; Element Call / Jitsi). openrate is a free, open-source,
+self-hostable data engine like the rest of the suite. (A hosted/multi-tenant side
+is an **exploratory, unbuilt** idea only — see [CLOUD.md](CLOUD.md); it is not a
 current Vulos product, and nothing here is billed today.)
 
 ## Why a graph, not a base
