@@ -6,7 +6,13 @@ other Vulos products are. This repo stays a self-contained, self-hostable engine
 (single Go binary + embedded UI); the cloud layer wraps it.
 
 This file is the running TODO for that absorption. Nothing here is implemented
-yet — it is the contract for what Vulos Cloud must add around the engine.
+yet — it is the contract for what Vulos Cloud *would* add around the engine.
+
+> **Status: exploratory / deferred, not current.** In the shipping Vulos model
+> the OS and all apps are free OSS you self-host, and Vulos bills for only **two**
+> services: **Relay** (reachability) and **backup storage** (buckets). A hosted,
+> metered openrate is *not* one of Vulos's products today and nothing below is
+> live; treat this as a possible future exploration, not a commitment.
 
 ## Division of responsibility
 
