@@ -12,7 +12,13 @@
   <a href="docs/configuration.md">Configuration</a> ·
   <a href="docs/library.md">Go library</a> ·
   <a href="docs/graph-model.md">Graph model</a> ·
-  <a href="ACCURACY.md">Accuracy</a>
+  <a href="ACCURACY.md">Accuracy</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="ROADMAP.md">Roadmap</a>
+</p>
+
+<p align="center">
+  <sub>Current release: <a href="https://github.com/vul-os/openrate/releases/tag/v0.2.0">v0.2.0</a></sub>
 </p>
 
 ---
