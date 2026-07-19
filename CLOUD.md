@@ -30,7 +30,7 @@ yet — it is the contract for what Vulos Cloud *would* add around the engine.
 ## Integration approach (decided)
 
 openrate becomes **`product=openrate`** in the Vulos Cloud control-plane (CP)
-contract — the same pattern as `llm` (llmux), `office`, `mail`, `meet`. There are
+contract — the same pattern as `llm` (llmux) and `office`. There are
 two sides, and the engine stays self-contained.
 
 **Engine side — optional CP seam (mirror `llmux/integration/cp/cp.go`).**
