@@ -21,8 +21,6 @@
   <sub>Current release: <a href="https://github.com/vul-os/openrate/releases/tag/v0.2.0">v0.2.0</a></sub>
 </p>
 
-<p align="center"><sub><img src="assets/vulos-logo.png" height="14" alt="VulOS"> Part of <strong><a href="https://vulos.org">VulOS</a></strong> — the open, self-hostable web OS &amp; app suite. Runs standalone, or as an app hosted by the Vulos OS.</sub></p>
-
 ---
 
 **openrate** is an open-source exchange-rate engine. It ingests rates "the open
@@ -229,3 +227,10 @@ OFL-1.1) require the copyright notice and licence text to accompany every copy.
 ---
 
 <sub><img src="assets/vulos-logo.png" height="16" alt="VulOS"> · <strong>Built with purpose. Open by design.</strong></sub>
+
+---
+
+<p align="center">
+  <a href="https://vulos.org"><img src="assets/vulos-logo.png" alt="vulos" height="20"></a><br>
+  <sub><a href="https://vulos.org"><b>vulos</b></a> — open by design</sub>
+</p>
