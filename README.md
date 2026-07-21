@@ -21,6 +21,8 @@
   <sub>Current release: <a href="https://github.com/vul-os/openrate/releases/tag/v0.2.0">v0.2.0</a></sub>
 </p>
 
+<p align="center"><sub><img src="assets/vulos-logo.png" height="14" alt="VulOS"> Part of <strong><a href="https://vulos.org">VulOS</a></strong> — the open, self-hostable web OS &amp; app suite. Runs standalone, or as an app hosted by the Vulos OS.</sub></p>
+
 ---
 
 **openrate** is an open-source exchange-rate engine. It ingests rates "the open
@@ -203,7 +205,8 @@ Full documentation lives in **[`docs/`](docs/)**.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE) — © VulOS. openrate is a VulOS
+project; source and issues at [github.com/vul-os/openrate](https://github.com/vul-os/openrate).
 
 ### Third-party notices
 
