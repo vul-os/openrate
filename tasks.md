@@ -6,7 +6,7 @@
 - [x] Ingest loop + snapshot store, refresh interval configurable
 - [x] JSON API: `/rates`, `/convert`, `/meta`, `/healthz` with per-rate provenance
 - [x] React JSX UI (converter + rates table + freshness), embedded via `go:embed`
-- [x] Logo, README, CLOUD.md (cloud deferred to Vulos Cloud)
+- [x] Logo, README
 - [x] **Per-rate accuracy grade** (A–D + confidence) on every price: freshness, directness,
       source authority, cross-source corroboration, currency caveats — see ACCURACY.md
 - [x] **Web Accuracy page** + grade badge in converter; dropped defunct HRK
@@ -50,5 +50,3 @@
 - [ ] Dockerfile + fly.toml (match sibling Vulos services)
 - [ ] Backfill ECB 90-day file on boot for non-empty history
 
-## Cloud
-See [CLOUD.md](CLOUD.md) — hosted/multi-tenant absorbed into Vulos Cloud, not here.

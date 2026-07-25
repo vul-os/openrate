@@ -20,7 +20,6 @@ const NAV = [
   ]},
   { group: "Data & project", items: [
     ["d-sources", "Sources"],
-    ["d-cloud", "Cloud vs self-host"],
     ["d-contributing", "Contributing"],
   ]},
 ];
@@ -178,11 +177,6 @@ OPENRATE_TRADERMADE_KEY=      # TraderMade`} />
             </tbody>
           </table>
           <p>Full catalogue and the "open way" rationale: <a href={`${REPO}/blob/main/SOURCES.md`} target="_blank" rel="noreferrer">SOURCES.md</a>.</p>
-        </section>
-
-        <section id="d-cloud" className="doc-sec">
-          <h2>Cloud vs self-host</h2>
-          <p><b>Self-host</b> is free forever — the binary above, your own source keys, no limits you don't set. <b>openrate Cloud</b> is the managed endpoint: API keys, real-time paid feeds, history and an SLA, billed by requests. See <a href="#pricing" onClick={(e) => { e.preventDefault(); location.hash = "#pricing"; }}>Pricing</a>.</p>
         </section>
 
         <section id="d-contributing" className="doc-sec">

@@ -27,7 +27,7 @@ export default function Footer({ meta, base, onDocs }) {
             </div>
           </div>
 
-          <FootCol head="Product" links={[["Docs", "#docs", onDocs], ["Pricing", "#pricing"], ["API reference", "#docs", onDocs], ["Self-host", "#docs", onDocs]]} />
+          <FootCol head="Product" links={[["Docs", "#docs", onDocs], ["API reference", "#docs", onDocs], ["Self-host", "#docs", onDocs]]} />
           <FootCol head="Open data" links={[["ECB", "https://www.ecb.europa.eu"], ["SARB", "https://www.resbank.co.za"], ["Coinbase", "https://www.coinbase.com"], ["Luno", "https://www.luno.com"]]} />
           <FootCol head="Project" links={[["GitHub", REPO], ["SOURCES.md", `${REPO}/blob/main/SOURCES.md`], ["License (MIT)", `${REPO}/blob/main/LICENSE`], ["Third-party licences", "/licenses.txt"], ["Vulos", "https://vulos.org"]]} />
         </div>

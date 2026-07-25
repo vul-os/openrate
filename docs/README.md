@@ -20,7 +20,6 @@ Everything you need to run, consume, embed, and extend openrate.
 |---|---|
 | [Accuracy model](../ACCURACY.md) | How grades, confidence, and caveats are computed |
 | [Source catalog](../SOURCES.md) | Per-source detail and provenance |
-| [Vulos Cloud](../CLOUD.md) | The hosted / multi-tenant story |
 | [License](../LICENSE) | MIT |
 
 ## Quick links

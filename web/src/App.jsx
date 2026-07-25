@@ -5,7 +5,6 @@ import CurrencySelect from "./CurrencySelect.jsx";
 import Footer from "./Footer.jsx";
 import { ccyFlag } from "./currencies.js";
 import Accuracy from "./Accuracy.jsx";
-import Pricing from "./Pricing.jsx";
 import Docs from "./Docs.jsx";
 
 const REPO = "https://github.com/vul-os/openrate";
@@ -26,7 +25,6 @@ export function Grade({ q, size = "sm" }) {
 const NAV = [
   { id: "convert", label: "Convert" },
   { id: "accuracy", label: "Accuracy" },
-  { id: "pricing", label: "Pricing" },
 ];
 
 export default function App() {
@@ -35,7 +33,7 @@ export default function App() {
   const [rates, setRates] = useState(null);
   const [err, setErr] = useState(null);
   const [route, setRoute] = useState(() => (location.hash.startsWith("#docs") ? "docs" : "home"));
-  const active = useScrollSpy(["convert", "accuracy", "pricing"]);
+  const active = useScrollSpy(["convert", "accuracy"]);
 
   useEffect(() => { getMeta().then(setMeta).catch((e) => setErr(e.message)); }, []);
   useEffect(() => { getRates(base).then(setRates).catch((e) => setErr(e.message)); }, [base]);
@@ -81,7 +79,7 @@ export default function App() {
           <a href="#docs" className={route === "docs" ? "on" : ""} onClick={goDocs}>Docs</a>
         </div>
         <a className="nav-icon" href={REPO} target="_blank" rel="noreferrer" title="GitHub" aria-label="GitHub"><GitHubIcon size={18} /></a>
-        <a className="nav-cta" href="#pricing" onClick={(e) => go(e, "pricing")}>Get API key</a>
+        <a className="nav-cta" href="#docs" onClick={goDocs}>Self-host</a>
         <ThemeToggle />
       </nav>
 
@@ -132,10 +130,6 @@ export default function App() {
 
         <section id="accuracy" className="sect alt">
           <div className="wrap"><Accuracy /></div>
-        </section>
-
-        <section id="pricing" className="sect">
-          <div className="wrap"><Pricing /></div>
         </section>
       </main>
       )}

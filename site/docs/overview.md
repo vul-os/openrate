@@ -23,8 +23,7 @@ reselling a paid API — models every currency as a **graph** rather than pickin
 single canonical base, and serves an all-pairs JSON API plus an embedded React
 UI from a single Go binary.
 
-Part of the [Vulos](https://github.com/vul-os) group. The hosted/multi-tenant
-side is absorbed into **Vulos Cloud** — see [CLOUD.md](CLOUD.md).
+Part of the [Vulos](https://github.com/vul-os) group.
 
 ## Why a graph, not a base
 

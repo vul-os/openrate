@@ -26,9 +26,8 @@ No unreleased changes.
   `internal/ratestore`, and `internal/sources` (XFF spoofing, bucket sweep
   eviction, concurrent store access under `-race`, fixture-driven source
   `Fetch` parsing, and secret-leak redaction for paid sources).
-- README "Deployment modes" section documenting the two current shapes
-  (self-hosted binary, embedded Go library) versus the planned, not-yet-built
-  Vulos Cloud CP seam.
+- README "Deployment modes" section documenting the two current shapes:
+  self-hosted binary and embedded Go library.
 
 ### Changed
 

@@ -39,10 +39,4 @@ See [CHANGELOG.md](CHANGELOG.md) for what has already shipped.
   support it (crypto WebSocket feeds first), keeping the graph model but
   cutting latency further.
 - **Historical storage.** Persist daily snapshots for `?date=` queries and
-  time-series lookups; the engine keeps this basic today and long-retention
-  storage is explicitly a hosted-tier concern (see [CLOUD.md](CLOUD.md)).
-- **Vulos Cloud absorption.** A hosted, multi-tenant, metered layer around
-  this engine (API keys, quotas, billing) is an explored-but-deferred idea
-  tracked in [CLOUD.md](CLOUD.md) — not a current Vulos product, and not
-  built in this repo. The self-hosted binary and embedded Go library stay
-  free and keyless regardless of whether that ever ships.
+  time-series lookups; the engine keeps this basic today.

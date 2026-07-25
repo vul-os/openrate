@@ -1,7 +1,6 @@
 // Package ratelimit is a small per-IP token-bucket limiter — best-effort
 // anti-scraping for the public API so a single client can't harvest the whole
-// rate set in a tight loop. Heavier anti-abuse (API keys, per-plan quotas, WAF,
-// CDN edge) belongs to Vulos Cloud, not the engine — see CLOUD.md.
+// rate set in a tight loop.
 package ratelimit
 
 import (
@@ -169,7 +168,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 			w.Header().Set("Retry-After", strconv.Itoa(int(1/l.rate)+1))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
-			_, _ = w.Write([]byte(`{"error":"rate limited — slow down. For higher limits use Vulos Cloud."}`))
+			_, _ = w.Write([]byte(`{"error":"rate limited — slow down."}`))
 			return
 		}
 		next.ServeHTTP(w, r)
