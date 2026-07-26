@@ -45,8 +45,8 @@ No unreleased changes.
 - README rewritten to be self-contained (dropped the "Part of VulOS" suite
   banner/product-map section, added a footer logo instead) and CLOUD.md/README
   updated to mark hosted, multi-tenant openrate as exploratory/deferred rather
-  than a current billed Vulos product; stale "Vulos Mail"/"Workspace"
-  references and "Office" renamed to "Ofisi" in the site footer.
+  than a current Vulos product; stale mail/"Workspace" references renamed to
+  "lilmail" and "Office" renamed to "Ofisi" in the site footer.
 
 ### Fixed
 
