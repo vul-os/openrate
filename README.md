@@ -21,6 +21,11 @@
   <sub>Current release: <a href="https://github.com/vul-os/openrate/releases/tag/v0.2.0">v0.2.0</a></sub>
 </p>
 
+<p align="center">
+  <a href="LICENSE-MIT"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg"></a>
+  <a href="https://golang.org"><img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white"></a>
+</p>
+
 ---
 
 **openrate** is an open-source exchange-rate engine. It ingests rates "the open
