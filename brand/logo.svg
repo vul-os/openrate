@@ -1,11 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="openrate">
   <title>openrate</title>
-  <rect width="128" height="128" rx="28" fill="#0F1D2E"/>
-  <!-- exchange: two arrows swapping — the rate between two currencies -->
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
-    <path d="M40 51 H86" stroke="#3B82F6"/>
-    <path d="M76 41 L88 51 L76 61" stroke="#3B82F6"/>
-    <path d="M88 77 H42" stroke="#14B8A6"/>
-    <path d="M52 67 L40 77 L52 87" stroke="#14B8A6"/>
+  <!-- Canonical square app tile, to the Vulos product-logo standard: 128 box,
+       rx 28, a near-black ground tinted toward the product's own hue. #08111D
+       is blue-tinted at roughly the luminance of zana's #14110b and kotva's
+       #0f0d0b; the previous #0F1D2E sat at twice that brightness and vanished
+       against the dark product grid these tiles are displayed on. -->
+  <rect width="128" height="128" rx="28" fill="#08111D"/>
+  <!-- The mark: two offset arcs, Exchange Blue over Rate Teal. A rate is a
+       ratio — two quantities held against each other — and the offset is what
+       shows that. Geometry identical to assets/openrate.svg, scaled to 84/128
+       (66%) so its optical weight matches the rest of the fleet's tiles. -->
+  <g transform="translate(13.6,13.6) scale(0.84)">
+    <path d="M26 58 A42 42 0 0 1 110 58 Z" fill="#3B82F6"/>
+    <path d="M10 62 A42 42 0 0 0 94 62 Z" fill="#14B8A6"/>
   </g>
 </svg>

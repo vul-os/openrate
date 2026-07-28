@@ -65,6 +65,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **One logo, not two.** The repo had drifted into carrying two different marks:
+  the two offset arcs used by the app, the site, the favicon and the README, and
+  a separate square tile in `brand/logo.svg` drawing two swapping arrows. The
+  arcs win and the arrows are retired — a rate is a *ratio*, two quantities held
+  against each other, which is what the offset arcs show, whereas swapping
+  arrows are the commonest glyph in the category and collapse into mush at
+  16 px. `brand/logo.svg` is now the arcs on the standard Vulos product tile
+  (128 box, `rx` 28, near-black ground tinted toward the product's own hue).
+  That ground moved from `#0F1D2E` to `#08111D`: the old value sat at roughly
+  twice the luminance of the fleet's other tiles and disappeared against the
+  dark product grid these are displayed on. The bare mark's title and
+  `aria-label` are now "openrate" rather than "open rate", matching the product
+  name, in all four byte-identical copies.
 - **The interface was rebuilt around showing the working.** A rate's path
   through the currency graph is now drawn — each node a currency, each hop
   carrying its own rate, source and age — and cross-source disagreement is
