@@ -26,22 +26,44 @@ Confidence is the product of five factors, clamped to [0, 1].
    `multi_cross` (3+, ×0.75). Each hop compounds the spread.
 3. **Source authority** — the *weakest* source on the path.
    `official` (×1.0) > `exchange` (×0.96) > `aggregator` (×0.92) > `unofficial` (×0.7).
+   A path naming a source the engine does not recognise is `unknown` (×0.8); a
+   pair with no sources at all is also reported `unknown` (×0.85).
 4. **Corroboration** — independent sources directly quoting the exact pair, and
    the spread between them (bps): ≤25 ×1.0, ≤100 ×0.93, ≤300 ×0.85, else ×0.72.
    A single uncorroborated source ×0.88; a purely derived pair is neutral (the
    directness factor already accounts for it).
 5. **Currency caveats** — `NGN`/`EGP` (official vs parallel rate, ×0.7), `CNY`
    (managed onshore/offshore, ×0.7), defunct currencies (×0.2). Each adds a
-   human-readable `caveats[]` entry.
+   human-readable `caveats[]` entry. The penalty applies **per currency**, so a
+   pair flagged on both sides is penalised twice.
+
+The reported `grade` is derived from the same rounded `confidence` that appears
+in the response, so the two never disagree.
 
 ## Source classes
 
-| Class | Sources |
-|---|---|
-| official | sarb, ecb, boc, frankfurter (ECB data) |
-| exchange | coinbase, luno |
-| aggregator | erapi, fawazahmed0 |
-| unofficial | yahoo |
+Every source the engine can route through, and the class it is graded as:
+
+| Class | Factor | Sources |
+|---|---|---|
+| official | ×1.0 | `sarb`, `ecb`, `boc`, `frankfurter` (ECB data) |
+| exchange | ×0.96 | `coinbase`, `luno`, `polygon`, `tradermade`, `twelvedata` |
+| aggregator | ×0.92 | `erapi`, `fawazahmed0`, `oxr` |
+| unofficial | ×0.7 | `yahoo` |
+| unknown | ×0.8 | any source name not listed above |
+
+`polygon`, `tradermade`, `twelvedata` and `oxr` are the key-gated sources — they
+auto-enable when their API key is present (see [Sources](#sources)).
+
+## Corroboration and `agree`
+
+`corroboration.agree` is `spread_bps <= 50`. That is a **different threshold**
+from the confidence bands above (25 / 100 / 300), so `agree: true` does not imply
+the top factor — a 50 bps spread agrees but still scores ×0.93.
+
+`agree` is `false` for a single source (one quote is uncorroborated, not agreed)
+and `true` for zero sources (nothing to disagree with). Always read
+`corroboration.sources` before drawing a conclusion from `agree`.
 
 ## In the response
 
@@ -52,18 +74,45 @@ GET /api/v1/convert?from=USD&to=ZAR
   "quality": {
     "grade": "B", "confidence": 0.89,
     "freshness": "realtime", "directness": "direct", "source_class": "exchange",
-    "corroboration": { "sources": 4, "spread_bps": 29, "agree": true },
-    "caveats": []
+    "corroboration": { "sources": 4, "spread_bps": 29, "agree": true }
   }
 }
 ```
 
 The same block appears on each entry of `/api/v1/rates`.
 
-## Typical coverage
+## What it takes to reach each grade
 
-- **Grade A:** USD, EUR, GBP, JPY, CHF, AUD, CAD, ZAR (vs majors) — multi-source, direct, fresh.
-- **Grade C:** NGN, KES, GHS, EGP, MAD, BWP, AED, SAR — fewer sources, triangulated.
-- **Flagged:** NGN, EGP, CNY — official rate may differ from the transactable rate.
+Grades are computed per request from the provenance of that specific pair, so
+this section describes the *model*, not measured coverage of any deployment —
+what you actually see depends entirely on which sources you enable.
 
-Grades are computed per request, not fixed — adding sources or freshness raises them.
+**Grade A (≥ 0.90) needs corroboration.** With the maximum score on everything
+else, the corroboration factor alone decides it:
+
+| Provenance | Confidence | Grade |
+|---|---|---|
+| direct, realtime, exchange, ≥2 quotes within 25 bps | 0.96 | A |
+| direct, daily official (`current`), ≥2 quotes within 25 bps | 0.90 | A (exactly on the band) |
+| direct, realtime, exchange, **single** source | 0.84 | B |
+| direct, daily official, **single** source | 0.79 | B |
+| 2-hop cross, daily, exchange, ≥2 tight quotes | 0.78 | B |
+
+So a pair quoted by only one source cannot reach A no matter how fresh it is —
+the single-source factor (×0.88) caps it. Reaching A needs at least two
+independent sources quoting that exact pair and agreeing within 25 bps.
+
+**Flagged currencies are capped below A.** `NGN`, `EGP` and `CNY` carry a ×0.7
+caveat, so their ceiling is 0.70 — grade **C** with otherwise perfect provenance,
+and **D** as soon as anything else is less than perfect. A defunct currency
+(×0.2) is always **D**.
+
+**Thin currencies.** Codes outside the ECB reference list (`KES`, `GHS`, `MAD`,
+`BWP`, `AED`, `SAR`, …) reach the graph only through the broad multi-asset feeds
+(see `fiatAllow` in `internal/sources/fiat.go`). With one feed carrying them they
+are single-source by construction, so the ×0.88 factor applies and A is out of
+reach; enabling a second broad feed (`erapi`, `fawazahmed0`) is what corroborates
+them.
+
+Adding a corroborating source, or a fresher one, raises the grade; the numbers
+above are the levers.

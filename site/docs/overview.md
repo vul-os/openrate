@@ -52,7 +52,7 @@ go build -o openrate ./cmd/openrate && ./openrate -addr :8080 -base ZAR -refresh
 
 Config via flags or env: `OPENRATE_ADDR`, `OPENRATE_BASE`, `OPENRATE_REFRESH`,
 `OPENRATE_SOURCES`, `OPENRATE_RATELIMIT`. Full reference:
-[docs/configuration.md](docs/configuration.md).
+[Configuration](#configuration).
 
 With Docker:
 
@@ -92,7 +92,7 @@ building blocks stay under `internal/`; this package is the supported public API
 
 Every rate includes `hops`, `as_of`, `age_sec`, the `path` and `sources`, plus a
 **`quality`** block (grade A–D + confidence) — see below. Full request/response
-shapes: [docs/api.md](docs/api.md).
+shapes: [API reference](#api).
 
 ### Interest rates (optional engine)
 
@@ -109,7 +109,7 @@ and reference rates worldwide. Enable with `-interest-sources` (binary) or
 Out of the box (`bis,sarbrates`, no keys) this covers **49 central banks' policy
 rates with daily history** plus the South African ZARONIA family; set
 `OPENRATE_FRED_API_KEY` to auto-enable US benchmark series. Each series carries an
-interest-tuned `quality` grade. See [docs/interest-rates.md](docs/interest-rates.md).
+interest-tuned `quality` grade. See [Interest rates](#interest-rates).
 
 ## Accuracy
 
@@ -119,8 +119,7 @@ Every price carries a `quality` assessment so you know how much to trust it:
 "quality": {
   "grade": "B", "confidence": 0.89,
   "freshness": "realtime", "directness": "direct", "source_class": "exchange",
-  "corroboration": { "sources": 4, "spread_bps": 29, "agree": true },
-  "caveats": []
+  "corroboration": { "sources": 4, "spread_bps": 29, "agree": true }
 }
 ```
 
@@ -128,7 +127,7 @@ The grade combines **freshness** (edge age), **directness** (hop count),
 **source authority** (official > exchange > aggregator > unofficial),
 **cross-source agreement** (spread in bps), and per-currency **caveats**
 (e.g. NGN/EGP/CNY official-vs-parallel-rate flags). Full model:
-[ACCURACY.md](ACCURACY.md). The web UI shows the grade in the converter and a
+[Accuracy](#accuracy). The web UI shows the grade in the converter and a
 dedicated **Accuracy** page documenting the methodology.
 
 ## Sources
@@ -147,11 +146,15 @@ Selectable with `-sources` (or `OPENRATE_SOURCES`). Default: `ecb,coinbase,luno,
 | **Bank of Canada** | opt-in | daily | Valet REST, independent cross-check |
 | **Yahoo Finance** | opt-in | ~1 min | unofficial, **ToS-prohibited**, rate-limited — last resort |
 
+Four further sources are **key-gated** and auto-enable when their API key is
+present: Open Exchange Rates, Twelve Data, Polygon.io and TraderMade. They are
+not open data, so they are off unless you bring a key — see [Sources](#sources).
+
 Because the graph prefers the freshest direct edge, `USD→ZAR` resolves to the
 live Coinbase quote (~seconds old) while `EUR/GBP/JPY→ZAR` resolve to SARB's
 authoritative direct quotes — each chosen automatically, no special-casing.
 Add a source by implementing `sources.Source` and registering it in
-`internal/sources/registry.go`. Full catalog + freshness notes: [SOURCES.md](SOURCES.md).
+`internal/sources/registry.go`. Full catalog + freshness notes: [Sources](#sources).
 
 ## Web UI
 
@@ -167,26 +170,28 @@ npm --prefix web run build    # regenerates web/dist, embedded into the binary
 openrate.go       public package: embed the engine in-process (Start/Close)
 cmd/openrate      entrypoint: wires sources -> store -> api + UI
 internal/graph    currency graph, BFS all-pairs materialization
-internal/sources  pluggable open sources (ECB live, SARB stub)
+internal/sources  pluggable FX sources (ecb, coinbase, luno, sarb, … all live)
 internal/store    ingest loop + snapshot store
+internal/quality  the grade/confidence model attached to every rate
 internal/api      JSON read endpoints
 web               Vite + React JSX UI (embedded via go:embed)
 ```
 
 ## Documentation
 
-Full documentation lives in **[`docs/`](docs/)**.
+Full documentation lives in the guides listed below.
 
 | Guide | What's inside |
 |---|---|
-| [API reference](docs/api.md) | Every endpoint, params, and full response shapes |
-| [Configuration](docs/configuration.md) | Flags, env vars, and the source spec |
-| [Go library](docs/library.md) | Embed the engine in-process with `Start`/`Close` |
-| [Graph model](docs/graph-model.md) | Why currencies are a graph, not a base |
-| [Accuracy & quality](ACCURACY.md) | The grade/confidence model behind every rate |
-| [Sources](SOURCES.md) | Full source catalog, cadence, and provenance |
-| [Web UI](docs/web-ui.md) | The embedded React dashboard |
+| [API reference](#api) | Every endpoint, params, and full response shapes |
+| [Configuration](#configuration) | Flags, env vars, and the source spec |
+| [Go library](#library) | Embed the engine in-process with `Start`/`Close` |
+| [Graph model](#graph-model) | Why currencies are a graph, not a base |
+| [Accuracy & quality](#accuracy) | The grade/confidence model behind every rate |
+| [Sources](#sources) | Full source catalog, cadence, and provenance |
+| [Web UI](#web-ui) | The embedded React dashboard |
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Dual-licensed **MIT OR Apache-2.0** — © VulOS. Source and issues at
+[github.com/vul-os/openrate](https://github.com/vul-os/openrate).

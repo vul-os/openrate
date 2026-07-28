@@ -27,10 +27,10 @@ npm --prefix web run build    # regenerates web/dist
 ## Serving from the binary
 
 The compiled binary serves the UI at `/` automatically. When [embedding openrate
-as a library](library.md), the UI is **off by default** — set
+as a library](#library), the UI is **off by default** — set
 `Options{ServeUI: true}` to mount it.
 
 ## Related
 
-- [API reference](api.md) — the endpoints the UI calls
-- [Accuracy & quality](../ACCURACY.md) — what the Accuracy page documents
+- [API reference](#api) — the endpoints the UI calls
+- [Accuracy & quality](#accuracy) — what the Accuracy page documents

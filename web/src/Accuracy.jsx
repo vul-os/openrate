@@ -50,8 +50,10 @@ export default function Accuracy() {
             <code>multi&nbsp;cross</code> (3+). Each hop compounds the bid/ask spread.
           </Factor>
           <Factor n="03" name="Source authority" tag="weakest link on the path">
-            <code>official</code> (central banks — SARB, ECB, BoC) &gt; <code>exchange</code> (Coinbase,
-            Luno, Polygon) &gt; <code>aggregator</code> (open.er-api, OXR) &gt; <code>unofficial</code> (Yahoo).
+            <code>official</code> ×1.0 (SARB, ECB, BoC, Frankfurter) &gt; <code>exchange</code> ×0.96
+            (Coinbase, Luno, Polygon, TraderMade, Twelve Data) &gt; <code>aggregator</code> ×0.92
+            (open.er-api, fawazahmed0, OXR) &gt; <code>unofficial</code> ×0.7 (Yahoo). An unrecognised
+            source name grades <code>unknown</code> ×0.8.
           </Factor>
           <Factor n="04" name="Corroboration" tag="cross-source agreement">
             Every independent source that <em>directly</em> quotes the pair is compared; we report the
@@ -69,12 +71,16 @@ export default function Accuracy() {
       <Reveal className="section">
         <div className="sec-head">
           <Eyebrow>Coverage</Eyebrow>
-          <h2 className="display d2">Where it's strong vs thin</h2>
+          <h2 className="display d2">What moves a grade</h2>
         </div>
+        <p className="lede">
+          Grades are computed per request from that pair's provenance — they are not fixed per
+          currency, and what you see depends on which sources you enable.
+        </p>
         <div className="cov-grid">
-          <CovCard grade="A" cls="bA" ccy="USD EUR GBP JPY CHF AUD CAD ZAR" why="multiple independent sources, direct & fresh" />
-          <CovCard grade="C" cls="bC" ccy="NGN KES GHS EGP MAD BWP AED SAR" why="fewer sources, triangulated through USD" />
-          <CovCard grade="!" cls="bD" ccy="NGN EGP CNY" why="official rate may differ from the transactable one" />
+          <CovCard grade="A" cls="bA" ccy="2+ sources · direct · agree ≤25bps" why="a pair quoted by only one source cannot reach A, however fresh it is" />
+          <CovCard grade="B" cls="bC" ccy="single source · or 2 hops" why="uncorroborated (×0.88) or triangulated (×0.9) — good, not top" />
+          <CovCard grade="!" cls="bD" ccy="NGN EGP CNY" why="capped at 0.70 by the parallel-market / managed-regime caveat, so C at best" />
         </div>
       </Reveal>
 

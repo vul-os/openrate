@@ -53,9 +53,18 @@ Every series carries a `quality` block, tuned for interest rates (not FX):
 - **caveats** — definitional notes: US policy is a target-range midpoint, managed
   regimes (CN), high-inflation volatility (AR, TR), index-vs-rate, single-source.
 
-Grades: **A** ≥ 0.90 · **B** ≥ 0.78 · **C** ≥ 0.60 · **D** < 0.60. A single
-official-aggregator series grades ~B; add a second corroborating source (or the
-issuing bank's own feed) and it climbs to A.
+Grades: **A** ≥ 0.90 · **B** ≥ 0.78 · **C** ≥ 0.60 · **D** < 0.60. `grade` is
+derived from the same rounded `confidence` that is published, so the two never
+disagree.
+
+A single recent official-aggregator series (e.g. BIS alone) grades **B** at 0.85:
+`0.97` source × `0.97` freshness × `0.90` single-source. Corroborate it with a
+second source reporting the same level and it reaches **A** (0.94); take the
+headline from the issuing bank itself and it is 0.97.
+
+An area caveat multiplies by a further `0.92`, which is enough to hold a series a
+band lower — `us.policy` from BIS alone is 0.78, and even corroborated it reaches
+only 0.87.
 
 ## Examples
 
@@ -84,7 +93,7 @@ Response (trimmed):
   "sources": ["bis"],
   "quality": {
     "grade": "B",
-    "confidence": 0.85,
+    "confidence": 0.78,
     "freshness": "recent",
     "source_class": "official_aggregator",
     "corroboration": { "sources": 1, "spread_bps": 0, "agree": false },

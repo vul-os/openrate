@@ -155,8 +155,7 @@ OPENRATE_TRADERMADE_KEY=      # TraderMade`} />
       "freshness": "realtime",
       "directness": "direct",
       "source_class": "exchange",
-      "corroboration": { "sources": 4, "spread_bps": 43.6, "stdev_bps": 19.4, "agree": true },
-      "caveats": []
+      "corroboration": { "sources": 4, "spread_bps": 43.6, "stdev_bps": 19.4, "agree": true }
     }
   }
 }`} />

@@ -137,12 +137,21 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"unknown or unreachable currency pair"}`, http.StatusNotFound)
 		return
 	}
+	// The amount and the rate can each be finite while their product is not
+	// (e.g. amount near math.MaxFloat64). An unrepresentable result would abort
+	// the encoder mid-write and leave the client with a 200 and a truncated body,
+	// so reject it the same way a non-finite amount is rejected.
+	result := amount * p.Rate
+	if math.IsInf(result, 0) || math.IsNaN(result) {
+		http.Error(w, `{"error":"amount out of range for this pair"}`, http.StatusBadRequest)
+		return
+	}
 	now := time.Now().UTC()
 	s.writeJSON(w, map[string]any{
 		"from":   from,
 		"to":     to,
 		"amount": amount,
-		"result": amount * p.Rate,
+		"result": result,
 		"rate":   view(snap, from, to, p, now),
 	})
 }

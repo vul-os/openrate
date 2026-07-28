@@ -9,6 +9,7 @@
 package graph
 
 import (
+	"math"
 	"sort"
 	"time"
 )
@@ -128,11 +129,21 @@ func (g *Graph) adjacency() (map[string][]Edge, []string, map[string][]Quote) {
 	}
 	for _, edges := range g.bySource {
 		for _, e := range edges {
-			if e.Rate <= 0 {
+			// A rate must be positive AND finite. `rate <= 0` alone is not enough:
+			// NaN and +Inf both fail that test (every comparison with NaN is false),
+			// and strconv.ParseFloat accepts the literal strings "NaN"/"Inf" without
+			// an error — so a feed emitting one (BIS already publishes literal NaN
+			// for missing days) would put it in the graph. From there it poisons
+			// every path through the edge and makes the JSON encoder abort
+			// mid-response, handing the client a 200 with a truncated body. Refuse
+			// it at the one chokepoint every edge passes through, exactly as
+			// rates.Materialize refuses a non-finite observation.
+			inv := 1 / e.Rate
+			if !usable(e.Rate) || !usable(inv) {
 				continue
 			}
 			add(e)
-			add(Edge{From: e.To, To: e.From, Rate: 1 / e.Rate, Source: e.Source, Time: e.Time})
+			add(Edge{From: e.To, To: e.From, Rate: inv, Source: e.Source, Time: e.Time})
 		}
 	}
 	for node := range adj {
@@ -167,6 +178,14 @@ func (g *Graph) Materialize(now time.Time) *Snapshot {
 				if _, done := row[e.To]; done {
 					continue // first (shortest/freshest) wins
 				}
+				// Each leg is positive and finite (adjacency guarantees it), but the
+				// product along a path can still overflow to +Inf or underflow to 0.
+				// Such a path is not a rate, so skip it without marking the target
+				// done — a longer, representable path may still reach it.
+				rate := base.Rate * e.Rate
+				if !usable(rate) {
+					continue
+				}
 				asOf := base.AsOf
 				if e.Time.Before(asOf) {
 					asOf = e.Time
@@ -174,7 +193,7 @@ func (g *Graph) Materialize(now time.Time) *Snapshot {
 				path := append(append([]string{}, base.Path...), e.To)
 				leg := Leg{From: cur, To: e.To, Rate: e.Rate, Source: e.Source, Time: e.Time}
 				row[e.To] = Pair{
-					Rate:    base.Rate * e.Rate,
+					Rate:    rate,
 					Hops:    base.Hops + 1,
 					AsOf:    asOf,
 					Path:    path,
@@ -187,6 +206,12 @@ func (g *Graph) Materialize(now time.Time) *Snapshot {
 		matrix[start] = row
 	}
 	return &Snapshot{BuiltAt: now, Currencies: currencies, matrix: matrix, direct: direct}
+}
+
+// usable reports whether a rate is a positive, finite number — the only kind
+// that can be multiplied along a path and then JSON-encoded.
+func usable(rate float64) bool {
+	return rate > 0 && !math.IsInf(rate, 0) && !math.IsNaN(rate)
 }
 
 func addDistinct(xs []string, x string) []string {

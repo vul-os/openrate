@@ -28,6 +28,25 @@ always read the source's stated convention and `date`.
 Default set: `ecb,coinbase,luno,sarb`. Enable extras with
 `-sources ecb,coinbase,luno,sarb,erapi,fawazahmed0,boc`.
 
+## Implemented — key-gated
+
+These are **not** open sources, so they are not in the default set and are not
+part of the "no key required" claim above. Each **auto-enables when its key is
+present** in the environment or `.env` (no need to list it in `-sources`); with
+no key it is simply never constructed. They exist as the "bring your own key for
+more depth" path — broader coverage and faster updates to corroborate the open
+sources. See `.env.example` in the repo.
+
+| Source | Env var | Cadence | Notes |
+|---|---|---|---|
+| **oxr** | `OPENRATE_OXR_APP_ID` | hourly (free tier); 60 s paid | Open Exchange Rates. 200+ currencies, USD base. Broad long-tail corroboration. |
+| **twelvedata** | `OPENRATE_TWELVEDATA_KEY` | real-time | Free tier 800 req/day. All `USD/<ccy>` symbols batched into one request. |
+| **polygon** | `OPENRATE_POLYGON_KEY` | real-time | Polygon.io global forex snapshot (one request → all pairs), bid/ask mid. |
+| **tradermade** | `OPENRATE_TRADERMADE_KEY` | real-time | FX specialist. Free 1k/mo. `USD<ccy>` pairs batched into one `/live` request, mid taken. |
+
+For grading purposes `oxr` ranks as an *aggregator* and `twelvedata`, `polygon`
+and `tradermade` as *exchange* — see [Accuracy](#accuracy).
+
 ## Ranked recommendations
 
 **Broad daily coverage (open, no key):** Frankfurter (ECB-backed, self-hostable) →

@@ -6,7 +6,6 @@
 package quality
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -95,10 +94,17 @@ func Assess(from, to string, p graph.Pair, quotes []graph.Quote, now time.Time) 
 		}
 	}
 
+	// Grade the confidence we actually publish, not the raw product. Grading the
+	// raw value lets the two fields contradict each other at a band edge — e.g.
+	// a day-old 2-hop exchange cross with tight corroboration is
+	// 0.9*0.9*0.96*1.0 = 0.7776, published as "confidence": 0.78 alongside
+	// "grade": "C", while the documented band is B >= 0.78 (see ACCURACY.md).
+	// A consumer cannot reconcile that, so grade what it can see.
 	conf = math.Max(0, math.Min(1, conf))
+	published := round2(conf)
 	return Assessment{
-		Grade:         grade(conf),
-		Confidence:    round2(conf),
+		Grade:         grade(published),
+		Confidence:    published,
 		Freshness:     fresh,
 		Directness:    direct,
 		SourceClass:   cls,
@@ -216,10 +222,4 @@ func grade(conf float64) string {
 
 func round2(f float64) float64 {
 	return math.Round(f*100) / 100
-}
-
-// Explain returns a one-line human summary (used in docs/tooltips).
-func (a Assessment) Explain() string {
-	return fmt.Sprintf("grade %s (%.0f%%): %s, %s, %s source, %d corroborating",
-		a.Grade, a.Confidence*100, a.Freshness, a.Directness, a.SourceClass, a.Corroboration.Sources)
 }

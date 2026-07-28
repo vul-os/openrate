@@ -7,7 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- **A non-finite rate could blank an entire API response.** Every FX source
+  guards its parse with `rate <= 0`, which is false for `NaN` and `+Inf`, and
+  `strconv.ParseFloat` accepts the literal strings `"NaN"`/`"Inf"` without an
+  error (BIS already publishes literal `NaN` for missing days). Such a value
+  entered the currency graph, multiplied into every path crossing that edge, and
+  aborted the JSON encoder mid-write — and because `writeJSON` had already sent
+  a `200` and discarded the encoder error, consumers received `200 OK` with an
+  empty body. `internal/graph` now refuses any rate that is not positive and
+  finite, in both the quoted and the derived (`1/rate`) direction.
+- **Path arithmetic could overflow even when every leg was finite.** A
+  triangulated rate is the product of its legs, which can reach `+Inf` (or
+  underflow to `0`) from representable inputs. Such a path is now skipped rather
+  than materialized; a longer representable path may still serve the pair.
+- **`/api/v1/convert` returned `200` with an empty body for a large `amount`.**
+  The existing guard rejected non-finite *input*, but a finite amount times a
+  finite rate can still overflow. An unrepresentable result is now a `400`
+  (`{"error":"amount out of range for this pair"}`).
+- **`grade` could contradict the `confidence` published beside it.** The grade
+  was computed from the raw factor product while the response carried the
+  rounded value, so an ordinary day-old 2-hop exchange cross published
+  `"confidence": 0.78` next to `"grade": "C"` — against the documented `B ≥ 0.78`
+  band. Both quality engines now grade the confidence they actually publish.
+
+### Documentation
+
+- **`docs/api.md` described the `as_of` contract backwards.** It said `as_of` was
+  the *freshest* edge on the path; the engine has always used the **oldest**, so
+  `age_sec` is an upper bound on staleness. Corrected, and expanded with the
+  full as-of contract, the identity-pair case, and why `as_of` is not a change
+  cursor (`built_at` is).
+- Documented the complete `quality` block for consumers writing their own
+  client: every field and its values, that `caveats` is omitted (never `[]`)
+  when empty, that `mean`/`min`/`max` appear only with ≥2 quotes and
+  `stdev`/`stdev_bps` only when non-zero, and that `agree` (≤50 bps) uses a
+  different threshold from the confidence bands (25/100/300 bps).
+- `ACCURACY.md`: completed the source-class table, which omitted `polygon`,
+  `tradermade`, `twelvedata` and `oxr`, and the `unknown` class; replaced the
+  "Typical coverage" per-currency grade claims — which the model does not
+  support — with the measured provenance table now pinned by tests.
+- `SOURCES.md`: documented the four implemented key-gated FX sources (`oxr`,
+  `twelvedata`, `polygon`, `tradermade`) that the catalog omitted entirely.
+- `docs/interest-rates.md`: the worked example published `"confidence": 0.85`
+  where the engine computes `0.78` (0.85 omits the US target-range caveat).
+- Removed `"caveats": []` from every example — the key is never emitted empty.
+- Fixed the broken `../LICENSE` link and MIT-only claim in `docs/README.md`
+  (the project is MIT OR Apache-2.0), and the stale "SARB stub" layout note.
+- Reconciled `site/docs/` with `docs/`, and rewrote its internal links to the
+  hash-router anchors the site actually resolves — every one was broken.
+
+### Removed
+
+- `quality.Assessment.Explain` and `ratequality.Assessment.Explain`: dead code
+  with no non-test caller in an `internal/` package, whose doc comment claimed
+  it was "used in docs/tooltips" when the tooltip is built independently in
+  `web/src/App.jsx`.
+
+### Testing / CI
+
+- New coverage for the invariants above: non-finite rejection at the graph,
+  source and HTTP layers; an all-pairs "every materialized rate is finite and
+  JSON-encodable" property; and exhaustive verification that `grade` and
+  `confidence` agree across all 2160 (FX) and 250 (interest) factor combinations.
+- Checksum-pinned the ISO 4217 currency table (`internal/sources/fiat.go`) so
+  drift is detectable, plus structural checks and a guard that the web UI's
+  separate currency table covers the engine's set.
+- First tests for `internal/ratesources` (previously none): BIS CSV parsing
+  including literal-`NaN` rows, ragged rows, name fallbacks, and error paths;
+  plus registry resolution and key auto-enable.
+- Asserted every registered source has a quality rank, so a new source cannot
+  silently grade as `unknown`.
+- CI now runs `gofmt`, `go test -race`, and verifies the committed `web/dist`
+  matches a fresh build (it is embedded in the binary, so a stale bundle ships).
 
 ## [0.2.0] - 2026-07-17
 
@@ -46,7 +119,7 @@ No unreleased changes.
   banner/product-map section, added a footer logo instead) and CLOUD.md/README
   updated to mark hosted, multi-tenant openrate as exploratory/deferred rather
   than a current Vulos product; stale mail/"Workspace" references renamed to
-  "lilmail" and "Office" renamed to "Ofisi" in the site footer.
+  "lilmail" and "Office" renamed to "Diwan" in the site footer.
 
 ### Fixed
 

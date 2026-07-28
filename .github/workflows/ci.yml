@@ -20,8 +20,26 @@ jobs:
       - name: Build
         run: go build ./...
 
+      # Formatting is a build gate, not a review comment.
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-formatted:"
+            echo "$unformatted"
+            gofmt -d $unformatted
+            exit 1
+          fi
+          echo "all files gofmt-clean"
+
       - name: Test
         run: go test ./...
+
+      # The store swaps an immutable snapshot under an RWMutex while readers hit
+      # it concurrently; several tests exist specifically to drive that race.
+      # They only prove anything under -race.
+      - name: Test (race detector)
+        run: go test -race ./...
 
       - name: Vet
         run: go vet ./...
@@ -53,6 +71,20 @@ jobs:
       # `npm test` → pretest:e2e (vite build) → playwright test
       - name: Boot guard + E2E
         run: npm test
+
+      # web/dist is COMMITTED and embedded into the Go binary by web/embed.go, so
+      # the bundle a user runs is the one in git — not the one CI just built. If
+      # someone edits web/src without rebuilding, every release ships the old UI
+      # and nothing else notices. The build above is byte-reproducible, so any
+      # diff here means the committed bundle is stale.
+      - name: Committed web/dist is up to date with web/src
+        working-directory: .
+        run: |
+          if ! git diff --exit-code -- web/dist; then
+            echo "::error::web/dist is stale. Run 'npm --prefix web run build' and commit the result."
+            exit 1
+          fi
+          echo "committed web/dist matches a fresh build"
 
       - name: Upload report on failure
         if: failure()

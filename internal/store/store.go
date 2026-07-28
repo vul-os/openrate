@@ -108,7 +108,7 @@ func (s *Store) refresh(ctx context.Context) {
 }
 
 // Run does an immediate refresh, then refreshes on the configured interval until
-// ctx is cancelled. Designed to be pushed toward streaming later (see CLOUD.md).
+// ctx is cancelled.
 func (s *Store) Run(ctx context.Context) {
 	s.refresh(ctx)
 	t := time.NewTicker(s.interval)

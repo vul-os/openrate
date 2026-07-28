@@ -13,7 +13,6 @@
 package ratequality
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -84,10 +83,14 @@ func Assess(s rates.Series, now time.Time) Assessment {
 		caveats = append(caveats, "single source — not independently corroborated")
 	}
 
+	// Grade the confidence that is actually published, so the two fields can
+	// never contradict each other at a band edge. Same reasoning as the FX
+	// quality package; see docs/interest-rates.md for the bands.
 	conf = math.Max(0, math.Min(1, conf))
+	published := round2(conf)
 	return Assessment{
-		Grade:         grade(conf),
-		Confidence:    round2(conf),
+		Grade:         grade(published),
+		Confidence:    published,
 		Freshness:     fresh,
 		SourceClass:   cls,
 		Corroboration: corr,
@@ -174,9 +177,3 @@ func grade(conf float64) string {
 }
 
 func round2(f float64) float64 { return math.Round(f*100) / 100 }
-
-// Explain returns a one-line human summary (used in docs/tooltips).
-func (a Assessment) Explain() string {
-	return fmt.Sprintf("grade %s (%.0f%%): %s, %s, %d corroborating",
-		a.Grade, a.Confidence*100, a.Freshness, a.SourceClass, a.Corroboration.Sources)
-}

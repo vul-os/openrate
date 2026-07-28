@@ -325,11 +325,3 @@ func TestAssessLowConfidenceCase(t *testing.T) {
 		t.Errorf("stale+multi_cross+unofficial: grade = %q, want D (conf=%.2f)", a.Grade, a.Confidence)
 	}
 }
-
-func TestAssessExplainNotEmpty(t *testing.T) {
-	p := mkPair(1, []string{"sarb"}, qNow.Add(-time.Minute))
-	a := Assess("USD", "ZAR", p, nil, qNow)
-	if a.Explain() == "" {
-		t.Error("Explain must return a non-empty string")
-	}
-}

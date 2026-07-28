@@ -46,11 +46,11 @@ special-casing in the routing.
 Path selection decides *which* number you get; the **quality** assessment tells
 you *how much to trust it* — combining freshness, directness, source authority,
 cross-source agreement, and per-currency caveats into a grade (A–D) and
-confidence score. See [Accuracy & quality](../ACCURACY.md).
+confidence score. See [Accuracy & quality](#accuracy).
 
 ## Adding a source
 
 Implement the `sources.Source` interface and register it in
 `internal/sources/registry.go`. Once it emits edges, the graph picks them up
 automatically — a fresher or more direct quote will start winning paths with no
-other changes. See [SOURCES.md](../SOURCES.md).
+other changes. See [Sources](#sources).

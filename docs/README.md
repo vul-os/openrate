@@ -10,6 +10,7 @@ Everything you need to run, consume, embed, and extend openrate.
 | [Configuration](configuration.md) | Flags, environment variables, and the source spec |
 | [Embed as a Go library](library.md) | Run the engine in-process with `Start`/`Close` |
 | [The graph model](graph-model.md) | Why openrate models currencies as a graph, not a base |
+| [Interest rates](interest-rates.md) | The optional policy/reference-rate engine under `/api/v1/interest/*` |
 | [Accuracy & quality](../ACCURACY.md) | The grade/confidence model behind every rate |
 | [Sources](../SOURCES.md) | Full source catalog, cadence, and freshness notes |
 | [Web UI](web-ui.md) | The embedded React dashboard |
@@ -20,7 +21,7 @@ Everything you need to run, consume, embed, and extend openrate.
 |---|---|
 | [Accuracy model](../ACCURACY.md) | How grades, confidence, and caveats are computed |
 | [Source catalog](../SOURCES.md) | Per-source detail and provenance |
-| [License](../LICENSE) | MIT |
+| [License](../LICENSE-MIT) OR [Apache-2.0](../LICENSE-APACHE) | Dual-licensed MIT OR Apache-2.0 |
 
 ## Quick links
 

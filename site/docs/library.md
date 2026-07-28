@@ -29,7 +29,7 @@ The zero value is valid and mirrors the binary's defaults.
 | `Addr` | `string` | ephemeral `127.0.0.1` port | Listen address |
 | `Base` | `string` | `"ZAR"` | Default presentation base currency |
 | `Refresh` | `time.Duration` | `1h` | Source refresh interval |
-| `Sources` | `string` | default set | Comma-separated source spec (see [Configuration](configuration.md)) |
+| `Sources` | `string` | default set | Comma-separated source spec (see [Configuration](#configuration)) |
 | `RateLimit` | `int` | `0` (disabled) | Per-IP API requests/minute |
 | `ServeUI` | `bool` | `false` | Mount the embedded React UI at `/` |
 | `ReadyTimeout` | `time.Duration` | `10s` | How long `Start` waits for `/healthz` |
@@ -48,7 +48,7 @@ The zero value is valid and mirrors the binary's defaults.
 ## Notes
 
 - **Provider keys** for paid sources are read from the environment, exactly as the
-  binary reads them (see [Configuration](configuration.md)).
+  binary reads them (see [Configuration](#configuration)).
 - **Errors:** `Start` returns an error if no valid sources are configured, if the
   listen address can't be bound, or if `/healthz` doesn't come up within
   `ReadyTimeout`.
@@ -57,5 +57,5 @@ The zero value is valid and mirrors the binary's defaults.
 
 ## Related
 
-- [API reference](api.md) — what you'll be calling on `APIBaseURL()`
-- [Configuration](configuration.md) — the same options, as binary flags
+- [API reference](#api) — what you'll be calling on `APIBaseURL()`
+- [Configuration](#configuration) — the same options, as binary flags

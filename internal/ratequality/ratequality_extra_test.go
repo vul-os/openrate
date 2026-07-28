@@ -259,17 +259,3 @@ func TestRound2(t *testing.T) {
 		}
 	}
 }
-
-// ─── Explain ─────────────────────────────────────────────────────────────────
-
-func TestRatequalityExplainNonEmpty(t *testing.T) {
-	s := rates.Series{
-		Series: "us.policy", Area: "US", Type: rates.TypePolicy,
-		Value: 5.25, Date: rqNow, Source: "fred",
-		Latest: []rates.Quote{{Source: "fred", Value: 5.25, Date: rqNow}},
-	}
-	a := Assess(s, rqNow)
-	if a.Explain() == "" {
-		t.Error("Explain must return a non-empty string")
-	}
-}

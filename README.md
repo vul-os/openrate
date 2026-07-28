@@ -138,8 +138,7 @@ Every price carries a `quality` assessment so you know how much to trust it:
 "quality": {
   "grade": "B", "confidence": 0.89,
   "freshness": "realtime", "directness": "direct", "source_class": "exchange",
-  "corroboration": { "sources": 4, "spread_bps": 29, "agree": true },
-  "caveats": []
+  "corroboration": { "sources": 4, "spread_bps": 29, "agree": true }
 }
 ```
 
@@ -166,6 +165,11 @@ Selectable with `-sources` (or `OPENRATE_SOURCES`). Default: `ecb,coinbase,luno,
 | **Bank of Canada** | opt-in | daily | Valet REST, independent cross-check |
 | **Yahoo Finance** | opt-in | ~1 min | unofficial, **ToS-prohibited**, rate-limited — last resort |
 
+Four further sources are **key-gated** and auto-enable when their API key is
+present: Open Exchange Rates, Twelve Data, Polygon.io and TraderMade. They are
+not open data, so they are off unless you bring a key — see
+[`.env.example`](.env.example) and [SOURCES.md](SOURCES.md).
+
 Because the graph prefers the freshest direct edge, `USD→ZAR` resolves to the
 live Coinbase quote (~seconds old) while `EUR/GBP/JPY→ZAR` resolve to SARB's
 authoritative direct quotes — each chosen automatically, no special-casing.
@@ -186,8 +190,9 @@ npm --prefix web run build    # regenerates web/dist, embedded into the binary
 openrate.go       public package: embed the engine in-process (Start/Close)
 cmd/openrate      entrypoint: wires sources -> store -> api + UI
 internal/graph    currency graph, BFS all-pairs materialization
-internal/sources  pluggable open sources (ECB live, SARB stub)
+internal/sources  pluggable FX sources (ecb, coinbase, luno, sarb, … all live)
 internal/store    ingest loop + snapshot store
+internal/quality  the grade/confidence model attached to every rate
 internal/api      JSON read endpoints
 web               Vite + React JSX UI (embedded via go:embed)
 ```
