@@ -163,7 +163,9 @@ body::after {
 
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; }
-img, svg { display: block; max-width: 100%; }
+/* height:auto must accompany max-width:100% — otherwise any img carrying an
+   explicit height attribute renders stretched once the width is constrained. */
+img, svg { display: block; max-width: 100%; height: auto; }
 ::selection { background: color-mix(in srgb, var(--blue) 30%, transparent); color: var(--text); }
 :focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
 

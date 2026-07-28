@@ -77,8 +77,15 @@ bare("degrades to a visible error, never a blank screen, when the API is down", 
 
   // Shell still renders...
   await expect(page.getByRole("heading", { name: /with its receipts/i })).toBeVisible();
-  // ...and the failure is surfaced to the user rather than swallowed into a blank.
-  await expect(page.locator(".err")).toBeVisible();
+
+  // ...and every surface that depends on the API says so, rather than any of
+  // them swallowing the failure into a blank or a frozen placeholder. Each of
+  // the three fetches independently (App for meta/rates, Converter for convert,
+  // Policy for the interest engine), so each needs its own visible failure.
+  await expect(page.locator(".err").first()).toBeVisible();
+  await expect(page.locator(".wrap > .err")).toContainText(/engine isn't answering/i);
+  await expect(page.locator(".instr .err")).toBeVisible();
+  await expect(page.locator("#policy .err")).toContainText(/policy rates unavailable/i);
   await expect(page.locator("#root")).not.toBeEmpty();
 
   expect(crashes.pageErrors, "API failure must not produce an uncaught exception").toEqual([]);

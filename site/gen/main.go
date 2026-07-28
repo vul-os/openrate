@@ -170,6 +170,15 @@ func rewriteTarget(root, srcPath, target string, isImage bool) (out string, unwr
 	if shipsInSite(root, rel) {
 		return rel, false, nil
 	}
+	// A repo path pointing INTO the site bundle: "site/assets/shots/x.webp" is
+	// the same file the bundle already serves at "assets/shots/x.webp". Without
+	// this, a canonical doc that references the site's own screenshots would
+	// send site readers out to raw.githubusercontent for an image sitting next
+	// to the page they are reading — a third-party request this project exists
+	// to avoid, for a file that is already local.
+	if rest, ok := strings.CutPrefix(rel, "site/"); ok && shipsInSite(root, rest) {
+		return rest, false, nil
+	}
 	if isImage {
 		return rawURL + rel, false, nil
 	}

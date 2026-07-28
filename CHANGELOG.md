@@ -7,8 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Signed, checksummed releases — and a verifier that fails closed.** Nothing
+  in the release pipeline previously vouched for the bytes it published. The
+  release workflow now stages the published archive into `release/`, emits a
+  `SHA256SUMS` manifest **over that directory** (so "published" and "covered" are
+  the same set by construction, not two hand-maintained lists), asserts one
+  manifest line per staged asset, and attaches a sigstore build-provenance
+  attestation minted from the workflow's OIDC identity — no long-lived signing
+  key exists, so there is none to leak, own or rotate. A release that staged
+  nothing, or whose manifest does not cover what it staged, is now a **red**
+  release rather than a green one with an empty manifest.
+  `scripts/verify.sh` is the user-facing half: it fetches the manifest, looks up
+  the **exact** entry for the requested asset (string comparison on field 2 — a
+  substring/regex match would let `…tar.gz.sig` answer for `…tar.gz`) and
+  compares digests. Two outcomes only, verified or non-zero with a distinct
+  diagnostic; there is no `--skip-verify` and **no path where an absent
+  `SHA256SUMS` means "nothing to check"** — that shrug is the bug the file exists
+  not to have, because it converts *"I don't know"* into *"it's fine"*. The
+  release job runs `verify.sh` against its own output before publishing, so
+  producer and consumer cannot drift apart silently.
+- **A CI failure matrix for the verifier** (`bash scripts/verify.sh --selftest`,
+  also a release-job step) — 24 synthetic-origin cases covering every refusal:
+  manifest 404, manifest served as an HTML error page (both by content-type and
+  by sniffing a lying one), empty/junk/truncated manifest, no entry for the
+  asset, the `.sig` and regex-wildcard name traps (one arranged so a naive
+  substring match would report **exit 0 on an artifact nobody vouched for**),
+  asset 404, asset served as HTML, truncated download, digest mismatch,
+  plaintext origin, missing curl or digest tool, and `--attest` with no `gh`
+  installed. Each case asserts the exit code **and** that a diagnostic was
+  printed — a guard that aborts silently reads as a crash, not a refusal, and
+  "died at a pipeline under `set -e`" is precisely how a sibling installer's
+  unreachable guard shipped.
+
+- **Policy rates have a UI.** `/api/v1/interest/*` has shipped in the binary for
+  some time with nothing rendering it. The app now has a **Policy rates**
+  section: featured areas as cards with the rate, its grade, a stepped history
+  sparkline and the change over the trailing year, plus a disclosure listing
+  every other area carried. The sparkline is stepped rather than smoothed
+  because a policy rate holds flat and jumps at a meeting — interpolating
+  between decisions would draw moves that never happened. The grade earns its
+  keep here more than anywhere: the BIS still publishes legacy pre-euro national
+  series last observed in the 1990s, and the grade plus an explicit observation
+  date is what stops a 1998 number reading as today's.
+- **The rate board is sortable and filterable.** Sort by grade, age, hop count,
+  rate or code; filter by code *or* full currency name. The useful question is
+  rarely "what is 1 ZAR in AED", it is "which of these numbers should I not lean
+  on", and that needs sorting by grade.
+- **`npm --prefix web run shots`** (`web/scripts/shots.mjs`) captures every
+  screenshot on the README and the site from a running engine, in both themes
+  and at phone width, and re-encodes them to WebP. Nothing shown to a reader is
+  drawn by hand, so the images cannot drift from the app.
+- E2E coverage for the policy section, board sorting and board filtering,
+  including the disabled-interest-engine configuration
+  (`-interest-sources ""`), which must degrade to a message rather than throw.
+
+### Changed
+
+- **The interface was rebuilt around showing the working.** A rate's path
+  through the currency graph is now drawn — each node a currency, each hop
+  carrying its own rate, source and age — and cross-source disagreement is
+  plotted on a scale zoomed to the quotes, with the mean marked. This is the
+  product's actual claim and it was previously buried in a table of numbers.
+  The same panel is shared by the converter and every expanded board row, so
+  the two cannot drift.
+- **New art direction, in the app and on the site.** Security-print engraving:
+  a generated guilloché rosette (a real hypotrochoid, drawn in SVG), hairline
+  rules, grades struck as seals, and a warm banknote-paper light theme rather
+  than a cold white one. Type is Instrument Serif for display, Archivo for the
+  interface (its width axis gives the board genuinely condensed lettering) and
+  JetBrains Mono for every figure. **Inter has been dropped.** All faces stay
+  vendored via `@fontsource` — never fetched from Google Fonts.
+- **The site left the shared dark product template.** `site/index.html` and
+  `site/docs.html` are rebuilt on the app's own theme and share
+  `site/assets/site.css`; the docs viewer gains cross-document search, per-block
+  copy buttons and the same theme switch, with the choice shared with the app.
+
 ### Fixed
 
+- **Every screenshot on the site rendered stretched.** The stylesheet reset
+  paired `max-width: 100%` with no `height: auto`, so an `<img>` carrying an
+  explicit `height` attribute — which they all do, to reserve layout before they
+  load — had that height applied literally while its width was constrained.
 - **A non-finite rate could blank an entire API response.** Every FX source
   guards its parse with `rate <= 0`, which is false for `NaN` and `+Inf`, and
   `strconv.ParseFloat` accepts the literal strings `"NaN"`/`"Inf"` without an
@@ -64,6 +145,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with no non-test caller in an `internal/` package, whose doc comment claimed
   it was "used in docs/tooltips" when the tooltip is built independently in
   `web/src/App.jsx`.
+- **The vendored mermaid bundle (3.5 MB).** `site/docs.html` loaded it eagerly on
+  every documentation page to render diagrams in documents that contain zero
+  diagrams — not one ```` ```mermaid ```` fence exists in the repo. Its
+  third-party notice and the old shared-template stylesheet went with it.
+- **Stale pricing and hosted-plan claims from the structured data.** The JSON-LD
+  in `web/index.html` still advertised $9/$39/$149 tiers and an "openrate Cloud"
+  with an SLA, months after commit `333882e` removed those claims from
+  everywhere a human could see them. Search engines could still read them.
 
 ### Testing / CI
 

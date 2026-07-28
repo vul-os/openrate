@@ -35,6 +35,24 @@ reselling a paid API — models every currency as a **graph** rather than pickin
 single canonical base, and serves an all-pairs JSON API plus an embedded React
 UI from a single Go binary.
 
+<p align="center">
+  <img src="assets/shots/converter-dark.webp" alt="The openrate converter: 100 USD converted to ZAR, with a B grade seal and the six quality facets — confidence, freshness, directness, source class and corroboration — read out beneath the number." width="900">
+</p>
+
+Most rate APIs hand you a number and ask you to trust it. openrate hands you the
+walk it took through the currency graph, the individual source quotes behind
+every hop, how far apart those sources are, and a grade for the lot:
+
+<p align="center">
+  <img src="assets/shots/path-dark.webp" alt="An expanded board row showing a two-hop path from ZAR through USD to AED, each hop labelled with its own rate, source and age, above the multiplication that produces the final rate." width="900">
+</p>
+
+<p align="center">
+  <sub>Every screenshot here is a real capture of the running engine, produced by
+  <code>npm --prefix web run shots</code>. More on the
+  <a href="https://openrate.dev/">site</a>.</sub>
+</p>
+
 ## Why a graph, not a base
 
 Most rate APIs pick one base currency (usually EUR/USD) and derive everything
@@ -69,6 +87,31 @@ With Docker:
 ```bash
 docker build -t openrate . && docker run -p 8080:8080 openrate
 ```
+
+### Verify a release before you run it
+
+Releases publish a source archive plus a `SHA256SUMS` manifest covering every
+published asset, and a sigstore build-provenance attestation minted from the
+release workflow's OIDC identity (no long-lived signing key exists, so there is
+none to leak or rotate). `scripts/verify.sh` is what you run against them:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/vul-os/openrate/v0.2.0/scripts/verify.sh
+bash verify.sh --tag v0.2.0 --attest openrate_0.2.0_source.zip
+```
+
+It fetches the manifest, looks up the **exact** entry for the asset (names are
+matched as strings, not as regexes) and compares digests. It has two outcomes:
+verified, or non-zero with a diagnostic naming what was wrong — a missing or
+malformed manifest, a missing entry, a truncated download, a digest mismatch, an
+HTML error page served where bytes were expected. There is no `--skip-verify`,
+and a `SHA256SUMS` that 404s is a **failure**, never "nothing to check".
+`--attest` additionally verifies the provenance (needs the `gh` CLI); leave it
+off and the script says out loud that provenance was *not* checked, so a pass
+never implies more than it checked.
+
+`bash scripts/verify.sh --selftest` runs 24 synthetic-origin cases asserting
+that each refusal still fires; CI runs it on every push.
 
 ## Embed as a Go library
 
@@ -126,7 +169,7 @@ and reference rates worldwide. Enable with `-interest-sources` (binary) or
 | `GET /api/v1/interest/series?id=us.policy` | One series with full history (timeseries) |
 | `GET /api/v1/interest/meta` | Areas covered, series catalogue, source status |
 
-Out of the box (`bis,sarbrates`, no keys) this covers **49 central banks' policy
+Out of the box (`bis,sarbrates`, no keys) this covers **48 central banks' policy
 rates with daily history** plus the South African ZARONIA family; set
 `OPENRATE_FRED_API_KEY` to auto-enable US benchmark series. Each series carries an
 interest-tuned `quality` grade. See [docs/interest-rates.md](#interest-rates).
@@ -179,11 +222,25 @@ Add a source by implementing `sources.Source` and registering it in
 
 ## Web UI
 
+The interface is embedded in the binary — the converter, a sortable board of
+every pair with its grade, the policy-rate section, and the accuracy
+methodology, in an ink theme and a banknote-paper one.
+
 ```bash
 npm --prefix web install
 npm --prefix web run dev      # Vite dev server, proxies /api to :8080
 npm --prefix web run build    # regenerates web/dist, embedded into the binary
+npm --prefix web test         # boots the BUILT bundle in chromium (Playwright)
+npm --prefix web run shots    # recaptures site/assets/shots from a running engine
 ```
+
+`run shots` needs an openrate on `:8412` (override with `OPENRATE_URL`) and
+`cwebp` on `PATH`. Every image on the README and the site comes out of it, so
+they can never drift from what the app actually looks like.
+
+<p align="center">
+  <img src="assets/shots/policy-dark.webp" alt="Policy rate cards for eight economic areas, each with the rate, a grade seal, a stepped history sparkline, the observation date and the change over the trailing year." width="900">
+</p>
 
 ## Layout
 
@@ -195,7 +252,11 @@ internal/sources  pluggable FX sources (ecb, coinbase, luno, sarb, … all live)
 internal/store    ingest loop + snapshot store
 internal/quality  the grade/confidence model attached to every rate
 internal/api      JSON read endpoints
+internal/ratesapi policy-rate endpoints, /api/v1/interest/*
 web               Vite + React JSX UI (embedded via go:embed)
+web/scripts       shots.mjs — captures site/assets/shots from a running engine
+site              the static site: landing, docs viewer, generated site/docs
+site/gen          regenerates site/docs from the canonical docs (CI-gated)
 ```
 
 ## Documentation
