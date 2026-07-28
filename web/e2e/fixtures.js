@@ -4,11 +4,16 @@
  * Two things live here:
  *
  *   1. `installApi(page)` — an in-browser mock of the openrate JSON API
- *      (/api/v1/meta, /api/v1/rates, /api/v1/convert) via page.route, so the
- *      suite runs with no Go binary and no live rate feeds. The shapes mirror
- *      what the engine actually serves (see internal/api) — a rate carries a
+ *      (/api/v1/meta, /api/v1/rates, /api/v1/convert, and the /api/v1/interest/*
+ *      policy-rate endpoints) via page.route, so the suite runs with no Go
+ *      binary and no live rate feeds. The shapes mirror what the engine actually
+ *      serves (see internal/api and internal/ratesapi) — a rate carries a
  *      `quality` block (grade/confidence/freshness/directness/source_class/
  *      corroboration) plus `legs` and `quotes`, which is what App.jsx renders.
+ *
+ *      The interest routes must be mocked even by specs that never look at the
+ *      policy section: Policy.jsx fetches on mount, and an unmocked route would
+ *      leave a failed request behind for watchForCrashes to flag.
  *
  *   2. `watchForCrashes(page)` — the crash recorder used by EVERY spec. It
  *      records uncaught exceptions ("pageerror") and failed asset requests.
@@ -41,10 +46,44 @@ const RATE = (rate, grade = "A", extra = {}) => ({
 });
 
 export const META = {
+  default_base: "ZAR",
   currencies: ["ZAR", "USD", "EUR", "GBP", "JPY"],
   sources: [
     { name: "sarb", edges: 12, last_error: "" },
     { name: "ecb", edges: 31, last_error: "" },
+  ],
+};
+
+// Policy rates. ZA is featured (so it renders a card and pulls a history) and
+// AT is deliberately a stale legacy series graded D — the case the section
+// exists to make un-mistakable, and the one the "show all" list has to carry.
+export const INTEREST = {
+  count: 2,
+  built_at: "2026-07-14T09:00:00Z",
+  rates: [
+    {
+      series: "za.policy", area: "ZA", type: "policy", name: "South Africa — policy rate",
+      value: 6.75, date: "2026-07-10T00:00:00Z", age_sec: 3600, source: "sarbrates",
+      quality: { grade: "A", confidence: 0.95, freshness: "current", source_class: "central_bank",
+                 corroboration: { sources: 2, spread_bps: 0, agree: true }, caveats: [] },
+    },
+    {
+      series: "at.policy", area: "AT", type: "policy", name: "Austria — policy rate",
+      value: 3, date: "1998-12-31T00:00:00Z", age_sec: 870201884, source: "bis",
+      quality: { grade: "D", confidence: 0.35, freshness: "old", source_class: "official_aggregator",
+                 corroboration: { sources: 1, spread_bps: 0, agree: false },
+                 caveats: ["single source — not independently corroborated"] },
+    },
+  ],
+};
+
+export const SERIES = {
+  built_at: "2026-07-14T09:00:00Z",
+  history: [
+    { date: "2025-08-01T00:00:00Z", value: 7.25, source: "sarbrates" },
+    { date: "2025-11-01T00:00:00Z", value: 7.0, source: "sarbrates" },
+    { date: "2026-03-01T00:00:00Z", value: 6.75, source: "sarbrates" },
+    { date: "2026-07-10T00:00:00Z", value: 6.75, source: "sarbrates" },
   ],
 };
 
@@ -68,6 +107,15 @@ export async function installApi(page) {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+
+    // Interest routes first: "/api/v1/interest/rates" also ends with "/rates",
+    // so matching the FX routes ahead of these would swallow them and serve a
+    // currency snapshot to the policy section.
+    if (path.endsWith("/interest/rates")) return json(route, INTEREST);
+    if (path.endsWith("/interest/series")) return json(route, SERIES);
+    if (path.endsWith("/interest/meta")) {
+      return json(route, { area_count: 2, areas: ["ZA", "AT"], built_at: INTEREST.built_at, series: [] });
+    }
 
     if (path.endsWith("/meta")) return json(route, META);
 

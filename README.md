@@ -220,10 +220,12 @@ project; source and issues at [github.com/vul-os/openrate](https://github.com/vu
 
 openrate redistributes third-party software: the Go standard library and any Go
 modules compiled into the binary, the npm packages bundled into the embedded
-React UI (including the **Inter** and **JetBrains Mono** webfonts, whose OFL-1.1
-licence must travel with the shipped `.woff2` files), and the mermaid/marked
-bundles vendored into the marketing site. Their licences (MIT, BSD, Apache-2.0,
-OFL-1.1) require the copyright notice and licence text to accompany every copy.
+React UI (including the **Instrument Serif**, **Archivo** and **JetBrains Mono**
+webfonts, whose OFL-1.1 licence must travel with the shipped `.woff2` files —
+the marketing site vendors the same faces under `site/assets/fonts/`), and the
+marked bundle vendored into the marketing site. Their licences (MIT, BSD,
+Apache-2.0, OFL-1.1) require the copyright notice and licence text to accompany
+every copy.
 
 - [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) — name, version, licence and
   full text for every component. Generated from the real dependency graph by
@@ -232,7 +234,7 @@ OFL-1.1) require the copyright notice and licence text to accompany every copy.
 - The binary serves it at **`/licenses.txt`** (linked from the app footer); the
   marketing site serves it too (linked from its footer).
 - Vendored site bundles carry their upstream licence next to them, e.g.
-  `site/assets/vendor/mermaid.min.js.LICENSE`.
+  `site/assets/vendor/marked.umd.js.LICENSE`.
 
 ---
 

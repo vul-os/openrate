@@ -1,15 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ccyName, ccyFlag } from "./currencies.js";
+import { Icon } from "./ui.jsx";
 
-// CurrencySelect — a searchable currency dropdown (code + full name + flag),
-// replacing the native <select>. Keyboard: type to filter, ↑/↓ to move, Enter
-// to choose, Esc to close. Closes on outside click.
-export default function CurrencySelect({ label, value, onChange, options, compact = false }) {
+/**
+ * CurrencySelect — a searchable currency picker (code + name + flag).
+ *
+ * A native <select> holding 43 three-letter codes is unusable; this filters on
+ * both the code and the full name, so "rand" and "ZAR" both find ZAR.
+ * Keyboard: type to filter, ↑/↓ to move, Enter to choose, Esc to close.
+ */
+export default function CurrencySelect({ value, onChange, options = [], compact = false, label }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const rootRef = useRef(null);
   const inputRef = useRef(null);
+  const listRef = useRef(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -24,8 +30,21 @@ export default function CurrencySelect({ label, value, onChange, options, compac
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  useEffect(() => { if (open) { setQuery(""); setActive(0); setTimeout(() => inputRef.current?.focus(), 10); } }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    setActive(Math.max(0, options.indexOf(value)));
+    const t = setTimeout(() => inputRef.current?.focus(), 10);
+    return () => clearTimeout(t);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { setActive(0); }, [query]);
+
+  // Keep the highlighted option in view when arrowing past the fold.
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.children[active]?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
 
   const choose = (c) => { onChange(c); setOpen(false); };
 
@@ -33,31 +52,38 @@ export default function CurrencySelect({ label, value, onChange, options, compac
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, filtered.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
     else if (e.key === "Enter") { e.preventDefault(); if (filtered[active]) choose(filtered[active]); }
-    else if (e.key === "Escape") { setOpen(false); }
+    else if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
   };
 
   return (
-    <div className={`${compact ? "csel csel-c" : "field csel"}`} ref={rootRef}>
-      {!compact && label && <label>{label}</label>}
-      <button type="button" className={`csel-btn ${open ? "open" : ""} ${compact ? "compact" : ""}`} onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
+    <div className="csel" ref={rootRef}>
+      <button
+        type="button"
+        className={`csel-btn ${open ? "open" : ""} ${compact ? "compact" : ""}`}
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox" aria-expanded={open}
+        aria-label={`${label ? `${label} — ` : ""}${value}, ${ccyName(value)}`}
+      >
         <span className="csel-flag">{ccyFlag(value)}</span>
         <span className="csel-code">{value}</span>
         <span className="csel-name">{ccyName(value)}</span>
-        <svg className="csel-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+        <Icon.Chevron className="csel-caret" />
       </button>
+
       {open && (
-        <div className="csel-panel" role="listbox">
+        <div className="csel-panel">
           <input
             ref={inputRef} className="csel-search" placeholder="Search currency…"
             value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKey}
+            aria-label="Search currency"
           />
-          <div className="csel-list">
-            {filtered.length === 0 && <div className="csel-empty">no match</div>}
+          <div className="csel-list" ref={listRef} role="listbox">
+            {filtered.length === 0 && <div className="csel-empty">No currency matches “{query}”.</div>}
             {filtered.map((c, i) => (
               <button
-                type="button" key={c}
+                type="button" key={c} role="option" aria-selected={c === value}
                 className={`csel-opt ${c === value ? "sel" : ""} ${i === active ? "active" : ""}`}
-                onMouseEnter={() => setActive(i)} onClick={() => choose(c)} role="option" aria-selected={c === value}
+                onMouseEnter={() => setActive(i)} onClick={() => choose(c)}
               >
                 <span className="csel-flag">{ccyFlag(c)}</span>
                 <span className="csel-code">{c}</span>

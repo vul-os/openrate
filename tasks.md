@@ -44,7 +44,8 @@
 - [ ] **Staleness alerts** — flag a source past its expected cadence (engine has `as_of`)
 
 ## Engine hardening
-- [ ] History: persist daily snapshots for `?date=` and time-series (Cloud owns long retention)
+- [ ] History: persist daily snapshots for `?date=` and time-series (retention is a local
+      storage/pruning setting — there is no hosted tier)
 - [ ] `/api/v1/pairs/{from}/{to}` convenience route + bulk convert
 - [ ] Tests: graph BFS correctness, triangulation-vs-direct preference, ECB XML parse
 - [ ] Dockerfile + fly.toml (match sibling Vulos services)

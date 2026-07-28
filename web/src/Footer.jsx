@@ -1,46 +1,69 @@
 import React from "react";
 import VulosMark from "./VulosMark.jsx";
-import { GitHubIcon } from "./ui.jsx";
+import Guilloche from "./Guilloche.jsx";
+import { Label, Icon, Mark } from "./ui.jsx";
 
 const REPO = "https://github.com/vul-os/openrate";
 
-// Footer — openrate is part of the Vulos ecosystem; the brand column carries the
-// real Vulos mark and a link home. status dot reflects the live engine.
 export default function Footer({ meta, base, onDocs }) {
   const live = (meta?.sources ?? []).filter((s) => !s.last_error && s.edges > 0).length;
   const built = meta?.built_at ? new Date(meta.built_at) : null;
+
   return (
-    <footer className="foot-wrap" role="contentinfo">
+    <footer className="foot" role="contentinfo">
+      <Guilloche className="foot-rose" seed={1} />
       <div className="foot-inner">
         <div className="foot-grid">
           <div className="foot-brand">
-            <div className="foot-mark">
-              <img src="/openrate.svg" width="28" height="28" alt="" />
-              <span className="name">open <b>rate</b></span>
-            </div>
-            <p>Open, {base}-anchored exchange rates — graded for accuracy. Central banks and live venues, never a paid API.</p>
+            <a className="brand" href="#convert">
+              <Mark size={24} />
+              <span className="word">open<i>rate</i></span>
+            </a>
+            <p>
+              Open, {base}-anchored exchange rates with an accuracy grade on every price.
+              Central banks and live venues — never a resold paid API.
+            </p>
             <div className="foot-tags">
-              <a className="foot-vulos" href="https://vulos.org" target="_blank" rel="noreferrer">
-                <VulosMark size={18} /><span>part of <b>Vulos</b></span>
+              <a className="foot-tag" href="https://vulos.org" target="_blank" rel="noreferrer">
+                <VulosMark size={17} /><span>part of <b>Vulos</b></span>
               </a>
-              <a className="foot-gh" href={REPO} target="_blank" rel="noreferrer" aria-label="GitHub"><GitHubIcon size={16} /><span>GitHub</span></a>
+              <a className="foot-tag" href={REPO} target="_blank" rel="noreferrer">
+                <Icon.GitHub size={15} /><span>Source</span>
+              </a>
             </div>
           </div>
 
-          <FootCol head="Product" links={[["Docs", "#docs", onDocs], ["API reference", "#docs", onDocs], ["Self-host", "#docs", onDocs]]} />
-          <FootCol head="Open data" links={[["ECB", "https://www.ecb.europa.eu"], ["SARB", "https://www.resbank.co.za"], ["Coinbase", "https://www.coinbase.com"], ["Luno", "https://www.luno.com"]]} />
-          <FootCol head="Project" links={[["GitHub", REPO], ["SOURCES.md", `${REPO}/blob/main/SOURCES.md`], ["License (MIT)", `${REPO}/blob/main/LICENSE`], ["Third-party licences", "/licenses.txt"], ["Vulos", "https://vulos.org"]]} />
+          <Col head="Product" links={[
+            ["Converter", "#convert"],
+            ["Live board", "#board"],
+            ["Policy rates", "#policy"],
+            ["Accuracy", "#accuracy"],
+            ["Docs", "#docs", onDocs],
+          ]} />
+          <Col head="Open sources" links={[
+            ["ECB", "https://www.ecb.europa.eu"],
+            ["SARB", "https://www.resbank.co.za"],
+            ["BIS", "https://www.bis.org"],
+            ["Coinbase", "https://www.coinbase.com"],
+            ["Luno", "https://www.luno.com"],
+          ]} />
+          <Col head="Project" links={[
+            ["GitHub", REPO],
+            ["Where the data comes from", `${REPO}/blob/main/SOURCES.md`],
+            ["Accuracy contract", `${REPO}/blob/main/ACCURACY.md`],
+            ["Licence — MIT or Apache-2.0", `${REPO}/blob/main/LICENSE-MIT`],
+            ["Third-party notices", "/licenses.txt"],
+          ]} />
         </div>
 
         <div className="foot-bottom">
           <span className="foot-copy">
-            © 2026 Vulos contributors · MIT licensed ·{" "}
-            <a href={REPO} target="_blank" rel="noreferrer">source</a>
+            © 2026 Vulos contributors · MIT OR Apache-2.0 · <a href={REPO} target="_blank" rel="noreferrer">source</a>
           </span>
-          <span className="foot-status">
-            <span className="foot-dot" />
-            {live ? `${live} sources live` : "starting…"}
-            {built ? ` · updated ${built.toLocaleTimeString()}` : ""}
+          <span className="status">
+            <span className="live-dot" />
+            {live ? `${live} ${live === 1 ? "source" : "sources"} live` : "starting…"}
+            {built ? ` · snapshot ${built.toLocaleTimeString()}` : ""}
           </span>
         </div>
       </div>
@@ -48,14 +71,18 @@ export default function Footer({ meta, base, onDocs }) {
   );
 }
 
-function FootCol({ head, links }) {
+function Col({ head, links }) {
   return (
     <div className="foot-col">
-      <div className="foot-col-head">{head}</div>
+      <Label>{head}</Label>
       <ul>
         {links.map(([t, h, onClick]) => (
           <li key={t}>
-            <a href={h} onClick={onClick} target={h.startsWith("http") ? "_blank" : undefined} rel="noreferrer">{t}</a>
+            <a
+              href={h} onClick={onClick}
+              target={h.startsWith("http") ? "_blank" : undefined}
+              rel={h.startsWith("http") ? "noreferrer" : undefined}
+            >{t}</a>
           </li>
         ))}
       </ul>

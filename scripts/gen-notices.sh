@@ -3,8 +3,9 @@
 #
 # openrate redistributes third-party code three ways: Go modules compiled into
 # the binary, npm packages bundled into the embedded React app (including the
-# Inter / JetBrains Mono webfonts, whose OFL-1.1 licence must accompany every
-# copy of the .woff2 files), and the mermaid/marked bundles vendored into the
+# Instrument Serif / Archivo / JetBrains Mono webfonts, whose OFL-1.1 licence
+# must accompany every copy of the .woff2 files — the marketing site vendors the
+# same fonts under site/assets/fonts/), and the marked bundle vendored into the
 # marketing site. MIT, BSD, ISC, Apache-2.0 and OFL-1.1 all require the
 # copyright notice and licence text to travel with the copy.
 #
@@ -67,9 +68,10 @@ HEADER
   echo "npm packages (bundled into the web UI served from the binary)"
   echo "================================================================================"
   echo
-  echo "The Inter and JetBrains Mono webfonts below are shipped as .woff2 files in"
-  echo "web/dist/assets/. SIL Open Font License 1.1 requires this notice and licence"
-  echo "to accompany every redistribution of those font files."
+  echo "The Instrument Serif, Archivo and JetBrains Mono webfonts below are shipped as"
+  echo ".woff2 files in web/dist/assets/, and the same faces are vendored into the"
+  echo "marketing site under site/assets/fonts/. SIL Open Font License 1.1 requires this"
+  echo "notice and licence to accompany every redistribution of those font files."
   echo
   cat "$TMP/npm-notices.txt"
 

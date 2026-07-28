@@ -1,6 +1,6 @@
 /**
  * converter.e2e.js — the core user flow, in a real browser, against the built
- * bundle: convert a currency, and read the rate board.
+ * bundle: convert a currency, read the working, and read the rate board.
  *
  * The boot guard proves the app is not blank. This proves it is not USELESS —
  * that the primary surface actually binds to the API and reacts to input.
@@ -12,10 +12,12 @@
  *     either side of the wire silently breaks the number the whole product is for).
  *   - The quick-amount chips don't drive a refetch — a dead interaction.
  *   - The rate board renders no rows despite rates arriving (the `rates` map
- *     shape drifting from what RatesTable expects).
- *   - Expanding a row throws (Calc reads rate.quality.corroboration / legs /
- *     quotes — a nested shape that is trivially broken by an API change, and
- *     which would crash the whole tree, not just the row).
+ *     shape drifting from what Board.jsx expects).
+ *   - Expanding a row throws. Works.jsx reads rate.path, rate.legs, rate.quotes
+ *     and quality.corroboration — a nested shape trivially broken by an API
+ *     change, which would crash the whole tree rather than just the row.
+ *   - Sorting or filtering the board doing nothing, which is the board's whole
+ *     purpose ("which of these numbers should I not lean on").
  *   - The anchor (base currency) selector doesn't re-query the board.
  */
 
@@ -25,82 +27,131 @@ test("converts an amount and reflects the mocked rate", async ({ openrate }) => 
   const { page } = openrate;
   await page.goto("/");
 
-  const conv = page.locator("section.conv");
-  await expect(conv).toBeVisible();
+  const instr = page.locator(".instr");
+  await expect(instr).toBeVisible();
 
-  // Default: 100 USD → ZAR at the mocked 18.5 ⇒ 1,850.
-  await expect(conv.locator(".cf-result")).toHaveText("1,850");
+  // Default: 100 USD → ZAR at the mocked 18.5 ⇒ 1,850.00 (money precision).
+  await expect(instr.locator(".result")).toHaveText("1,850.00");
 
-  // The rate detail (grade + inverse + quality tiles) must appear — this is the
-  // product's whole differentiator ("every price graded for accuracy").
-  await expect(conv.locator(".cf-grade .grade")).toHaveText("A");
-  await expect(conv.locator(".inverse")).toContainText("1 USD = 18.5");
+  // The verdict seal and the inverse pair — the product's whole differentiator
+  // ("every rate, with its receipts"), not decoration.
+  await expect(instr.locator(".leg-head .seal")).toHaveText("A");
+  await expect(instr.locator(".inverse")).toContainText("1 USD = 18.5");
+  await expect(instr.locator(".inverse")).toContainText("1 ZAR = 0.054054");
 
   // Core interaction: a quick-amount chip must drive a real refetch.
   const convertCall = page.waitForResponse(
     (r) => r.url().includes("/api/v1/convert") && new URL(r.url()).searchParams.get("amount") === "1000",
   );
-  await conv.getByRole("button", { name: "1,000", exact: true }).click();
+  await instr.getByRole("button", { name: "1,000", exact: true }).click();
   await convertCall;
 
   // 1000 × 18.5 = 18,500 — computed from the mock, so a stale render can't pass.
-  await expect(conv.locator(".cf-result")).toHaveText("18,500");
+  await expect(instr.locator(".result")).toHaveText("18,500.00");
 });
 
-test("shows the math for a conversion", async ({ openrate }) => {
+test("shows the working for a conversion", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
 
-  const conv = page.locator("section.conv");
-  await expect(conv.locator(".cf-result")).toHaveText("1,850");
+  const instr = page.locator(".instr");
+  await expect(instr.locator(".result")).toHaveText("1,850.00");
 
-  // "show the math" mounts <Calc/>, which walks rate.legs, rate.quotes and
-  // quality.corroboration. A shape change there throws inside render and takes
-  // the ENTIRE app down to a blank screen — the pageErrors gate in the fixture
-  // catches that; these assertions catch it rendering nothing useful.
-  await conv.getByRole("button", { name: /show the math/i }).click();
+  // "Show the working" mounts <Works/>, which walks rate.path, rate.legs,
+  // rate.quotes and quality.corroboration. A shape change there throws inside
+  // render and takes the ENTIRE app down to a blank screen — the pageErrors
+  // gate in the fixture catches that; these assertions catch it rendering
+  // nothing useful.
+  await instr.getByRole("button", { name: /show the working/i }).click();
 
-  const math = conv.locator(".math");
-  await expect(math).toBeVisible();
-  await expect(math.locator(".leg")).toHaveCount(1);
-  await expect(math.locator(".qrow")).toHaveCount(2); // two corroborating quotes
-  await expect(math).toContainText("Dispersion");
-  await expect(math).toContainText("spread");
+  const works = instr.locator(".works");
+  await expect(works).toBeVisible();
+
+  // The path: two currency nodes joined by one hop, the hop carrying its own
+  // rate and the source that quoted it.
+  await expect(works.locator(".path-node")).toHaveCount(2);
+  await expect(works.locator(".path-hop")).toHaveCount(1);
+  await expect(works.locator(".path-hop")).toContainText("sarb");
+  await expect(works).toContainText("directly quoted");
+
+  // Dispersion: one plotted point per corroborating source, plus the stats.
+  await expect(works.locator(".disp-pt")).toHaveCount(2);
+  await expect(works).toContainText("Agreement");
+  await expect(works).toContainText("spread");
+
+  // ...and it collapses again (the disclosure state is real, not one-way).
+  await instr.getByRole("button", { name: /hide the working/i }).click();
+  await expect(works).toHaveCount(0);
 });
 
-test("renders the live rate board and expands a row's calculation", async ({ openrate }) => {
+test("renders the live rate board and expands a row's derivation", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
 
-  const table = page.locator("table.rates");
-  await expect(table).toBeVisible();
+  const board = page.locator("table.board").first();
+  await expect(board).toBeVisible();
 
-  // One row per mocked currency, sorted — EUR, GBP, USD.
-  const rows = table.locator("tr.rrow");
+  // One row per mocked currency, sorted by code — EUR, GBP, USD.
+  const rows = board.locator("tr.row");
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("EUR");
   await expect(rows.nth(2)).toContainText("USD");
 
-  // Grades are rendered per row (A for USD/GBP, B for EUR in the fixture).
-  await expect(rows.nth(0).locator(".grade")).toHaveText("B");
-  await expect(rows.nth(2).locator(".grade")).toHaveText("A");
+  // Grades are struck per row (A for USD/GBP, B for EUR in the fixture).
+  await expect(rows.nth(0).locator(".seal")).toHaveText("B");
+  await expect(rows.nth(2).locator(".seal")).toHaveText("A");
 
-  // Core interaction: clicking a row expands its full derivation.
+  // Core interaction: clicking a row expands its full derivation in place.
   await rows.nth(2).click();
-  const detail = table.locator("tr.rdetail");
+  const detail = page.locator(".detail-inner");
   await expect(detail).toBeVisible();
-  await expect(detail).toContainText("Calculation");
+  await expect(detail).toContainText("Path");
   await expect(detail).toContainText("directly quoted");
 
-  // ...and clicking again collapses it (the open/closed state is real).
+  // ...and clicking again collapses it.
   await rows.nth(2).click();
   await expect(detail).toHaveCount(0);
+});
+
+test("sorting the board by grade reorders the rows", async ({ openrate }) => {
+  const { page } = openrate;
+  await page.goto("/");
+
+  const board = page.locator("table.board").first();
+  const rows = board.locator("tr.row");
+  await expect(rows).toHaveCount(3);
+
+  // Default order is by code, so the B-graded EUR leads. Sorting by grade must
+  // put the A rows first — a dead sort is a dead feature here, because sorting
+  // by grade is how you find the numbers not to lean on.
+  await board.getByRole("columnheader", { name: /grade/i }).click();
+  await expect(rows.nth(0).locator(".seal")).toHaveText("A");
+  await expect(rows.nth(2).locator(".seal")).toHaveText("B");
+
+  // Clicking again reverses it.
+  await board.getByRole("columnheader", { name: /grade/i }).click();
+  await expect(rows.nth(0).locator(".seal")).toHaveText("B");
+});
+
+test("filtering the board narrows it to the matching currency", async ({ openrate }) => {
+  const { page } = openrate;
+  await page.goto("/");
+
+  const board = page.locator("table.board").first();
+  await expect(board.locator("tr.row")).toHaveCount(3);
+
+  // The filter matches the full name as well as the code — searching "pound"
+  // has to find GBP, or the field is useless to anyone who does not already
+  // know the ISO codes.
+  await page.getByLabel("Filter currencies").fill("pound");
+  await expect(board.locator("tr.row")).toHaveCount(1);
+  await expect(board.locator("tr.row")).toContainText("GBP");
 });
 
 test("changing the anchor currency re-queries the board", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
-  await expect(page.locator("table.rates tr.rrow").first()).toBeVisible();
+  await expect(page.locator("table.board tr.row").first()).toBeVisible();
 
   // The anchor select is the compact one in the nav.
   const ratesCall = page.waitForResponse(
@@ -110,6 +161,7 @@ test("changing the anchor currency re-queries the board", async ({ openrate }) =
   await page.locator(".csel-panel .csel-opt", { hasText: "EUR" }).first().click();
   await ratesCall;
 
-  // The board heading is bound to the anchor — proves the new base reached the UI.
-  await expect(page.getByRole("heading", { name: /All rates, 1\s*EUR/i })).toBeVisible();
+  // The board bar is bound to the anchor — proves the new base reached the UI
+  // rather than only the network.
+  await expect(page.locator(".board-bar")).toContainText("1 EUR buys");
 });

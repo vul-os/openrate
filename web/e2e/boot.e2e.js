@@ -36,7 +36,7 @@ test("boots the built bundle in a real browser with no uncaught errors", async (
   await expect(root).not.toBeEmpty();
 
   // The primary surface — not just "something rendered", but the RIGHT thing.
-  await expect(page.getByRole("heading", { name: /graded for accuracy/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /with its receipts/i })).toBeVisible();
 
   expect(pageErrors, "uncaught exception(s) while booting the built bundle").toEqual([]);
   expect(failedRequests, "asset(s) failed to load").toEqual([]);
@@ -76,7 +76,7 @@ bare("degrades to a visible error, never a blank screen, when the API is down", 
   await page.goto("/");
 
   // Shell still renders...
-  await expect(page.getByRole("heading", { name: /graded for accuracy/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /with its receipts/i })).toBeVisible();
   // ...and the failure is surfaced to the user rather than swallowed into a blank.
   await expect(page.locator(".err")).toBeVisible();
   await expect(page.locator("#root")).not.toBeEmpty();
@@ -93,7 +93,7 @@ bare("docs route boots without throwing", async ({ page }) => {
 
   await page.goto("/#docs");
 
-  await expect(page.locator(".docs-page")).toBeVisible();
+  await expect(page.locator(".docs-layout")).toBeVisible();
   await expect(page.getByRole("heading", { name: /quick start/i }).first()).toBeVisible();
   expect(crashes.pageErrors, "uncaught exception(s) on the docs route").toEqual([]);
 });

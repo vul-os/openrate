@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 // Minimal dependency-free JSON syntax highlighter.
 function highlightJSON(code) {
@@ -37,11 +37,22 @@ function highlightShell(code) {
 // highlighted body. lang: "json" (default) | "bash" | "text".
 export default function CodeBlock({ title, method, code, lang = "json" }) {
   const body = lang === "json" ? highlightJSON(code) : lang === "bash" ? highlightShell(code) : code;
+  const [copied, setCopied] = useState(false);
+  // navigator.clipboard is undefined on insecure origins — a self-hosted box on
+  // plain http is a normal deployment here, so failure must be silent, not a
+  // thrown promise rejection in the console.
+  const copy = () => {
+    navigator.clipboard?.writeText(code).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 1400); },
+      () => {}
+    );
+  };
   return (
     <div className="codeblock">
       <div className="cb-bar">
         <span className="cb-dots"><i /><i /><i /></span>
         {title && <span className="cb-title">{method && <span className="cb-method">{method}</span>}{title}</span>}
+        <button type="button" className="cb-copy" onClick={copy}>{copied ? "copied" : "copy"}</button>
       </div>
       <pre className="cb-body"><code>{body}</code></pre>
     </div>

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="theme-color" content="#06090E" />
     <link rel="icon" type="image/svg+xml" href="/openrate.svg" />
     <link rel="canonical" href="https://openrate.dev/" />
 
@@ -39,12 +39,8 @@
           "description": "Open, ZAR-anchored exchange-rate engine and API. Rates from central banks and live venues, every price graded for accuracy with cross-source dispersion stats.",
           "url": "https://openrate.dev/",
           "isAccessibleForFree": true,
-          "offers": [
-            { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
-            { "@type": "Offer", "name": "Developer", "price": "9", "priceCurrency": "USD" },
-            { "@type": "Offer", "name": "Startup", "price": "39", "priceCurrency": "USD" },
-            { "@type": "Offer", "name": "Business", "price": "149", "priceCurrency": "USD" }
-          ],
+          "license": "https://spdx.org/licenses/MIT.html",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
           "author": { "@type": "Organization", "name": "Vulos", "url": "https://vulos.org" }
         },
         {
@@ -55,14 +51,16 @@
             { "@type": "Question", "name": "What does the accuracy grade mean?",
               "acceptedAnswer": { "@type": "Answer", "text": "Every rate carries a grade A–D and a confidence score derived from freshness, directness (hops), source authority, cross-source agreement, and currency caveats, so you know how much to trust the number." } },
             { "@type": "Question", "name": "Is openrate free?",
-              "acceptedAnswer": { "@type": "Answer", "text": "Yes. The engine is MIT-licensed and self-hostable at no cost. openrate Cloud offers managed API keys with paid feeds, history and an SLA, starting free up to 10,000 requests per month." } }
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. openrate is dual-licensed MIT OR Apache-2.0 and self-hostable at no cost. There is no hosted plan, no account and no API key — you run the binary yourself." } },
+            { "@type": "Question", "name": "Does openrate cover central-bank policy rates?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. The same binary serves policy rates for 48 economic areas from the BIS and SARB under /api/v1/interest/, with history and the same A–D accuracy grading applied to each observation." } }
           ]
         }
       ]
     }
     </script>
-    <script type="module" crossorigin src="/assets/index-C3I45aAW.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CRR7leVC.css">
+    <script type="module" crossorigin src="/assets/index-Draq1j1n.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BZ700RPY.css">
   </head>
   <body>
     <div id="root"></div>
