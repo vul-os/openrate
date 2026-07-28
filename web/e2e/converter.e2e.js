@@ -21,11 +21,12 @@
  *   - The anchor (base currency) selector doesn't re-query the board.
  */
 
-import { test, expect } from "./fixtures.js";
+import { test, expect, settled } from "./fixtures.js";
 
 test("converts an amount and reflects the mocked rate", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
+  await settled(page);
 
   const instr = page.locator(".instr");
   await expect(instr).toBeVisible();
@@ -53,6 +54,7 @@ test("converts an amount and reflects the mocked rate", async ({ openrate }) => 
 test("shows the working for a conversion", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
+  await settled(page);
 
   const instr = page.locator(".instr");
   await expect(instr.locator(".result")).toHaveText("1,850.00");
@@ -87,6 +89,7 @@ test("shows the working for a conversion", async ({ openrate }) => {
 test("renders the live rate board and expands a row's derivation", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
+  await settled(page);
 
   const board = page.locator("table.board").first();
   await expect(board).toBeVisible();
@@ -116,6 +119,7 @@ test("renders the live rate board and expands a row's derivation", async ({ open
 test("sorting the board by grade reorders the rows", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
+  await settled(page);
 
   const board = page.locator("table.board").first();
   const rows = board.locator("tr.row");
@@ -136,6 +140,7 @@ test("sorting the board by grade reorders the rows", async ({ openrate }) => {
 test("filtering the board narrows it to the matching currency", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
+  await settled(page);
 
   const board = page.locator("table.board").first();
   await expect(board.locator("tr.row")).toHaveCount(3);
@@ -151,6 +156,7 @@ test("filtering the board narrows it to the matching currency", async ({ openrat
 test("changing the anchor currency re-queries the board", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
+  await settled(page);
   await expect(page.locator("table.board tr.row").first()).toBeVisible();
 
   // The anchor select is the compact one in the nav.

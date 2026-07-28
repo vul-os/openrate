@@ -19,11 +19,12 @@
 
 import { test, expect } from "./fixtures.js";
 import { test as bare } from "@playwright/test";
-import { installApi, watchForCrashes, META, RATES } from "./fixtures.js";
+import { installApi, watchForCrashes, settled, META, RATES } from "./fixtures.js";
 
 test("renders a featured policy card with its history", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
+  await settled(page);
 
   const card = page.locator(".policy").first();
   await expect(card).toBeVisible();
@@ -47,6 +48,8 @@ test("a stale legacy series is graded D and dated", async ({ openrate }) => {
   const { page } = openrate;
   await page.goto("/");
 
+  await settled(page);
+
   // Non-featured areas live behind the disclosure, so the page is not 48 cards
   // long by default.
   await page.getByRole("button", { name: /show all/i }).click();
@@ -68,6 +71,7 @@ bare("degrades to a message when the interest engine is disabled", async ({ page
     route.fulfill({ status: 404, contentType: "text/plain", body: "not found" }));
 
   await page.goto("/");
+  await settled(page, { interest: false });
 
   await expect(page.locator("#policy .err")).toBeVisible();
   await expect(page.locator("#policy .err")).toContainText(/policy rates unavailable/i);

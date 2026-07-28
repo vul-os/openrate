@@ -9,6 +9,9 @@ web/.vite/
 
 # Playwright (E2E boot guard) output
 web/test-results/
+# Playwright writes .last-run.json relative to the CWD it was invoked from, so
+# a run started at the repo root drops one here rather than under web/.
+/test-results/
 web/playwright-report/
 web/blob-report/
 web/.playwright/

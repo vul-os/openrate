@@ -158,6 +158,32 @@ export function watchForCrashes(page) {
   return { pageErrors, failedRequests };
 }
 
+/**
+ * Wait until every mount-time fetch has landed and the tree has stopped
+ * re-rendering.
+ *
+ * The app issues three independent requests on mount — /meta, /rates and the
+ * interest pair — and each one replaces a different part of the tree when it
+ * resolves. A test that clicks as soon as its own target appears is racing the
+ * OTHER two: Playwright passes the actionability check, React swaps the node
+ * underneath, and the click is delivered to something already detached. It
+ * fails perhaps one run in forty, and only under parallel load, which is the
+ * worst kind of failure to leave in a suite.
+ *
+ * So interaction tests establish the precondition deterministically instead:
+ * wait for one element that can only exist once each fetch has resolved.
+ *
+ * Pass `{ interest: false }` for the case where the interest engine is
+ * deliberately unavailable and no sparkline will ever render.
+ */
+export async function settled(page, { interest = true } = {}) {
+  await expect(page.locator(".board tbody tr.row").first()).toBeVisible();   // /rates
+  await expect(page.locator(".board-foot .src-pill").first()).toBeVisible(); // /meta
+  if (interest) {
+    await expect(page.locator(".policy svg.spark path.line").first()).toBeVisible();
+  }
+}
+
 /** `openrate` fixture: a page with the API mocked and crashes recorded. */
 export const test = base.extend({
   openrate: async ({ page }, use) => {

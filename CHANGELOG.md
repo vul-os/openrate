@@ -156,6 +156,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing / CI
 
+- **Removed a race from the E2E suite.** The app issues three independent
+  requests on mount (`/meta`, `/rates`, and the interest pair) and each replaces
+  a different part of the tree as it resolves. Tests that clicked as soon as
+  their own target appeared were racing the other two: Playwright passed the
+  actionability check, React swapped the node underneath, and the click landed
+  on a detached element. It reproduced roughly once in forty runs and only under
+  parallel load. Interaction tests now establish the precondition explicitly via
+  a shared `settled()` helper rather than relying on timing; verified over 260
+  consecutive executions with no failure.
 - New coverage for the invariants above: non-finite rejection at the graph,
   source and HTTP layers; an all-pairs "every materialized rate is finite and
   JSON-encodable" property; and exhaustive verification that `grade` and
