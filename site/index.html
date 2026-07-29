@@ -8,8 +8,8 @@
 <meta name="theme-color" content="#06090E">
 <link rel="icon" href="./assets/openrate-mark.svg">
 <link rel="canonical" href="https://openrate.dev/">
-<link rel="preload" as="font" type="font/woff2" href="./assets/fonts/instrument-serif-latin-400-normal.woff2" crossorigin>
-<link rel="preload" as="font" type="font/woff2" href="./assets/fonts/archivo-latin-wdth-normal.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="./assets/fonts/geist-sans-latin-500-normal.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="./assets/fonts/geist-sans-latin-400-normal.woff2" crossorigin>
 <link rel="stylesheet" href="./assets/site.css">
 
 <meta property="og:type" content="website">
@@ -17,11 +17,11 @@
 <meta property="og:title" content="openrate — exchange rates with their receipts">
 <meta property="og:description" content="Every rate carries the path it took through the currency graph, the sources behind it, how far apart they are, and a grade for the lot. Open-source, self-hosted, ZAR-anchored.">
 <meta property="og:url" content="https://openrate.dev/">
-<meta property="og:image" content="https://openrate.dev/assets/shots/converter-dark.webp">
+<meta property="og:image" content="https://openrate.dev/assets/og-card.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="openrate — exchange rates with their receipts">
 <meta name="twitter:description" content="Open, ZAR-anchored exchange rates with an A–D accuracy grade and the full working on every price.">
-<meta name="twitter:image" content="https://openrate.dev/assets/shots/converter-dark.webp">
+<meta name="twitter:image" content="https://openrate.dev/assets/og-card.png">
 
 <script>
 /* Apply the stored theme before first paint so the page never flashes ink at a
@@ -123,8 +123,47 @@ try {
     </div>
 
     <figure class="hero-shot rv">
-      <div class="plate"><img src="./assets/shots/converter-dark.webp" alt="The openrate converter: 100 USD to ZAR, showing the rate, a B grade seal, and the six quality facets — confidence, freshness, directness, source class and corroboration." width="1800" height="1125" fetchpriority="high"></div>
-      <figcaption class="shot-cap"><span class="lbl">The converter — grade, confidence and provenance on the same screen as the number</span></figcaption>
+      <div class="plate illo illo-grid">
+        <div class="graph-illo-wrap" role="img" aria-label="A currency graph: EUR, GBP and JPY reachable from ECB's own quotes; ZAR and AED reachable through USD via SARB and a bring-your-own-key source, with the ZAR to USD to AED walk highlighted as the shortest path.">
+          <svg class="graph-illo" viewBox="0 0 760 500" aria-hidden="true">
+            <defs>
+              <linearGradient id="heroPathGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="var(--blue)"/>
+                <stop offset="1" stop-color="var(--teal)"/>
+              </linearGradient>
+              <marker id="heroArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+                <path class="arrowhead" d="M0,0 L10,5 L0,10 Z"/>
+              </marker>
+            </defs>
+            <line class="edge" x1="210" y1="120" x2="80" y2="190"/>
+            <line class="edge" x1="210" y1="120" x2="330" y2="70"/>
+            <line class="edge" x1="210" y1="120" x2="350" y2="300"/>
+            <path class="trace" d="M140,430 L350,300 L600,380" marker-end="url(#heroArrow)"/>
+            <g class="node"><circle cx="210" cy="120" r="29"/></g>
+            <g class="node"><circle cx="80" cy="190" r="29"/></g>
+            <g class="node"><circle cx="330" cy="70" r="29"/></g>
+            <g class="node accent"><circle cx="350" cy="300" r="29"/></g>
+            <g class="node accent"><circle cx="140" cy="430" r="29"/></g>
+            <g class="node accent"><circle cx="600" cy="380" r="29"/></g>
+          </svg>
+          <!-- Text is real HTML, not SVG <text> — a viewBox that shrinks on a
+               phone shrinks in-SVG text with it (down to ~6px), but an HTML
+               overlay positioned by percentage stays a fixed, legible size at
+               any illustration scale. -->
+          <span class="node-lbl" style="left:27.63%;top:24%">EUR</span>
+          <span class="node-lbl" style="left:10.53%;top:38%">GBP</span>
+          <span class="node-lbl" style="left:43.42%;top:14%">JPY</span>
+          <span class="node-lbl accent" style="left:46.05%;top:60%">USD</span>
+          <span class="node-lbl accent" style="left:18.42%;top:86%">ZAR</span>
+          <span class="node-lbl accent" style="left:78.95%;top:76%">AED</span>
+          <span class="edge-lbl" style="left:19.08%;top:31%">ECB</span>
+          <span class="edge-lbl" style="left:35.53%;top:19%">ECB</span>
+          <span class="edge-lbl" style="left:36.84%;top:42%">ECB</span>
+          <span class="edge-lbl accent" style="left:32.24%;top:73%">SARB</span>
+          <span class="edge-lbl accent" style="left:62.5%;top:68%">OXR</span>
+        </div>
+      </div>
+      <figcaption class="shot-cap"><span class="lbl">Each source keeps its own base — ECB in EUR, SARB in ZAR — as edges in one graph. ZAR → USD → AED, two hops, highlighted.</span></figcaption>
     </figure>
   </div>
 </section>
@@ -159,8 +198,26 @@ try {
         </ul>
       </div>
       <figure>
-        <div class="plate flat"><img src="./assets/shots/path-dark.webp" alt="An expanded board row for AED: a two-hop path from ZAR through USD to AED, each hop showing its rate, source and age, with the multiplication that produces the final rate." loading="lazy" width="1800" height="533"></div>
-        <figcaption class="shot-cap"><span class="lbl">ZAR → USD → AED, two hops, drawn</span></figcaption>
+        <div class="plate flat illo">
+          <div class="walk" role="img" aria-label="Two-hop walk from ZAR to AED: ZAR to USD at 0.0543 from SARB, three minutes old; USD to AED at 3.6725 from OXR, forty-eight seconds old.">
+            <div class="walk-node"><span class="cur">ZAR</span></div>
+            <div class="walk-leg">
+              <div class="leg-line" aria-hidden="true"></div>
+              <div class="leg-meta"><b class="num">0.0543</b><span class="src">SARB</span><span>3m ago</span></div>
+            </div>
+            <div class="walk-node"><span class="cur">USD</span></div>
+            <div class="walk-leg">
+              <div class="leg-line" aria-hidden="true"></div>
+              <div class="leg-meta"><b class="num">3.6725</b><span class="src">OXR</span><span>48s ago</span></div>
+            </div>
+            <div class="walk-node"><span class="cur">AED</span></div>
+          </div>
+          <div class="walk-sum">
+            <span class="num">0.0543</span><span class="op">×</span><span class="num">3.6725</span><span class="op">=</span><span class="num result">0.1995</span>
+            <span class="lbl cap">ZAR → AED, no direct quote exists</span>
+          </div>
+        </div>
+        <figcaption class="shot-cap"><span class="lbl">ZAR → USD → AED, two hops, drawn — each leg multiplied, not averaged</span></figcaption>
       </figure>
     </div>
 
@@ -176,7 +233,44 @@ try {
         </p>
       </div>
       <figure>
-        <div class="plate flat"><img src="./assets/shots/working-dark.webp" alt="The working panel: the USD to ZAR path, a dispersion scale plotting the coinbase and sarb quotes either side of the mean, and the agreement statistics — mean, standard deviation, min–max and spread in basis points." loading="lazy" width="904" height="904"></div>
+        <div class="plate flat illo">
+          <div class="disp-illo-wrap" role="img" aria-label="USD to ZAR quotes plotted on a scale from 16.60 to 16.85: coinbase at 16.6877, sarb at 16.7770, mean at 16.7323, spread 53.54 basis points.">
+          <svg class="disp-illo" viewBox="0 0 640 220" aria-hidden="true">
+            <line class="mean-line" x1="336" y1="30" x2="336" y2="140"/>
+            <line class="axis" x1="30" y1="130" x2="610" y2="130"/>
+            <line class="tick" x1="40" y1="125" x2="40" y2="136"/>
+            <line class="tick" x1="152" y1="125" x2="152" y2="136"/>
+            <line class="tick" x1="264" y1="125" x2="264" y2="136"/>
+            <line class="tick" x1="376" y1="125" x2="376" y2="136"/>
+            <line class="tick" x1="488" y1="125" x2="488" y2="136"/>
+            <line class="tick" x1="600" y1="125" x2="600" y2="136"/>
+
+            <line class="bracket" x1="236" y1="10" x2="437" y2="10"/>
+            <line class="bracket" x1="236" y1="6" x2="236" y2="14"/>
+            <line class="bracket" x1="437" y1="6" x2="437" y2="14"/>
+
+            <line class="stem" x1="236" y1="130" x2="236" y2="76"/>
+            <g class="pin a"><circle cx="236" cy="70" r="5"/></g>
+
+            <line class="stem" x1="437" y1="130" x2="437" y2="76"/>
+            <g class="pin b"><circle cx="437" cy="70" r="5"/></g>
+          </svg>
+          <!-- HTML overlay, not SVG <text> — see the graph illustration above
+               for why: a shrinking viewBox shrinks in-SVG text past legible. -->
+          <span class="tick-lbl" style="left:6.25%;top:68%">16.60</span>
+          <span class="tick-lbl" style="left:23.75%;top:68%">16.65</span>
+          <span class="tick-lbl" style="left:41.25%;top:68%">16.70</span>
+          <span class="tick-lbl" style="left:58.75%;top:68%">16.75</span>
+          <span class="tick-lbl" style="left:76.25%;top:68%">16.80</span>
+          <span class="tick-lbl" style="left:93.75%;top:68%">16.85</span>
+          <span class="bracket-lbl" style="left:52.5%;top:2.7%">53.54 bps</span>
+          <span class="pin-src" style="left:36.875%;top:16%">coinbase</span>
+          <span class="pin-lbl" style="left:36.875%;top:24.5%">16.6877</span>
+          <span class="pin-src" style="left:68.28%;top:16%">sarb</span>
+          <span class="pin-lbl" style="left:68.28%;top:24.5%">16.7770</span>
+          <span class="mean-lbl" style="left:52.5%;top:82%">mean 16.7323</span>
+          </div>
+        </div>
         <figcaption class="shot-cap"><span class="lbl">Two sources, 53 bps apart — shown, not smoothed over</span></figcaption>
       </figure>
     </div>
@@ -220,7 +314,46 @@ try {
       </div>
     </div>
 
-    <div class="split rv" style="margin-top: clamp(40px, 5vw, 68px)">
+    <div class="illo rv" style="margin-top: clamp(40px, 5vw, 68px); max-width: 760px; margin-inline: auto; text-align: center">
+      <div class="conf-eq" role="img" aria-label="Confidence equals freshness 0.97, times directness 1.00, times source authority 0.95, times corroboration 0.97, times caveats 1.00, equals 0.89 — grade B.">
+        <div class="factor">
+          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="146.27 150.8"/></svg>
+          <b class="num">0.97</b><span class="lbl">Freshness</span>
+        </div>
+        <span class="op">×</span>
+        <div class="factor">
+          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="150.04 150.8"/></svg>
+          <b class="num">1.00</b><span class="lbl">Directness</span>
+        </div>
+        <span class="op">×</span>
+        <div class="factor">
+          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="143.26 150.8"/></svg>
+          <b class="num">0.95</b><span class="lbl">Source authority</span>
+        </div>
+        <span class="op">×</span>
+        <div class="factor">
+          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="146.27 150.8"/></svg>
+          <b class="num">0.97</b><span class="lbl">Corroboration</span>
+        </div>
+        <span class="op">×</span>
+        <div class="factor">
+          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="150.04 150.8"/></svg>
+          <b class="num">1.00</b><span class="lbl">Caveats</span>
+        </div>
+        <span class="op">=</span>
+        <div class="conf-result">
+          <b class="num big">0.89</b>
+          <span class="seal md B">B</span>
+        </div>
+      </div>
+      <p class="conf-cap">
+        <b>Confidence is a product, not an opinion.</b> This is the same
+        <code>USD&nbsp;→&nbsp;ZAR</code> quote shown in the API example below — every factor
+        it was built from, multiplied out in the open.
+      </p>
+    </div>
+
+    <div class="split one-col rv" style="margin-top: clamp(40px, 5vw, 68px)">
       <div class="copy">
         <h3>Honest about its own limits</h3>
         <p>
@@ -232,9 +365,6 @@ try {
           rate, it is not a rate.
         </p>
       </div>
-      <figure>
-        <div class="plate flat"><img src="./assets/shots/accuracy-dark.webp" alt="The accuracy section: the four grade bands as struck seals with their confidence thresholds, above the heading 'Confidence is a product, not an opinion'." loading="lazy" width="1800" height="1125"></div>
-      </figure>
     </div>
   </div>
 </section>
@@ -257,7 +387,48 @@ try {
         </div>
       </div>
       <figure>
-        <div class="plate"><img src="./assets/shots/board-dark.webp" alt="The live rate board: currencies against ZAR with rate, grade seal, hop pips, age and source class, above a sortable header row." loading="lazy" width="1800" height="1125"></div>
+        <div class="plate illo">
+          <table class="ledger" aria-label="Rate board sorted worst grade first: ZWL grade D, NGN grade C, CNY grade C, AED grade B, USD grade A">
+            <thead><tr><th>Currency</th><th>1 ZAR =</th><th>Grade</th><th>Hops</th><th class="colage">Age</th><th class="colnote">Note</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="cur">ZWL</td><td class="rate">0.8700</td>
+                <td><span class="seal sm D">D</span></td>
+                <td><span class="hops"><i class="on"></i><i class="on"></i><i></i></span></td>
+                <td class="age colage">14h ago</td>
+                <td class="note colnote">1 source, thin liquidity</td>
+              </tr>
+              <tr>
+                <td class="cur">NGN</td><td class="rate">84.19</td>
+                <td><span class="seal sm C">C</span></td>
+                <td><span class="hops"><i class="on"></i><i class="on"></i><i></i></span></td>
+                <td class="age colage">1h ago</td>
+                <td class="note colnote">parallel-market caveat</td>
+              </tr>
+              <tr>
+                <td class="cur">CNY</td><td class="rate">0.3910</td>
+                <td><span class="seal sm C">C</span></td>
+                <td><span class="hops"><i class="on"></i><i class="on"></i><i class="on"></i></span></td>
+                <td class="age colage">40m ago</td>
+                <td class="note colnote">managed-regime caveat</td>
+              </tr>
+              <tr>
+                <td class="cur">AED</td><td class="rate">0.1995</td>
+                <td><span class="seal sm B">B</span></td>
+                <td><span class="hops"><i class="on"></i><i class="on"></i><i></i></span></td>
+                <td class="age colage">48s ago</td>
+                <td class="note colnote">via USD, 2 hops</td>
+              </tr>
+              <tr>
+                <td class="cur">USD</td><td class="rate">0.0543</td>
+                <td><span class="seal sm A">A</span></td>
+                <td><span class="hops"><i class="on"></i><i></i><i></i></span></td>
+                <td class="age colage">28s ago</td>
+                <td class="note colnote">direct, 2 sources agree</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </figure>
     </div>
   </div>
@@ -279,7 +450,34 @@ try {
       </p>
     </div>
     <figure class="rv">
-      <div class="plate"><img src="./assets/shots/policy-dark.webp" alt="Policy rate cards for South Africa, the United States, the euro area, the United Kingdom, Japan, China, India and Brazil — each with the rate, a grade seal, a stepped history sparkline, the observation date and the change over the trailing year." loading="lazy" width="1800" height="1125"></div>
+      <div class="plate illo">
+        <div class="policy-cards" role="img" aria-label="Policy rate cards: South Africa 7.50 percent grade A, the United States 5.00 percent grade A, the euro area 3.50 percent grade B, Japan 0.25 percent grade B — each a stepped history sparkline.">
+          <div class="policy-card">
+            <div class="top"><span class="area">ZA · SARB</span><span class="seal sm A">A</span></div>
+            <div class="rate">7.50%</div>
+            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,8 L60,8 L60,20 L120,20"/></svg>
+            <div class="bottom"><span class="date">27 May 2026</span><span class="date">−25bp / 1y</span></div>
+          </div>
+          <div class="policy-card">
+            <div class="top"><span class="area">US · FED</span><span class="seal sm A">A</span></div>
+            <div class="rate">5.00%</div>
+            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,6 L50,6 L50,22 L120,22"/></svg>
+            <div class="bottom"><span class="date">18 Jun 2026</span><span class="date">−25bp / 1y</span></div>
+          </div>
+          <div class="policy-card">
+            <div class="top"><span class="area">EU · ECB</span><span class="seal sm B">B</span></div>
+            <div class="rate">3.50%</div>
+            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,10 L70,10 L70,24 L120,24"/></svg>
+            <div class="bottom"><span class="date">12 Jun 2026</span><span class="date">−25bp / 1y</span></div>
+          </div>
+          <div class="policy-card">
+            <div class="top"><span class="area">JP · BOJ</span><span class="seal sm B">B</span></div>
+            <div class="rate">0.25%</div>
+            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,26 L40,26 L40,10 L120,10"/></svg>
+            <div class="bottom"><span class="date">19 Mar 2026</span><span class="date">+15bp / 1y</span></div>
+          </div>
+        </div>
+      </div>
       <figcaption class="shot-cap"><span class="lbl">Stepped sparklines — policy rates hold flat and jump at a meeting, so interpolating between them would draw moves that never happened</span></figcaption>
     </figure>
   </div>
@@ -374,47 +572,6 @@ try {
     }
   }
 }</pre>
-    </div>
-  </div>
-</section>
-
-<!-- ══ gallery ═══════════════════════════════════════════════════════════ -->
-<section class="sect ruled">
-  <div class="wrap">
-    <div class="head rv">
-      <span class="eyebrow"><span class="lbl">Screens</span></span>
-      <h2>Ink, or <em>banknote paper</em>.</h2>
-      <p class="lede">
-        Both themes ship in the binary and the choice persists across the app and these docs.
-        Every image on this page is a real capture of the running engine — see
-        <code>web/scripts/shots.mjs</code>.
-      </p>
-    </div>
-    <div class="gallery rv">
-      <figure>
-        <div class="plate flat"><img src="./assets/shots/converter-light.webp" alt="The converter in the light banknote-paper theme: warm cream ground, green intaglio accents." loading="lazy" width="1800" height="1125"></div>
-        <figcaption><span class="lbl">Converter — paper</span></figcaption>
-      </figure>
-      <figure>
-        <div class="plate flat"><img src="./assets/shots/policy-light.webp" alt="Policy rate cards in the light banknote-paper theme." loading="lazy" width="1800" height="1125"></div>
-        <figcaption><span class="lbl">Policy rates — paper</span></figcaption>
-      </figure>
-      <figure>
-        <div class="plate flat"><img src="./assets/shots/board-light.webp" alt="The rate board in the light banknote-paper theme." loading="lazy" width="1800" height="1125"></div>
-        <figcaption><span class="lbl">Board — paper</span></figcaption>
-      </figure>
-      <figure>
-        <div class="plate flat"><img src="./assets/shots/docs-dark.webp" alt="The in-app documentation view with a sticky section index on the left." loading="lazy" width="1800" height="1125"></div>
-        <figcaption><span class="lbl">In-app docs — ink</span></figcaption>
-      </figure>
-      <figure>
-        <div class="plate flat"><img src="./assets/shots/mobile-dark.webp" alt="The converter on a narrow phone viewport." loading="lazy" width="840" height="1760"></div>
-        <figcaption><span class="lbl">Converter — 420&nbsp;px</span></figcaption>
-      </figure>
-      <figure>
-        <div class="plate flat"><img src="./assets/shots/mobile-board-dark.webp" alt="The rate board on a narrow phone viewport, with the name and source columns dropped." loading="lazy" width="840" height="1760"></div>
-        <figcaption><span class="lbl">Board — 420&nbsp;px</span></figcaption>
-      </figure>
     </div>
   </div>
 </section>

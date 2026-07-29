@@ -35,7 +35,7 @@ test("converts an amount and reflects the mocked rate", async ({ openrate }) => 
   await expect(instr.locator(".result")).toHaveText("1,850.00");
 
   // The verdict seal and the inverse pair — the product's whole differentiator
-  // ("every rate, with its receipts"), not decoration.
+  // (every rate shown with its path, sources and grade), not decoration.
   await expect(instr.locator(".leg-head .seal")).toHaveText("A");
   await expect(instr.locator(".inverse")).toContainText("1 USD = 18.5");
   await expect(instr.locator(".inverse")).toContainText("1 ZAR = 0.054054");

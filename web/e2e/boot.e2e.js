@@ -36,7 +36,7 @@ test("boots the built bundle in a real browser with no uncaught errors", async (
   await expect(root).not.toBeEmpty();
 
   // The primary surface — not just "something rendered", but the RIGHT thing.
-  await expect(page.getByRole("heading", { name: /with its receipts/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /currency converter/i })).toBeVisible();
 
   expect(pageErrors, "uncaught exception(s) while booting the built bundle").toEqual([]);
   expect(failedRequests, "asset(s) failed to load").toEqual([]);
@@ -76,7 +76,7 @@ bare("degrades to a visible error, never a blank screen, when the API is down", 
   await page.goto("/");
 
   // Shell still renders...
-  await expect(page.getByRole("heading", { name: /with its receipts/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /currency converter/i })).toBeVisible();
 
   // ...and every surface that depends on the API says so, rather than any of
   // them swallowing the failure into a blank or a frozen placeholder. Each of

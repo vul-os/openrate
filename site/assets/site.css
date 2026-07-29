@@ -6,30 +6,49 @@
    ("Banknote Instrument", see web/src/styles.css): security-print engraving on
    an ink canvas, with a warm banknote-paper light theme.
 
+   Type is Geist Sans (display + UI) and Geist Mono (every figure) — drawn for
+   developer tools, with real tabular figures, rather than the editorial-serif
+   register the site launched with. openrate is a rate *engine*, and the type
+   should read like an instrument, not a magazine.
+
    Fonts are vendored in ./fonts — never fetched from Google Fonts. The site is
    served from the repo and from a static mirror, and neither should leak a
    reader's IP to a third party for the sake of a typeface.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @font-face {
-  font-family: 'Instrument Serif'; font-style: normal; font-weight: 400; font-display: swap;
-  src: url('./fonts/instrument-serif-latin-400-normal.woff2') format('woff2');
+  font-family: 'Geist Sans'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('./fonts/geist-sans-latin-400-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 @font-face {
-  font-family: 'Instrument Serif'; font-style: italic; font-weight: 400; font-display: swap;
-  src: url('./fonts/instrument-serif-latin-400-italic.woff2') format('woff2');
+  font-family: 'Geist Sans'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('./fonts/geist-sans-latin-500-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 @font-face {
-  font-family: 'Archivo Variable'; font-style: normal; font-weight: 100 900;
-  font-stretch: 62% 125%; font-display: swap;
-  src: url('./fonts/archivo-latin-wdth-normal.woff2') format('woff2-variations');
+  font-family: 'Geist Sans'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('./fonts/geist-sans-latin-600-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 @font-face {
-  font-family: 'JetBrains Mono Variable'; font-style: normal; font-weight: 100 800; font-display: swap;
-  src: url('./fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+  font-family: 'Geist Sans'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('./fonts/geist-sans-latin-700-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Geist Mono'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('./fonts/geist-mono-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Geist Mono'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('./fonts/geist-mono-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Geist Mono'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('./fonts/geist-mono-latin-600-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -42,9 +61,9 @@
   --grain-o: .035;
   --shadow-1: 0 1px 0 rgba(255,255,255,.03) inset, 0 14px 34px -20px rgba(0,0,0,.9);
   --shadow-2: 0 1px 0 rgba(255,255,255,.04) inset, 0 44px 100px -44px rgba(0,0,0,.95), 0 12px 34px -22px rgba(0,0,0,.75);
-  --display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
-  --ui: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', monospace;
+  --display: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --ui: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, 'SF Mono', monospace;
   --r-xs: 4px; --r-sm: 7px; --r: 11px; --r-lg: 16px; --r-xl: 22px;
   --max: 1180px; --gut: clamp(18px, 4vw, 40px);
   --ease: cubic-bezier(.22,.72,.18,1);
@@ -99,18 +118,22 @@ button { font: inherit; color: inherit; }
 
 /* ── type ─────────────────────────────────────────────────────────────── */
 .lbl {
-  font-variation-settings: 'wdth' 76; font-size: 10.5px; font-weight: 600;
-  letter-spacing: .15em; text-transform: uppercase; color: var(--text-4); line-height: 1;
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--text-4); line-height: 1;
 }
 .eyebrow { display: inline-flex; align-items: center; gap: 10px; }
 .eyebrow::before { content: ""; width: 5px; height: 5px; background: var(--teal); transform: rotate(45deg); flex: none; }
 .eyebrow::after { content: ""; width: clamp(20px, 5vw, 54px); height: 1px; background: linear-gradient(90deg, var(--line-2), transparent); }
 
-h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: -.018em; line-height: 1; }
-h1 { font-size: clamp(3rem, 8.4vw, 5.8rem); line-height: .95; }
-h2 { font-size: clamp(2.1rem, 4.6vw, 3.2rem); }
-h3 { font-size: clamp(1.3rem, 2.4vw, 1.7rem); }
-em { font-style: italic; color: var(--teal); }
+/* Geist has no italic and no width axis — Instrument Serif's elegance came
+   from generous size at a light weight; Geist's comes from tight negative
+   tracking at a slightly heavier one, the register a rate engine's numbers
+   actually live in. */
+h1, h2, h3 { font-family: var(--display); letter-spacing: -.03em; line-height: 1.02; }
+h1 { font-size: clamp(2.75rem, 7.2vw, 5.1rem); line-height: .99; font-weight: 500; letter-spacing: -.042em; }
+h2 { font-size: clamp(1.95rem, 4.1vw, 2.85rem); font-weight: 500; letter-spacing: -.035em; }
+h3 { font-size: clamp(1.22rem, 2.1vw, 1.5rem); font-weight: 600; letter-spacing: -.015em; }
+em { font-style: normal; color: var(--teal); font-weight: 500; }
 p { color: var(--text-3); }
 .lede { font-size: 1.09rem; line-height: 1.75; max-width: 62ch; color: var(--text-3); }
 .lede b, p b { color: var(--text-2); font-weight: 600; }
@@ -143,13 +166,12 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .brand { display: flex; align-items: center; gap: 10px; flex: none; }
 .brand svg { width: 26px; height: 26px; transition: transform .5s var(--ease); }
 .brand:hover svg { transform: rotate(180deg); }
-.brand .word { font-family: var(--display); font-size: 22px; line-height: 1; }
-.brand .word i { font-style: italic; color: var(--teal); }
+.brand .word { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.02em; line-height: 1; }
+.brand .word i { font-style: normal; color: var(--teal); }
 .hdr .sp { flex: 1; }
 .hdr nav { display: flex; gap: 4px; }
 .hdr nav a {
-  padding: 9px 12px; font-size: 13.5px; font-weight: 500;
-  font-variation-settings: 'wdth' 86; color: var(--text-3);
+  padding: 9px 12px; font-size: 13.5px; font-weight: 500; color: var(--text-3);
   transition: color .2s var(--ease);
 }
 .hdr nav a:hover, .hdr nav a.on { color: var(--text); }
@@ -168,7 +190,7 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .btn {
   display: inline-flex; align-items: center; gap: 9px;
   padding: 12px 20px; border-radius: 100px;
-  font-size: 14.5px; font-weight: 620; font-variation-settings: 'wdth' 90;
+  font-size: 14.5px; font-weight: 600;
   border: 1px solid transparent; cursor: pointer;
   transition: transform .18s var(--ease), box-shadow .22s var(--ease), border-color .2s var(--ease), color .2s var(--ease);
 }
@@ -228,6 +250,7 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 
 /* ── split rows ───────────────────────────────────────────────────────── */
 .split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.12fr); gap: clamp(26px, 4.5vw, 60px); align-items: center; }
+.split.one-col { grid-template-columns: minmax(0,1fr); max-width: 640px; }
 .split.flip > :first-child { order: 2; }
 .split + .split { margin-top: clamp(56px, 8vw, 104px); }
 .split .copy { display: flex; flex-direction: column; gap: 16px; }
@@ -272,7 +295,7 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .code .dots i:nth-child(1) { background: color-mix(in srgb, var(--red) 62%, transparent); }
 .code .dots i:nth-child(2) { background: color-mix(in srgb, var(--amber) 62%, transparent); }
 .code .dots i:nth-child(3) { background: color-mix(in srgb, var(--teal) 62%, transparent); }
-.code .ttl { font-family: var(--mono); font-size: 11.5px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code .ttl { font-family: var(--mono); font-size: 12px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .code pre { margin: 0; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--text-2); }
 .code .c { color: var(--text-5); }
 .code .p { color: var(--teal); user-select: none; }
@@ -285,23 +308,168 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .steps li { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line); }
 .steps li:last-child { border-bottom: none; }
 .steps .n { font-family: var(--mono); font-size: 12px; color: var(--text-5); padding-top: 3px; }
-.steps b { display: block; font-size: 15.5px; font-weight: 620; color: var(--text); margin-bottom: 5px; }
+.steps b { display: block; font-size: 15.5px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
 .steps span { font-size: 14px; color: var(--text-4); line-height: 1.65; }
 
 /* ── endpoint table ───────────────────────────────────────────────────── */
 .api { width: 100%; border-collapse: collapse; }
 .api th, .api td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
-.api th { font-variation-settings: 'wdth' 76; font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-4); }
+.api th { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); }
 .api td { font-size: 14px; color: var(--text-3); }
 .api td:first-child { font-family: var(--mono); font-size: 12.5px; color: var(--teal); white-space: nowrap; }
 .api tbody tr:last-child td { border-bottom: none; }
 .api-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--paper); }
 
-/* ── gallery ──────────────────────────────────────────────────────────── */
-.gallery { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; }
-.gallery figure { display: flex; flex-direction: column; gap: 12px; }
-.gallery figcaption { display: flex; align-items: center; gap: 10px; }
-@media (max-width: 760px) { .gallery { grid-template-columns: 1fr; } }
+/* ── illustrations ────────────────────────────────────────────────────────
+   Every diagram on this page is hand-drawn SVG/CSS, not a capture — openrate
+   is a tool and a library, not a screen to photograph. The plate frame (box,
+   border, gradient rule) is the same one shots used to sit in; only the
+   content changed. */
+.illo { padding: clamp(22px, 4vw, 44px); }
+.illo-grid {
+  background-image: radial-gradient(var(--line-2) 1px, transparent 1px);
+  background-size: 25px 25px;
+}
+
+/* the currency graph — SVG draws the geometry (edges, nodes, the traced
+   path); the labels are real HTML laid over it by percentage, not SVG
+   <text>. A viewBox scales its own text down with everything else, so on a
+   390px phone a 14px label was rendering at under 6px — an HTML overlay
+   stays a fixed, legible size no matter how far the diagram shrinks. */
+.graph-illo-wrap { position: relative; width: 100%; aspect-ratio: 760 / 500; }
+.graph-illo { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.graph-illo .edge { stroke: var(--line-3); stroke-width: 1.3; fill: none; }
+.graph-illo .node circle { fill: var(--paper-2); stroke: var(--line-3); stroke-width: 1.5; }
+.graph-illo .node.accent circle { fill: color-mix(in srgb, var(--teal) 14%, var(--paper-2)); stroke: var(--teal); stroke-width: 1.75; }
+.graph-illo .trace {
+  fill: none; stroke: url(#heroPathGrad); stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1.4s var(--ease-out) .3s;
+}
+.rv.in .graph-illo .trace { stroke-dashoffset: 0; }
+.node-lbl {
+  position: absolute; transform: translate(-50%, -50%);
+  font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text);
+  white-space: nowrap; pointer-events: none;
+}
+.node-lbl.accent { color: var(--text); }
+.edge-lbl {
+  position: absolute; transform: translate(-50%, -50%);
+  font-family: var(--mono); font-size: 12px; color: var(--text-4);
+  background: var(--paper); padding: 2px 8px; border-radius: 100px; line-height: 1.3;
+  white-space: nowrap; pointer-events: none;
+}
+.edge-lbl.accent { color: var(--teal); font-weight: 600; }
+
+/* the walk / receipt — one hop's rate is multiplied into the next */
+.walk { display: flex; align-items: center; gap: 0; }
+.walk-node {
+  flex: none; width: 58px; height: 58px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--paper-2);
+  border: 1.5px solid var(--teal); background: color-mix(in srgb, var(--teal) 12%, var(--paper-2));
+}
+.walk-node .cur { font-family: var(--mono); font-weight: 600; font-size: 13.5px; }
+.walk-leg { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 0 6px; min-width: 0; }
+/* a plain CSS line + arrowhead, not an SVG rotated between orientations — a
+   wide-short viewBox stretched into a tall-narrow box distorts under
+   preserveAspectRatio, so the connector is drawn with box-model primitives
+   that stay true in both directions. */
+.leg-line { position: relative; width: 100%; height: 2px; background: var(--teal); flex: none; }
+.leg-line::after {
+  content: ""; position: absolute; right: -1px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0; border: 5px solid transparent; border-right: 0; border-left: 7px solid var(--teal);
+}
+.leg-meta { display: flex; align-items: baseline; gap: 7px; font-size: 12px; color: var(--text-4); white-space: nowrap; }
+.leg-meta .num { color: var(--text); font-size: 13.5px; }
+.leg-meta .src { font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--teal); font-weight: 600; }
+@media (max-width: 560px) {
+  .walk { flex-direction: column; }
+  .walk-leg { flex-direction: row-reverse; padding: 14px 0; gap: 14px; }
+  .leg-line { width: 2px; height: 34px; flex: none; }
+  .leg-line::after {
+    right: 50%; top: auto; bottom: -1px; transform: translateX(50%);
+    border-right: 5px solid transparent; border-left: 5px solid transparent;
+    border-bottom: 0; border-top: 7px solid var(--teal);
+  }
+  .leg-meta { flex-direction: column; align-items: flex-start; gap: 2px; }
+}
+.walk-sum {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  margin-top: 24px; padding-top: 18px; border-top: 1px dashed var(--line-2);
+  font-family: var(--mono);
+}
+.walk-sum .num { font-size: 16px; color: var(--text); }
+.walk-sum .op { color: var(--text-5); font-size: 14px; }
+.walk-sum .result { color: var(--teal); font-weight: 600; }
+.walk-sum .cap { margin-left: auto; font-family: var(--ui); }
+
+/* the confidence equation — five factors multiplied into a grade */
+.conf-eq { display: flex; align-items: center; justify-content: center; gap: 10px 6px; flex-wrap: wrap; }
+.factor { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 82px; }
+.dial { width: 52px; height: 52px; }
+.dial circle.track { fill: none; stroke: var(--line-2); stroke-width: 5; }
+.dial circle.val { fill: none; stroke: var(--teal); stroke-width: 5; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.dial-wrap { position: relative; }
+.factor b.num { font-size: 13px; color: var(--text); }
+.factor span.lbl { text-align: center; line-height: 1.3; }
+.conf-eq .op { color: var(--text-5); font-size: 19px; font-family: var(--mono); flex: none; }
+.conf-eq .eq-arrow { color: var(--text-5); flex: none; width: 22px; height: 14px; }
+.conf-eq .eq-arrow path { fill: none; stroke: currentColor; stroke-width: 1.6; }
+.conf-result { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.conf-result .num.big { font-size: 27px; color: var(--text); font-weight: 600; }
+.conf-cap { text-align: center; margin-top: 26px; }
+
+/* source dispersion — quotes on a scale zoomed to themselves */
+/* geometry lives in the SVG (axis, ticks, stems, pins, bracket); all labels
+   are an HTML overlay at a fixed size — see the graph illustration above. */
+.disp-illo-wrap { position: relative; width: 100%; aspect-ratio: 640 / 220; }
+.disp-illo { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.disp-illo .axis { stroke: var(--line-3); stroke-width: 1.3; }
+.disp-illo .tick { stroke: var(--line-2); stroke-width: 1; }
+.disp-illo .stem { stroke: var(--line-3); stroke-width: 1.1; stroke-dasharray: 2 3; }
+.disp-illo .pin circle { stroke-width: 2; fill: var(--paper); }
+.disp-illo .pin.a circle { stroke: var(--teal); }
+.disp-illo .pin.b circle { stroke: var(--blue); }
+.disp-illo .mean-line { stroke: var(--text-4); stroke-width: 1.1; stroke-dasharray: 4 3; }
+.disp-illo .bracket { stroke: var(--amber); stroke-width: 1.2; fill: none; }
+.tick-lbl, .pin-lbl, .pin-src, .mean-lbl, .bracket-lbl {
+  position: absolute; transform: translate(-50%, -50%);
+  font-family: var(--mono); white-space: nowrap; pointer-events: none;
+}
+.tick-lbl { font-size: 12px; color: var(--text-5); }
+.pin-lbl { font-size: 12px; font-weight: 600; color: var(--text); }
+.pin-src { font-size: 12px; color: var(--text-4); text-transform: uppercase; letter-spacing: .06em; }
+.mean-lbl { font-size: 12px; color: var(--text-3); }
+.bracket-lbl { font-size: 12px; font-weight: 600; color: var(--amber); }
+
+/* the board — drawn ledger, not a capture of the table UI */
+.ledger { width: 100%; border-collapse: collapse; }
+.ledger th, .ledger td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.ledger th { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); white-space: nowrap; }
+.ledger td { font-size: 13.5px; color: var(--text-2); }
+.ledger td.cur { font-family: var(--mono); font-weight: 600; color: var(--text); }
+.ledger td.rate { font-family: var(--mono); color: var(--text-2); }
+.ledger .hops { display: inline-flex; gap: 3px; vertical-align: middle; }
+.ledger .hops i { width: 5px; height: 5px; border-radius: 50%; background: var(--line-3); display: block; }
+.ledger .hops i.on { background: var(--teal); }
+.ledger .seal.sm { width: 30px; height: 30px; font-size: 13px; border-width: 1.2px; }
+.ledger .seal.sm::after { inset: 3px; }
+.seal.md { width: 46px; height: 46px; font-size: 21px; }
+.ledger tbody tr:last-child td { border-bottom: none; }
+.ledger td.age { color: var(--text-4); font-family: var(--mono); font-size: 12px; }
+.ledger td.note { color: var(--text-4); font-size: 12px; }
+@media (max-width: 700px) { .ledger .colnote, .ledger .colage { display: none; } }
+
+/* policy — drawn stepped sparklines, not card captures */
+.policy-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px,1fr)); gap: 14px; }
+.policy-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.policy-card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.policy-card .area { font-family: var(--mono); font-size: 12px; color: var(--text-4); text-transform: uppercase; letter-spacing: .08em; }
+.policy-card .rate { font-family: var(--mono); font-size: 21px; color: var(--text); }
+.policy-card svg { width: 100%; height: 32px; color: var(--teal); overflow: visible; }
+.policy-card svg path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.policy-card .bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.policy-card .date { font-size: 12px; color: var(--text-5); font-family: var(--mono); }
 
 /* ── footer ───────────────────────────────────────────────────────────── */
 .ftr { border-top: 1px solid var(--line); background: var(--ink-2); position: relative; overflow: clip; }
@@ -322,7 +490,7 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .tag b { color: var(--text); font-weight: 600; }
 .tag img { width: 16px; height: 16px; border-radius: 4px; }
 .ftr-btm { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding-top: 26px; }
-.ftr-btm span { font-family: var(--mono); font-size: 11.5px; color: var(--text-5); }
+.ftr-btm span { font-family: var(--mono); font-size: 12px; color: var(--text-5); }
 .ftr-btm a { color: var(--text-4); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 760px) { .ftr-grid { grid-template-columns: 1fr 1fr; } .ftr-brand { grid-column: 1 / -1; } }
 @media (max-width: 480px) { .ftr-grid { grid-template-columns: 1fr; } }
@@ -357,7 +525,7 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .hits { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
 .hit { display: block; padding: 8px 12px; border-radius: var(--r-sm); background: var(--paper-3); }
 .hit b { display: block; font-size: 12.5px; color: var(--text); font-weight: 600; }
-.hit span { display: block; font-size: 11.5px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hit span { display: block; font-size: 12px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hits-none { padding: 10px 12px; font-size: 12.5px; color: var(--text-5); }
 
 .docs-main { max-width: 880px; padding: clamp(30px,4vw,48px) var(--gut) clamp(56px,8vw,96px); }
@@ -400,6 +568,11 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .md code {
   font-family: var(--mono); font-size: .86em; color: var(--teal);
   background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 6px;
+  /* .86em of an already-reduced parent (a <sub>, a caption) lands at 11.1px,
+     under the 12px floor the rest of the page keeps. Relative sizing is right —
+     inline code should track the text it sits in — so keep it and add a floor
+     rather than pinning an absolute size. */
+  font-size: max(12px, .86em);
 }
 .md pre {
   position: relative; margin: 18px 0; padding: 16px 18px; overflow-x: auto;
@@ -415,8 +588,8 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .md table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px; display: block; overflow-x: auto; }
 .md th, .md td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .md th {
-  font-variation-settings: 'wdth' 76; font-size: 10.5px; font-weight: 600;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--text-4); white-space: nowrap;
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); white-space: nowrap;
 }
 .md td { color: var(--text-3); }
 .md tbody tr:last-child td { border-bottom: none; }
@@ -427,7 +600,7 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .copy-btn {
   position: absolute; top: 8px; right: 8px;
   background: var(--paper-2); border: 1px solid var(--line-2); border-radius: var(--r-xs);
-  color: var(--text-4); font-family: var(--mono); font-size: 10.5px; padding: 4px 9px;
+  color: var(--text-4); font-family: var(--mono); font-size: 12px; padding: 4px 9px;
   cursor: pointer; opacity: 0;
   transition: opacity .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease);
 }

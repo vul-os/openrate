@@ -109,32 +109,32 @@ export default function App() {
         <main><Docs /></main>
       ) : (
         <main>
-          {/* ── hero + the instrument ───────────────────────────────── */}
+          {/* ── the instrument, with a placard explaining it ─────────── */}
           <section id="convert" className="sect tight">
             <Guilloche className="hero-rose" />
             <div className="wrap">
               <div className="hero">
-                <Reveal className="hero-copy">
-                  <Eyebrow>Open exchange-rate engine</Eyebrow>
-                  <h1 className="display d1">
-                    Every rate,<br />
-                    <em>with its receipts</em>.
-                  </h1>
+                {/* DOM-first so the page's one <h1> reaches assistive tech before the
+                    control does; `order` in the CSS is what puts the converter
+                    visually first for sighted users, which is the point of this
+                    page. */}
+                <Reveal className="hero-note">
+                  <h1 className="display d3">Currency converter</h1>
                   <p className="prose">
-                    Rates built the open way — central-bank reference files and live public
-                    venues, never a resold paid API. Each price ships with the path it took
-                    through the currency graph, the sources behind it, how far apart they
-                    are, and a grade for the lot.
+                    Priced against your anchor — <b className="num">{base}</b> right now,
+                    change it in the nav. Every rate carries the path it took through the
+                    currency graph, the sources behind it, and a{" "}
+                    <a href="#accuracy" onClick={(e) => go(e, "accuracy")}>grade A–D</a> for
+                    how much to trust it.
                   </p>
-                  <div className="gauges">
-                    <Gauge v={currencies.length || "—"} l="currencies" />
-                    <Gauge v={liveSources || "—"} l="sources live" live />
-                    <Gauge v={edges || "—"} l="graph edges" />
-                    <Gauge v={rates ? Object.keys(rates.rates || {}).length : "—"} l="pairs served" />
+                  <div className="opline">
+                    <span className="op"><b className="num">{currencies.length || "—"}</b><Label>currencies</Label></span>
+                    <span className="op"><b className={`num ${liveSources ? "live" : ""}`}>{liveSources || "—"}</b><Label>sources live</Label></span>
+                    <span className="op"><b className="num">{edges || "—"}</b><Label>graph edges</Label></span>
                   </div>
                 </Reveal>
 
-                <Reveal delay={90}>
+                <Reveal delay={60} className="hero-tool">
                   <Converter currencies={currencies} defaultFrom="USD" defaultTo={base} />
                 </Reveal>
               </div>
@@ -195,14 +195,5 @@ export default function App() {
 
       <Footer meta={meta} base={base} onDocs={goDocs} />
     </>
-  );
-}
-
-function Gauge({ v, l, live }) {
-  return (
-    <div className={`gauge ${live ? "live" : ""}`}>
-      <span className="g-v">{typeof v === "number" ? v.toLocaleString() : v}</span>
-      <Label>{l}</Label>
-    </div>
   );
 }

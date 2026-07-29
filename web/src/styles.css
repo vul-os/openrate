@@ -12,19 +12,28 @@
    cold white — currency stock is cream, and that reads as money.
 
    Type
-     Instrument Serif  — display. High-contrast didone-ish, editorial authority.
-     Archivo Variable  — UI. Grotesque with a wdth axis (62–125%), so board
-                         labels can be genuinely condensed like a rate board.
-     JetBrains Mono    — every figure. Tabular, always.
+     Geist Sans — display and UI, one face for both. Drawn for developer
+                  tools rather than editorial: low-contrast, a big x-height
+                  that holds up as a 10px board label, and no italic to fake
+                  — emphasis is carried by weight and the teal, not a slant.
+     Geist Mono — every figure. Tabular by construction, so a column of rates
+                  lines up without font-feature workarounds.
 
-   SOVEREIGNTY: all three are vendored locally via @fontsource (self-hosted
+   openrate is a tool you run, not a pitch you read — Instrument Serif's
+   editorial register moved to the marketing site; the app itself is built
+   for scanning numbers fast.
+
+   SOVEREIGNTY: both are vendored locally via @fontsource (self-hosted
    woff2), never fetched from Google Fonts. A self-host product must not leak
    the user's IP to fonts.googleapis.com/gstatic and must stay air-gappable.
    ═══════════════════════════════════════════════════════════════════════════ */
-@import '@fontsource/instrument-serif/400.css';
-@import '@fontsource/instrument-serif/400-italic.css';
-@import '@fontsource-variable/archivo/wdth.css';
-@import '@fontsource-variable/jetbrains-mono/wght.css';
+@import '@fontsource/geist-sans/latin-400.css';
+@import '@fontsource/geist-sans/latin-500.css';
+@import '@fontsource/geist-sans/latin-600.css';
+@import '@fontsource/geist-sans/latin-700.css';
+@import '@fontsource/geist-mono/latin-400.css';
+@import '@fontsource/geist-mono/latin-500.css';
+@import '@fontsource/geist-mono/latin-600.css';
 
 :root {
   /* ── ink theme (default) ─────────────────────────────────────────────── */
@@ -62,9 +71,9 @@
   --shadow-2: 0 1px 0 rgba(255,255,255,.04) inset, 0 40px 90px -40px rgba(0,0,0,.95), 0 10px 30px -20px rgba(0,0,0,.7);
 
   /* ── type ────────────────────────────────────────────────────────────── */
-  --display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
-  --ui: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  --display: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ui: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
 
   /* ── geometry ────────────────────────────────────────────────────────── */
   --r-xs: 4px; --r-sm: 7px; --r: 11px; --r-lg: 16px; --r-xl: 22px;
@@ -126,7 +135,6 @@ body {
   font-family: var(--ui);
   font-size: 15.5px;
   line-height: 1.6;
-  font-variation-settings: 'wdth' 100;
   -webkit-font-smoothing: antialiased;
   overflow-x: clip;
   transition: background .45s var(--ease), color .45s var(--ease);
@@ -171,14 +179,15 @@ img, svg { display: block; max-width: 100%; height: auto; }
 
 /* ═══ typographic primitives ═══════════════════════════════════════════ */
 
-/* Board lettering — condensed, tracked-out, uppercase. The wdth axis is what
-   makes this read like a real exchange board rather than tracked-out Helvetica. */
+/* Board lettering — tracked-out, uppercase, small. Archivo had a wdth axis to
+   compress this like a real exchange board; Geist Sans has no width axis, so
+   the condensed feel comes from tight tracking and a slightly smaller size
+   instead, at a weight (600) with enough ink to survive that tracking. */
 .lbl {
   font-family: var(--ui);
-  font-variation-settings: 'wdth' 76;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: .15em;
+  letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--text-4);
   line-height: 1;
@@ -200,18 +209,22 @@ img, svg { display: block; max-width: 100%; height: auto; }
   background: linear-gradient(90deg, var(--line-2), transparent);
 }
 
+/* Geist Sans has a much bigger x-height than Instrument Serif at the same
+   size, so the whole display scale is pulled down a step and given a touch
+   more line-height to keep it from reading heavier than it is. No italic:
+   the face ships none, and a synthetic slant on a geometric sans looks
+   broken — emphasis is carried by the teal + a step up in weight instead. */
 .display {
   font-family: var(--display);
-  font-weight: 400;
-  line-height: .96;
-  letter-spacing: -.018em;
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -.02em;
   color: var(--text);
 }
-.d1 { font-size: clamp(2.9rem, 8.2vw, 5.6rem); }
-.d2 { font-size: clamp(2rem, 4.4vw, 3rem); }
-.d3 { font-size: clamp(1.5rem, 2.6vw, 1.95rem); }
-.display em { font-style: italic; color: var(--teal); }
-.display .thin { color: var(--text-3); }
+.d2 { font-size: clamp(1.85rem, 3.8vw, 2.7rem); }
+.d3 { font-size: clamp(1.3rem, 2.2vw, 1.6rem); }
+.display em { font-style: normal; font-weight: 600; color: var(--teal); }
+.display .thin { color: var(--text-3); font-weight: 400; }
 
 .prose { color: var(--text-3); font-size: 1.0625rem; line-height: 1.7; max-width: 60ch; }
 .prose b, .prose strong { color: var(--text-2); font-weight: 600; }
@@ -271,20 +284,20 @@ img, svg { display: block; max-width: 100%; height: auto; }
 .brand:hover .mark { transform: rotate(180deg); }
 .brand .word {
   font-family: var(--display);
-  font-size: 21px;
-  letter-spacing: -.01em;
+  font-weight: 500;
+  font-size: 20px;
+  letter-spacing: -.015em;
   color: var(--text);
   line-height: 1;
   white-space: nowrap;
 }
-.brand .word i { font-style: italic; color: var(--teal); }
+.brand .word i { font-style: normal; font-weight: 600; color: var(--teal); }
 
 .navlinks { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .navlinks::-webkit-scrollbar { display: none; }
 .navlinks a {
   position: relative; flex: none;
   padding: 9px 12px;
-  font-variation-settings: 'wdth' 84;
   font-size: 13px; font-weight: 500;
   color: var(--text-3);
   transition: color .2s var(--ease);
@@ -312,8 +325,7 @@ img, svg { display: block; max-width: 100%; height: auto; }
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 16px; border-radius: 100px;
   background: var(--text); color: var(--ink);
-  font-size: 13px; font-weight: 650;
-  font-variation-settings: 'wdth' 88;
+  font-size: 13px; font-weight: 600;
   transition: transform .2s var(--ease), box-shadow .2s var(--ease);
 }
 .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -10px rgba(0,0,0,.7); }
@@ -327,32 +339,36 @@ img, svg { display: block; max-width: 100%; height: auto; }
 .sec-head { max-width: 620px; display: flex; flex-direction: column; gap: 16px; margin-bottom: clamp(30px, 4vw, 46px); }
 .sec-head .prose { font-size: 1rem; }
 
-/* ═══ hero ═════════════════════════════════════════════════════════════ */
-#convert { padding-top: clamp(48px, 7vw, 92px); overflow: clip; }
-/* align-items: start, deliberately. Bottom-aligning the copy to the instrument
+/* ═══ hero: the converter leads, a placard explains it ══════════════════ */
+/* The app opens on the tool, not a pitch: the instrument is the first thing
+   in the section and visually leads at every width. The DOM keeps the note
+   (with the page's one <h1>) first, so screen readers meet the explanation
+   before the control — `order` below is what reconciles that with "converter
+   visually first". Grid, not a lonely centred box, so a short note doesn't
+   leave the row lopsided the way a bare converter would. */
+#convert { padding-top: clamp(26px, 3.6vw, 46px); overflow: clip; }
+/* align-items: start, deliberately. Bottom-aligning the note to the instrument
    looks tidier at rest, but the instrument grows by ~1200px when "show the
-   working" is expanded and the copy would be pushed off the bottom of the
+   working" is expanded and the note would be pushed off the bottom of the
    viewport. Top-aligned, the two columns are independent of that. */
-.hero { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(0, .96fr); gap: clamp(24px, 5vw, 64px); align-items: start; }
-.hero-copy { display: flex; flex-direction: column; gap: 22px; }
-.hero .d1 { margin-top: 4px; }
-.hero .prose { font-size: 1.09rem; max-width: 46ch; }
+.hero { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 620px) minmax(0, 1fr); gap: clamp(28px, 5vw, 60px); align-items: start; }
+.hero-tool { order: 1; min-width: 0; }
+.hero-note { order: 2; display: flex; flex-direction: column; gap: 13px; max-width: 42ch; padding-top: 8px; }
+.hero-note .display { margin-top: 2px; }
+.hero-note .prose { font-size: .98rem; max-width: none; }
+.hero-note .prose a { color: var(--blue); }
+.hero-note .prose a:hover { text-decoration: underline; }
 
-.guilloche.hero-rose { top: -240px; right: -200px; width: 780px; height: 780px; opacity: .42; }
-[data-theme="light"] .guilloche.hero-rose { opacity: .3; }
+.guilloche.hero-rose { top: -220px; right: -220px; width: 680px; height: 680px; opacity: .38; }
+[data-theme="light"] .guilloche.hero-rose { opacity: .26; }
 
-/* Instrument readout — the four figures that describe the running engine,
-   set as a strip of gauges rather than marketing stat cards. */
-.gauges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line-2); }
-.gauge { padding: 16px 14px 4px 0; display: flex; flex-direction: column; gap: 7px; position: relative; }
-.gauge + .gauge { padding-left: 18px; border-left: 1px solid var(--line); }
-.gauge::before {
-  content: ""; position: absolute; top: -1px; left: 0; width: 22px; height: 2px;
-  background: var(--text-5);
-}
-.gauge.live::before { background: var(--teal); }
-.gauge .g-v { font-family: var(--mono); font-size: clamp(19px, 2.3vw, 25px); font-weight: 600; letter-spacing: -.03em; color: var(--text); line-height: 1; }
-.gauge.live .g-v { color: var(--teal); }
+/* The operational readout — currencies served, sources currently live, edges
+   in the graph. Real figures about the running engine, kept close to the
+   tool as a compact line rather than as a strip of marketing stat cards. */
+.opline { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.op { display: inline-flex; align-items: baseline; gap: 7px; }
+.op b { font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: -.02em; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.op b.live { color: var(--teal); }
 
 /* ═══ the instrument (converter) ═══════════════════════════════════════ */
 .instr {
@@ -487,7 +503,7 @@ img, svg { display: block; max-width: 100%; height: auto; }
   border: 4px solid transparent; border-left-color: var(--line-3); border-right: 0;
 }
 .path-hop .hop-rate { font-family: var(--mono); font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }
-.path-hop .hop-meta { font-family: var(--ui); font-variation-settings: 'wdth' 78; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-4); }
+.path-hop .hop-meta { font-family: var(--ui); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-4); }
 
 /* ═══ dispersion — where the sources disagree ══════════════════════════ */
 .disp { margin-top: 6px; }
@@ -500,8 +516,8 @@ img, svg { display: block; max-width: 100%; height: auto; }
 }
 .disp-scale .mean span {
   position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
-  font-family: var(--ui); font-variation-settings: 'wdth' 78; font-size: 9.5px;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); white-space: nowrap;
+  font-family: var(--ui); font-size: 9.5px;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--text-4); white-space: nowrap;
 }
 .disp-pt {
   position: absolute; top: 22px;
@@ -605,8 +621,8 @@ img, svg { display: block; max-width: 100%; height: auto; }
   text-align: left; padding: 10px 14px;
   background: var(--paper-2);
   border-bottom: 1px solid var(--line-2);
-  font-family: var(--ui); font-variation-settings: 'wdth' 76;
-  font-size: 10px; font-weight: 600; letter-spacing: .15em; text-transform: uppercase;
+  font-family: var(--ui);
+  font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
   color: var(--text-4);
   cursor: pointer; user-select: none;
   white-space: nowrap;
@@ -633,7 +649,7 @@ img, svg { display: block; max-width: 100%; height: auto; }
 .b-ccy { display: flex; align-items: center; gap: 10px; }
 .b-ccy .flag { font-size: 15px; line-height: 1; width: 20px; text-align: center; flex: none; }
 .b-ccy .code { font-weight: 600; color: var(--text); letter-spacing: .01em; }
-.b-ccy .name { font-family: var(--ui); font-size: 12px; color: var(--text-4); font-variation-settings: 'wdth' 88; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-ccy .name { font-family: var(--ui); font-size: 12px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .b-rate { color: var(--text); font-variant-numeric: tabular-nums; font-size: 13.5px; }
 .b-mut { color: var(--text-4); font-size: 12px; }
 
@@ -668,7 +684,7 @@ img, svg { display: block; max-width: 100%; height: auto; }
 .policy-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .policy-area { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .policy-area .flag { font-size: 17px; line-height: 1; flex: none; }
-.policy-area .nm { font-size: 13.5px; font-weight: 550; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.policy-area .nm { font-size: 13.5px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .policy-val { display: flex; align-items: baseline; gap: 3px; }
 .policy-val b { font-family: var(--mono); font-size: 30px; font-weight: 600; letter-spacing: -.04em; color: var(--text); line-height: 1; }
 .policy-val i { font-style: normal; font-family: var(--mono); font-size: 15px; color: var(--text-4); }
@@ -850,8 +866,8 @@ img, svg { display: block; max-width: 100%; height: auto; }
 .docs-head { padding-bottom: 30px; border-bottom: 1px solid var(--line); margin-bottom: 12px; display: flex; flex-direction: column; gap: 16px; }
 .doc-sec { scroll-margin-top: calc(var(--nav-h) + 22px); padding: 38px 0; border-bottom: 1px solid var(--line); }
 .doc-sec:last-child { border-bottom: none; }
-.doc-sec h2 { font-family: var(--display); font-weight: 400; font-size: clamp(1.7rem, 3vw, 2.2rem); letter-spacing: -.015em; margin-bottom: 14px; }
-.doc-sec h3 { font-size: 1.02rem; font-weight: 650; margin: 26px 0 10px; color: var(--text); }
+.doc-sec h2 { font-family: var(--display); font-weight: 500; font-size: clamp(1.55rem, 2.7vw, 2rem); letter-spacing: -.018em; margin-bottom: 14px; }
+.doc-sec h3 { font-size: 1.02rem; font-weight: 600; margin: 26px 0 10px; color: var(--text); }
 .doc-sec p { color: var(--text-3); line-height: 1.75; margin: 12px 0; max-width: 68ch; }
 .doc-sec p b, .doc-list li b { color: var(--text); font-weight: 600; }
 .doc-sec a { color: var(--blue); }
@@ -866,7 +882,7 @@ img, svg { display: block; max-width: 100%; height: auto; }
 .doc-list li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 5px; height: 5px; background: var(--teal); transform: rotate(45deg); }
 .doc-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; }
 .doc-table th, .doc-table td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
-.doc-table th { color: var(--text-4); font-family: var(--ui); font-variation-settings: 'wdth' 78; font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.doc-table th { color: var(--text-4); font-family: var(--ui); font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
 .doc-table td { color: var(--text-3); }
 .doc-table tbody tr:last-child td { border-bottom: none; }
 
@@ -899,9 +915,6 @@ img, svg { display: block; max-width: 100%; height: auto; }
 }
 @media (max-width: 680px) {
   .nav-anchor { display: none; }
-  .gauges { grid-template-columns: repeat(2, 1fr); }
-  .gauge:nth-child(3) { padding-left: 0; border-left: none; }
-  .gauge:nth-child(n+3) { border-top: 1px solid var(--line); margin-top: 12px; }
 }
 @media (max-width: 560px) {
   .brand .word { display: none; }
