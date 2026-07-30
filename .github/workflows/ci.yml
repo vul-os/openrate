@@ -117,6 +117,13 @@ jobs:
       - name: Committed web/dist is up to date with web/src
         working-directory: .
         run: |
+          # `git diff` alone is blind to files vite ADDS (content-hashed chunk
+          # names change when their source changes, so a stale build often
+          # leaves an old committed chunk untouched and adds a new untracked
+          # one rather than modifying a tracked path). `git add -N` records
+          # untracked paths as empty intent-to-add blobs first, so an added
+          # file shows up as a diff instead of silently passing.
+          git add -N -- web/dist
           if ! git diff --exit-code -- web/dist; then
             echo "::error::web/dist is stale. Run 'npm --prefix web run build' and commit the result."
             exit 1
