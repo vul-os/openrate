@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/openrate.svg" width="84" alt="openrate" />
+  <img src="brand/logo.svg" width="84" alt="openrate" />
 </p>
 
 <h1 align="center">openrate</h1>
@@ -275,6 +275,16 @@ Full documentation lives in **[`docs/`](docs/)**.
 | [Accuracy & quality](ACCURACY.md) | The grade/confidence model behind every rate |
 | [Sources](SOURCES.md) | Full source catalog, cadence, and provenance |
 | [Web UI](docs/web-ui.md) | The embedded React dashboard |
+
+## Brand
+
+The mark in [`brand/`](brand/) is the source of truth. Every icon this repo
+ships — favicon, PWA and app icons, the mark in the README and on the site — is
+rendered from `brand/logo.svg` rather than redrawn, so there is one approved
+drawing and no second copy to drift.
+
+Copy it outward, never edit a derived copy, and never edit `brand/` to match
+something downstream.
 
 ## License
 
