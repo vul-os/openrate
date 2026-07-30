@@ -351,7 +351,7 @@ img, svg { display: block; max-width: 100%; height: auto; }
    looks tidier at rest, but the instrument grows by ~1200px when "show the
    working" is expanded and the note would be pushed off the bottom of the
    viewport. Top-aligned, the two columns are independent of that. */
-.hero { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 620px) minmax(0, 1fr); gap: clamp(28px, 5vw, 60px); align-items: start; }
+.hero { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 620px) minmax(0, 1fr); gap: clamp(28px, 5vw, 60px); align-items: stretch; }
 .hero-tool { order: 1; min-width: 0; }
 .hero-note { order: 2; display: flex; flex-direction: column; gap: 13px; max-width: 42ch; padding-top: 8px; }
 .hero-note .display { margin-top: 2px; }
@@ -359,8 +359,26 @@ img, svg { display: block; max-width: 100%; height: auto; }
 .hero-note .prose a { color: var(--blue); }
 .hero-note .prose a:hover { text-decoration: underline; }
 
-.guilloche.hero-rose { top: -220px; right: -220px; width: 680px; height: 680px; opacity: .38; }
-[data-theme="light"] .guilloche.hero-rose { opacity: .26; }
+/* The engraving plate: takes the height the placard leaves over beside the
+   converter, and clips the rosette to its own frame so nothing bleeds. */
+.hero-plate {
+  position: relative; flex: 1; min-height: 210px; margin-top: 6px;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--ink-2); overflow: hidden;
+}
+.guilloche.plate-rose {
+  position: absolute; inset: 50% auto auto 50%;
+  width: 132%; height: 132%; transform: translate(-50%, -50%);
+  opacity: .5;
+}
+[data-theme="light"] .guilloche.plate-rose { opacity: .34; }
+/* A specimen-card label. It needs its own ground: set straight onto the
+   engraving the tracked caps were unreadable wherever a ring crossed them. */
+.plate-cap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: block; padding: 9px 14px; text-align: center;
+  background: var(--ink-2); border-top: 1px solid var(--line);
+}
 
 /* The operational readout — currencies served, sources currently live, edges
    in the graph. Real figures about the running engine, kept close to the
@@ -538,7 +556,9 @@ img, svg { display: block; max-width: 100%; height: auto; }
 /* Auto-fit rather than a fixed count: six quality facets in a 420px-wide
    converter would otherwise truncate every label to "CORROBOR…", which is
    worse than wrapping to two rows. */
-.readout.c6 { grid-template-columns: repeat(auto-fit, minmax(122px, 1fr)); }
+/* Exactly three across: the six facets fill two whole rows. auto-fit used to
+   leave two dead cells in the second row at the card's usual width. */
+.readout.c6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .readout.c4 { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
 .ro { background: var(--paper); padding: 12px 13px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .ro .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -751,6 +771,9 @@ img, svg { display: block; max-width: 100%; height: auto; }
   background: var(--paper-2); border: 1px solid var(--line-2); border-radius: var(--r);
   padding: 11px 13px; cursor: pointer; color: var(--text);
   transition: border-color .2s var(--ease), background .2s var(--ease);
+  /* without this the long currency name is sliced mid-glyph by the field
+     instead of ellipsising */
+  min-width: 0; overflow: hidden;
 }
 .csel-btn:hover { border-color: var(--line-3); }
 .csel-btn.open { border-color: var(--blue); box-shadow: var(--glow); }
@@ -889,7 +912,9 @@ img, svg { display: block; max-width: 100%; height: auto; }
 /* ═══ responsive ═══════════════════════════════════════════════════════ */
 @media (max-width: 1080px) {
   .hero { grid-template-columns: 1fr; align-items: start; gap: 34px; }
-  .guilloche.hero-rose { top: -280px; right: -320px; opacity: .26; }
+  /* one column: the placard no longer has a column to fill, so the plate would
+     just be filler between the tool and the board */
+  .hero-plate { display: none; }
 }
 @media (max-width: 980px) {
   .docs-layout { grid-template-columns: 1fr; }
@@ -906,15 +931,42 @@ img, svg { display: block; max-width: 100%; height: auto; }
   .docs-main { max-width: none; }
   .bands { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 900px) { .nav-cta { display: none; } }
+/* ── narrow nav ────────────────────────────────────────────────────────
+   The inline links used to survive by scrolling horizontally inside .navlinks
+   with the scrollbar hidden, so Accuracy/Docs/Self-host were reachable only by
+   a drag nobody can see. Below 900px they move into a real disclosure. */
+.navmenu-wrap { position: relative; flex: none; }
+.navtoggle { display: none; }
+.navmenu {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 60;
+  width: min(280px, calc(100vw - 2 * var(--gut)));
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px; border: 1px solid var(--line-2); border-radius: var(--r);
+  background: var(--paper-2); box-shadow: 0 22px 60px -18px rgba(0,0,0,.75);
+}
+.navmenu-anchor { display: flex; flex-direction: column; gap: 7px; }
+.navmenu-links { display: flex; flex-direction: column; gap: 1px; padding-top: 4px; border-top: 1px solid var(--line); }
+.navmenu-links a {
+  padding: 9px 10px; border-radius: 8px; color: var(--text-3);
+  font-size: .94rem; text-decoration: none;
+}
+.navmenu-links a:hover { background: var(--paper-3); color: var(--text); }
+.navmenu-links a.on { color: var(--teal); }
+.navmenu-cta {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 14px; border-radius: 100px; text-decoration: none;
+  background: var(--text); color: var(--ink); font-weight: 600; font-size: .9rem;
+}
+@media (max-width: 900px) {
+  /* exactly one anchor control on the page: the menu's */
+  .nav-cta, .navlinks, .nav-anchor { display: none; }
+  .navtoggle { display: inline-flex; }
+}
 @media (max-width: 760px) {
   .readout.c6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .foot-grid { grid-template-columns: 1fr 1fr; }
   .foot-brand { grid-column: 1 / -1; }
   .board .col-name, .board .col-src { display: none; }
-}
-@media (max-width: 680px) {
-  .nav-anchor { display: none; }
 }
 @media (max-width: 560px) {
   .brand .word { display: none; }
@@ -923,5 +975,8 @@ img, svg { display: block; max-width: 100%; height: auto; }
   .foot-grid { grid-template-columns: 1fr; }
   .foot-bottom { flex-direction: column; align-items: flex-start; }
   .board .col-age { display: none; }
-  .leg-row { grid-template-columns: minmax(0, 1fr) 118px; }
+  /* 118px could not hold flag + code + name + caret, so the name was sliced.
+     Drop the name and give the code room to breathe instead. */
+  .leg-row { grid-template-columns: minmax(0, 1fr) 124px; }
+  .leg-row .csel-name { display: none; }
 }

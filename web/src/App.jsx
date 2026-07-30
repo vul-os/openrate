@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { getMeta, getRates } from "./api.js";
 import { Reveal, Eyebrow, Label, ThemeToggle, useScrollSpy, Icon, Mark } from "./ui.jsx";
 import Guilloche from "./Guilloche.jsx";
@@ -25,7 +25,21 @@ export default function App() {
   const [rates, setRates] = useState(null);
   const [err, setErr] = useState(null);
   const [route, setRoute] = useState(() => (location.hash.startsWith("#docs") ? "docs" : "home"));
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef(null);
   const active = useScrollSpy(SECTIONS);
+
+  // The narrow-width menu: Escape and any click outside close it. Below 900px
+  // the inline nav links and the anchor control live in here instead of being
+  // pushed into an invisible horizontal scroll.
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e) => { if (e.key === "Escape") setMenu(false); };
+    const onDown = (e) => { if (!menuRef.current?.contains(e.target)) setMenu(false); };
+    addEventListener("keydown", onKey);
+    addEventListener("pointerdown", onDown);
+    return () => { removeEventListener("keydown", onKey); removeEventListener("pointerdown", onDown); };
+  }, [menu]);
 
   useEffect(() => {
     getMeta()
@@ -55,6 +69,7 @@ export default function App() {
   // two frames for the home tree to mount before scrolling to the anchor.
   const go = (e, id) => {
     e.preventDefault();
+    setMenu(false);
     const scroll = () => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     history.replaceState(null, "", id === "convert" ? "#" : `#${id}`);
     if (route !== "home") { setRoute("home"); requestAnimationFrame(() => requestAnimationFrame(scroll)); }
@@ -62,6 +77,7 @@ export default function App() {
   };
   const goDocs = (e) => {
     e.preventDefault();
+    setMenu(false);
     setRoute("docs");
     history.replaceState(null, "", "#docs");
     window.scrollTo(0, 0);
@@ -103,6 +119,37 @@ export default function App() {
         </a>
         <a className="nav-cta" href="#docs" onClick={goDocs}>Self-host<Icon.Arrow /></a>
         <ThemeToggle />
+
+        <div className="navmenu-wrap" ref={menuRef}>
+          <button
+            type="button" className="icon-btn plain navtoggle"
+            aria-expanded={menu} aria-controls="navmenu"
+            aria-label={menu ? "Close menu" : "Open menu"}
+            onClick={() => setMenu((m) => !m)}
+          >
+            {menu ? <Icon.Close /> : <Icon.Menu />}
+          </button>
+
+          {menu && (
+            <div className="navmenu" id="navmenu">
+              <div className="navmenu-anchor">
+                <Label>Anchor</Label>
+                <CurrencySelect value={base} onChange={setBase} options={currencies} label="anchor currency" />
+              </div>
+              <div className="navmenu-links">
+                {NAV.map((n) => (
+                  <a
+                    key={n.id} href={`#${n.id}`}
+                    className={route === "home" && active === n.id ? "on" : ""}
+                    onClick={(e) => go(e, n.id)}
+                  >{n.label}</a>
+                ))}
+                <a href="#docs" className={route === "docs" ? "on" : ""} onClick={goDocs}>Docs</a>
+              </div>
+              <a className="navmenu-cta" href="#docs" onClick={goDocs}>Self-host<Icon.Arrow /></a>
+            </div>
+          )}
+        </div>
       </nav>
 
       {route === "docs" ? (
@@ -111,7 +158,6 @@ export default function App() {
         <main>
           {/* ── the instrument, with a placard explaining it ─────────── */}
           <section id="convert" className="sect tight">
-            <Guilloche className="hero-rose" />
             <div className="wrap">
               <div className="hero">
                 {/* DOM-first so the page's one <h1> reaches assistive tech before the
@@ -131,6 +177,17 @@ export default function App() {
                     <span className="op"><b className="num">{currencies.length || "—"}</b><Label>currencies</Label></span>
                     <span className="op"><b className={`num ${liveSources ? "live" : ""}`}>{liveSources || "—"}</b><Label>sources live</Label></span>
                     <span className="op"><b className="num">{edges || "—"}</b><Label>graph edges</Label></span>
+                  </div>
+
+                  {/* The rosette used to be absolutely positioned and bled off the
+                      top-right corner, which read as a clipping bug. Framed here
+                      instead, it fills the column the placard would otherwise
+                      leave empty beside the tall converter. */}
+                  <div className="hero-plate">
+                    <Guilloche className="plate-rose" />
+                    <span className="plate-cap">
+                      <Label>Hypotrochoid — lathe-work, as on a banknote</Label>
+                    </span>
                   </div>
                 </Reveal>
 
