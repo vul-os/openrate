@@ -53,7 +53,7 @@ every hop, how far apart those sources are, and a grade for the lot:
 <p align="center">
   <sub>Every screenshot here is a real capture of the running engine, produced by
   <code>npm --prefix web run shots</code>. More on the
-  <a href="https://openrate.dev/">site</a>.</sub>
+  <a href="https://vulos.org/projects/openrate/">site</a>.</sub>
 </p>
 
 ## Why a graph, not a base
