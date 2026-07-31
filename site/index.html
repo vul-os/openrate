@@ -99,9 +99,7 @@ document.documentElement.classList.add("js");
     <a href="#api">API</a>
     <a href="./docs.html">Docs</a>
   </nav>
-  <a class="icon-btn" href="https://vulos.org" target="_blank" rel="noopener" aria-label="Vulos">
-    <img src="./assets/vulos-logo.png" alt="" width="18" height="18">
-  </a>
+  <a class="vulos-home" href="https://vulos.org" target="_blank" rel="noopener" title="Vulos — open, self-hostable software" aria-label="Vulos — open, self-hostable software"><img src="./assets/vulos-logo.png" alt="" width="22" height="22"></a>
   <a class="icon-btn bare" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener" aria-label="GitHub">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.41 7.86 10.94.58.1.79-.25.79-.56v-2.02c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.19a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.19 3.17-1.19.63 1.59.23 2.76.12 3.05.74.81 1.18 1.85 1.18 3.11 0 4.44-2.7 5.42-5.28 5.7.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.74 18.27.5 12 .5z"/></svg>
   </a>
@@ -755,6 +753,7 @@ document.documentElement.classList.add("js");
       <div class="shead rv">
         <span class="eyebrow"><span class="lbl">Self-host</span></span>
         <h2>One binary. <em>No database</em>.</h2>
+        <p class="lede"><a href="./LICENSE.txt">MIT OR Apache-2.0</a>, at your option.</p>
         <p class="lede">
           The engine, the JSON API and the web UI are one Go binary with the interface
           embedded, built on the standard library and nothing else. Nothing to sign up for,
@@ -921,13 +920,12 @@ $ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code><
           <li><a href="https://github.com/vul-os/openrate/blob/main/SOURCES.md" target="_blank" rel="noopener">Where the data comes from</a></li>
           <li><a href="https://github.com/vul-os/openrate/blob/main/ACCURACY.md" target="_blank" rel="noopener">Accuracy contract</a></li>
           <li><a href="https://github.com/vul-os/openrate/blob/main/SECURITY.md" target="_blank" rel="noopener">Security</a></li>
-          <li><a href="./LICENSE.txt">Licence</a></li>
         </ul>
       </div>
     </div>
     <div class="ftr-btm">
-      <span>© 2026 Vulos contributors · MIT OR Apache-2.0</span>
-      <span>Built the open way · <a href="https://vulos.org" target="_blank" rel="noopener">vulos.org</a></span>
+      <span>© 2026 openrate contributors</span>
+      <a class="vulos-foot" href="https://vulos.org" target="_blank" rel="noopener"><img src="./assets/vulos-logo.png" alt="" width="18" height="18"><span>Part of <strong>Vulos</strong> — open, self-hostable software</span></a>
     </div>
   </div>
 </footer>
