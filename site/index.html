@@ -345,6 +345,15 @@ document.documentElement.classList.add("js");
             for AUD — reproducible from the two legs printed beside it.
           </p>
           <p style="margin-top:14px">
+            <b>The multiplication happens once, at full precision.</b> The engine multiplies
+            the raw quotes and rounds the answer for display. The panel beside this rounds
+            three numbers separately — each leg, then the rate — and separate roundings do
+            not compose. So the six-decimal legs you can read off reproduce the six-decimal
+            rate only <b>to within that rounding</b>: exactly on ZAR → AUD, not exactly on
+            most crosses. The residual is printed either way, because picking the pair where
+            it vanishes would be the same move as averaging two sources into one number.
+          </p>
+          <p style="margin-top:14px">
             Two hops also means <b>nothing to corroborate</b>: corroboration only ever looks
             at quotes for the exact pair, and no source quotes ZAR → AUD directly. It returns
             a neutral <code>×1.00</code> and lets the hop count do the work — which is why no
@@ -366,12 +375,40 @@ document.documentElement.classList.add("js");
               </div>
               <div class="walk-node end">AUD</div>
             </div>
-            <div class="walk-sum">
-              <span>0.060362</span><span class="op">×</span><span>1.425186</span><span class="op">=</span><span class="eq">0.086027</span>
-              <span class="walk-note">2 hops · exchange class · 8m old · corroboration ×1.00 · grade B — the ZAR → AUD row on the board in §05</span>
+            <!-- ── the reconciliation ────────────────────────────────────────
+                 Two rows, on purpose. The first is this figure's own pair, where
+                 the displayed numbers happen to multiply out; the second is a
+                 pair from the same binary where they do not. Printing only the
+                 first would be choosing an example that flatters a claim the
+                 engine does not make — the exact product is the full-precision
+                 one, and every number here has been rounded once on its way to
+                 the page.
+
+                 site/gen/landing_test.go re-derives every figure in these rows
+                 from the digits printed in them: the product must be what the
+                 legs actually multiply to at six decimals, and the residual must
+                 be the actual difference. The page cannot assert an arithmetic
+                 it does not have. ──────────────────────────────────────────── -->
+            <div class="recon">
+              <div class="recon-row" data-pair="ZAR-AUD">
+                <span class="rk">ZAR → AUD <small>the capture in §05</small></span>
+                <span class="rv"><b class="leg">0.060362</b><i class="op">×</i><b class="leg">1.425186</b><i class="op">=</i><b class="prod">0.086027</b></span>
+                <span class="rr">rate as displayed <b class="rate">0.086027</b> · residual <b class="resid">0.000000</b></span>
+              </div>
+              <div class="recon-row" data-pair="ZAR-IDR">
+                <span class="rk">ZAR → IDR <small>same binary, same feed set, a pair where it does not land</small></span>
+                <span class="rv"><b class="leg">0.060254</b><i class="op">×</i><b class="leg">18062.729366</b><i class="op">=</i><b class="prod">1088.351695</b></span>
+                <span class="rr">rate as displayed <b class="rate">1088.349413</b> · residual <b class="resid hot">+0.002282</b></span>
+              </div>
+              <p class="walk-note">
+                2 hops · exchange class · 8m old · corroboration ×1.00 · grade B — the ZAR → AUD
+                row on the board in §05. The IDR residual is two parts per million, and all of it
+                is the cost of printing a 0.060254 leg to six decimals; none of it is the engine,
+                which multiplied 0.06025387367132677 by 18062.7293655 and rounded once.
+              </p>
             </div>
           </div>
-          <figcaption class="figcap">ZAR → USD → AUD, drawn — each leg multiplied, not averaged. Both ends are read off the captures (0.060362 on the converter's inverse line in §01 and again as the USD row in §05, 0.086027 as the AUD row in §05); the middle leg is the number that joins them, and it does so exactly at six decimal places.</figcaption>
+          <figcaption class="figcap">ZAR → USD → AUD, drawn — each leg multiplied, not averaged. Both ends are read off the captures (0.060362 on the converter's inverse line in §01 and again as the USD row in §05, 0.086027 as the AUD row in §05); the middle leg is the number that joins them. The rows underneath are the working checked against itself: the cross rate is the product of the legs at full precision, rounded once, so multiplying the legs as printed agrees only to within display rounding — and the gap, when there is one, is printed rather than tidied away.</figcaption>
         </figure>
       </div>
     </div>

@@ -75,6 +75,12 @@ rates along the shortest path between them, so:
 - **Provenance on every number** — each rate carries `hops`, `as_of`, and `age`,
   so consumers see exactly how stale it is (it matters: fiat is frozen on
   weekends).
+- **The working is checkable** — a pair's `rate` is the product of its `legs`
+  exactly, bit for bit, so you can recompute it from the response. That holds at
+  full precision only: round the legs and the rate for display and they stop
+  agreeing in the last place, which is why the UI prints the residual rather
+  than implying there isn't one. See
+  [the graph model](docs/graph-model.md#precision-the-product-is-exact-the-display-is-not).
 
 ## Run
 
@@ -232,7 +238,9 @@ Add a source by implementing `sources.Source` and registering it in
 The interface is a single hand-written HTML document (`web/ui.html`) embedded
 in the binary via `go:embed` — inline CSS and JS, vanilla, **no build step, no
 npm, no bundler**. It has the converter (with the live grade badge and a "show
-the working" panel: graph path, hops, sources, spread) and a sortable,
+the working" panel: graph path, hops, sources, spread, and — on a triangulated
+pair — the displayed legs multiplied out against the displayed rate, residual
+included) and a sortable,
 filterable board of every pair with its grade, in a dark theme and a light
 one that follow the system preference or a manual toggle. There is no
 in-binary docs viewer and no policy/interest-rate UI — `/api/v1/interest/*`
@@ -265,8 +273,23 @@ internal/api      JSON read endpoints
 internal/ratesapi policy-rate endpoints, /api/v1/interest/*
 web               web/ui.html — the embedded UI (plain HTML/CSS/JS, no build step, embedded via go:embed)
 site              the static site: landing, docs viewer, generated site/docs
-site/gen          regenerates site/docs from the canonical docs (CI-gated)
+site/gen          regenerates site/docs from the canonical docs (CI-gated), and
+                  re-derives the landing's cross-rate arithmetic from its own digits
+scripts           release verifier + the landing's screenshot gate (both self-testing)
 ```
+
+### Gates
+
+Every check below fails closed and each has a mode that proves it still refuses,
+because a guard that has quietly stopped failing looks exactly like a healthy
+build:
+
+| Gate | Protects | Selftest |
+|---|---|---|
+| `bash scripts/verify.sh --selftest` | a release artifact is the published bytes | 24 synthetic-origin failures |
+| `go test ./site/gen` | site/docs is generated and link-clean; the landing's §02 arithmetic is what its own printed digits produce, residual included | coverage floors on every scan |
+| `go test ./internal/graph` | a pair's rate is the product of its legs bit-for-bit, and the *displayed* legs agree only within display rounding | fails if the fixture drifts to values where rounding happens to land |
+| `node scripts/check-shots.mjs --selftest` | every capture the landing displays is its display box's shape, and at least 2x sampled | 5 deliberate breakages (crop, blur, 404, stale attrs, empty selector) |
 
 ## Documentation
 

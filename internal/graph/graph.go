@@ -37,7 +37,19 @@ type Pair struct {
 }
 
 // Leg is one hop of a (possibly triangulated) conversion: 1 From = Rate To, as
-// published by Source at Time. The product of all legs' rates is Pair.Rate.
+// published by Source at Time. The product of all legs' rates is Pair.Rate —
+// exactly, bit for bit: Materialize accumulates the path rate with the same
+// left-to-right float64 multiplication, in the same order the legs are appended,
+// so replaying the legs reproduces the identical double.
+//
+// That exactness is a property of the FULL-PRECISION values carried here, and it
+// does not survive rounding. A display that prints each leg and the rate to,
+// say, six decimals rounds each of them independently, and those roundings do
+// not compose: multiplying the printed legs reproduces the printed rate only to
+// within display rounding, and on real rates it usually differs in the last
+// place. Anything that shows a reader the legs and the rate together must say
+// so or show the residual — see internal/graph/precision_test.go, which pins
+// both the exact invariant and the bound on the display one.
 type Leg struct {
 	From   string    `json:"from"`
 	To     string    `json:"to"`

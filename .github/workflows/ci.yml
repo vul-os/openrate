@@ -91,3 +91,35 @@ jobs:
       # just makes that coverage legible in the CI log.
       - name: Web UI — embedded, self-contained, no external origins
         run: go test ./web -v
+
+  # The landing page's product captures were blurry and silently cropped for a
+  # release, because the capture's aspect (1.33) and the display box's (0.92)
+  # disagreed and `object-fit: cover` resolved the disagreement by discarding the
+  # difference. Nothing in a diff showed it and nothing failed. The CSS is now
+  # `contain`, which converts that silent crop into visible letterboxing — but
+  # "visible" means a human has to be looking at the right page at the right
+  # width. This job is the check that does not need one, and its --selftest pass
+  # breaks the page five ways first to prove the refusals still fire.
+  landing-shots:
+    name: Landing screenshots — frame drift & pixel density
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Playwright is not vendored: this repo ships no npm tree and no lockfile,
+      # and the landing is plain HTML/CSS with no build step. It is installed
+      # here, for this job only, and --no-save keeps it out of the checkout.
+      - name: Install Playwright (chromium only)
+        run: |
+          set -euo pipefail
+          npm install --no-save --silent playwright@1
+          npx --yes playwright install --with-deps chromium
+
+      # --selftest first breaks the page five ways and asserts each is refused,
+      # then runs the real matrix (every capture x 4 widths x both themes).
+      - name: Every capture is its box's shape, and at least 2x sampled
+        run: node scripts/check-shots.mjs --selftest

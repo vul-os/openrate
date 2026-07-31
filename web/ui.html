@@ -134,6 +134,16 @@
   .stats{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12.5px;color:var(--text-3)}
   .stats b{color:var(--text);font-family:var(--mono)}
   .stats b.warn{color:var(--amber)}
+  /* The cross-rate reconciliation. Long mono numbers in a narrow panel, so the
+     operands wrap rather than scroll the row sideways. */
+  .recon{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .recon .sum{display:flex;flex-wrap:wrap;align-items:baseline;gap:7px;font-size:13px;color:var(--text-3);overflow-wrap:anywhere}
+  .recon .sum b{color:var(--text);font-weight:600}
+  .recon .sum b.prod{color:var(--teal)}
+  .recon .sum i{font-style:normal;color:var(--text-4)}
+  .recon .cmp{font-size:12px;color:var(--text-4);overflow-wrap:anywhere}
+  .recon .cmp b{color:var(--text-2)}
+  .recon .cmp b.warn{color:var(--amber)}
   .note{font-size:12.5px;color:var(--text-4);line-height:1.6}
   .caveats{list-style:none;margin-top:10px;display:flex;flex-direction:column;gap:6px}
   .caveats li{font-size:12.5px;color:var(--amber);border-left:2px solid var(--amber);padding-left:9px}
@@ -339,6 +349,54 @@
     var a = Math.abs(v), d = a >= 1000 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 6 : 8;
     return v.toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
   }
+  /* ── display rounding ─────────────────────────────────────────────────
+     The engine's invariant is that a pair's rate is the product of its legs at
+     FULL precision — the same float64, bit for bit (see internal/graph). That
+     invariant does not survive display. Every number this panel prints is
+     rounded once, to six decimals, independently of the others, and separate
+     roundings do not compose: multiplying the legs a reader can see reproduces
+     the rate a reader can see only to within that rounding.
+
+     It is not a hypothetical. On a live snapshot of the default feed set, most
+     two-hop crosses differ in the last displayed decimal, and a leg small
+     enough to lose most of its significant figures at six places (IDR → USD is
+     about 0.000055) can be out by a percent. So the working panel prints the
+     residual rather than letting the reader discover it with a calculator —
+     the same reason it prints two disagreeing sources instead of their mean. */
+  var DISPLAY_DP = 6;
+  function round6(v){
+    var x = Number(v);
+    return isFinite(x) ? Number(x.toFixed(DISPLAY_DP)) : NaN;
+  }
+  // Inside the reconciliation the digit count is fixed, not trimmed: an
+  // arithmetic block where one operand prints "86.70194" and the answer prints
+  // "86.701626" invites the reader to line up columns that aren't there. Every
+  // figure in it carries all six places, so the residual below can be read off
+  // by eye. (Elsewhere fmt() still trims — a rate is a number, not a sum.)
+  function fmt6(n){
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    return v.toLocaleString(undefined, {minimumFractionDigits: DISPLAY_DP, maximumFractionDigits: DISPLAY_DP});
+  }
+  // shown6 is the ONE function every figure taking part in the reconciliation
+  // goes through — the path rail's legs and the sum underneath alike — because
+  // two ways of rounding the same leg is a way to print a sum that doesn't add
+  // up for a reason that has nothing to do with rates.
+  //
+  // They did round differently. Intl.NumberFormat rounds the *shortest decimal
+  // representation* of a double; toFixed rounds its *exact* value; on a tie like
+  // 18070.5918365 those disagree, and the rail printed …837 while the sum
+  // multiplied …836. Rounding first with round6 and formatting the result (a
+  // value with six decimals, so no tie is left to break) makes them agree.
+  function shown6(v){ return fmt6(round6(v)); }
+  // A residual is a signed quantity: printed bare, "0.002282" reads as a
+  // magnitude and hides which way the rounding went. Always six decimals, so
+  // the scale of the gap is legible against the rate above it.
+  function fmtResidual(v){
+    if (!isFinite(v)) return "—";
+    var body = Math.abs(v).toFixed(DISPLAY_DP);
+    return v === 0 ? body : (v > 0 ? "+" : "−") + body;
+  }
   function $(id){ return document.getElementById(id); }
   /* ── theme: shares the "or-theme" key with the marketing site ──────── */
   var themeBtn = $("theme-toggle");
@@ -385,12 +443,35 @@
       var node = '<span class="path-node">' + esc(ccy) + "</span>";
       if (i === path.length - 1) return node;
       var leg = legs[i];
-      var hop = '<span class="path-hop">' + (leg ? fmt(leg.rate, 6) : "—") +
+      var hop = '<span class="path-hop">' + (leg ? shown6(leg.rate) : "—") +
         '<small>' + (leg ? esc(leg.source) + " · " + ageLabel(leg.age_sec) : "") + "</small></span>";
       return node + hop;
     }).join("");
     var html = '<div class="work-sec"><span class="lbl">Path — ' +
       (rate.hops <= 1 ? "directly quoted" : rate.hops + " hops") + '</span></div><div class="path-rail">' + rail + "</div>";
+    // A triangulated rate is the only place the reader has two numbers to
+    // multiply, so it is the only place the rounding can be seen. (For a direct
+    // quote the single leg IS the rate, and one rounding is one rounding.)
+    if (legs.length > 1 && isFinite(rate.rate)) {
+      var shownLegs = legs.map(function(l){ return round6(l.rate); });
+      var shownProduct = round6(shownLegs.reduce(function(a, b){ return a * b; }, 1));
+      var shownRate = round6(rate.rate);
+      var residual = round6(shownProduct - shownRate);
+      html += '<div class="work-sec"><span class="lbl">Cross rate — the legs, multiplied</span></div>' +
+        '<div class="recon"><span class="sum">' +
+          shownLegs.map(function(v){ return "<b>" + fmt6(v) + "</b>"; }).join(' <i>×</i> ') +
+          ' <i>=</i> <b class="prod">' + fmt6(shownProduct) + "</b></span>" +
+        '<span class="cmp">rate as displayed <b>' + fmt6(shownRate) + '</b> · residual <b class="' +
+          (residual === 0 ? "" : "warn") + '">' + fmtResidual(residual) + "</b></span></div>" +
+        '<p class="note" style="margin-top:8px">' +
+        (residual === 0
+          ? "These reconcile at six decimals for this pair — which is this pair’s luck, not a property of the engine. "
+          : "These don’t reconcile at six decimals, and nothing is wrong. ") +
+        "The rate is the product of the legs at <b>full precision</b>, rounded once; every figure above was " +
+        "rounded again, separately, on its way to the screen, and separate roundings don’t compose. The residual " +
+        "is exactly what that costs. The unrounded numbers are in <code>rate</code> and <code>legs[]</code> on " +
+        "the API response, where the product is exact.</p>";
+    }
     if (quotes.length) {
       html += '<div class="work-sec"><span class="lbl">Sources quoting ' + esc(from) + '→' + esc(to) + ' (' + quotes.length + ')</span></div>' +
         '<table class="mini"><thead><tr><th>Source</th><th>Rate</th><th>Age</th></tr></thead><tbody>' +

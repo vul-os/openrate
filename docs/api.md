@@ -153,6 +153,23 @@ Two consequences worth building for:
 
 See [the graph model](graph-model.md) for how `path`/`legs`/`hops` are chosen.
 
+### Precision
+
+`rate` is the product of `legs[].rate` **exactly** — the same `float64`, bit for
+bit, because the engine accumulates it with the same left-to-right multiplication
+in the same order the legs are listed. Recompute a cross rate from the legs in a
+response and you get that response's `rate` back unchanged. Nothing is rounded on
+the wire: the JSON carries the full-precision doubles.
+
+Rounding is a display concern, and it is not free. Round each leg and the rate to
+some number of decimals — the web UI uses six — and the rounded legs no longer
+multiply to the rounded rate, because each value was rounded independently and
+independent roundings do not compose. On live rates most two-hop crosses differ
+in the last displayed place, and the size of the gap depends on the leg
+magnitudes rather than on anything the engine did. If you round for presentation,
+round the `rate` once from the value in the response; do not derive it from
+rounded legs, and do not tell a user the two will agree.
+
 ### The `quality` block
 
 Every rate carries one. The full shape:

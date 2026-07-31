@@ -28,8 +28,40 @@ between the two currencies.
    reaches `TO` it has done so over the fewest edges.
 3. The pair's `rate` is the product of the edge rates along that path; `legs`
    records each hop, and `sources` lists the distinct sources involved.
-4. `as_of` is the freshest edge timestamp on the path, and `age_sec` is how long
-   ago that was — which matters because fiat quotes freeze on weekends.
+4. `as_of` is the **oldest** edge timestamp on the path — a cross rate is only as
+   current as its stalest leg — and `age_sec` is how long ago that was, which
+   matters because fiat quotes freeze on weekends. See
+   [the as-of contract](api.md) for what that means for a consumer.
+
+## Precision: the product is exact, the display is not
+
+`rate` is the product of `legs[].rate` **exactly**. Not "to within an epsilon":
+the engine accumulates the path rate with the same left-to-right `float64`
+multiplication, in the same order the legs are recorded, so replaying the legs
+returns the identical double. Multiply the `legs` in an API response and you get
+the `rate` in that same response, bit for bit. That is the point of shipping the
+legs at all.
+
+That exactness belongs to the **full-precision** values. It does not survive
+rounding, and every number a human reads has been rounded:
+
+- The web UI prints legs and rates to six decimals. Each is rounded **once,
+  independently**, and independent roundings do not compose.
+- So multiplying the six-decimal legs you can see reproduces the six-decimal
+  rate only **to within display rounding** — the last decimal can differ. On a
+  live snapshot of the default feed set, most two-hop crosses do differ.
+- The size of that residual is set by the leg magnitudes, not by the engine.
+  Rounding a 0.060254 leg to six decimals is a change of about two parts per
+  million, so a ZAR → IDR cross near 1 088 lands about 0.002 away. A leg small
+  enough to lose most of its significant figures at six places (IDR → USD is
+  around 0.000055) can be out by a percent.
+
+openrate does not paper over this. The UI's "show the working" panel prints the
+displayed legs, their product, the displayed rate and the **residual** between
+them, for the same reason it prints two disagreeing sources instead of their
+mean: the gap is real information, and hiding it would make the number look
+better than it is. If you need the arithmetic to close exactly, use the
+unrounded `rate` and `legs[]` from the JSON, where it does.
 
 ## Freshest-direct-edge selection, by example
 

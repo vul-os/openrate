@@ -13,7 +13,12 @@ compile: cloning the repo gets you the exact bytes a browser loads.
   quality grade as a badge. A **"Show the working"** disclosure expands into
   the graph path taken, each hop's rate/source/age, the individual source
   quotes behind the pair, and their spread — the same provenance the API
-  returns, laid out for reading.
+  returns, laid out for reading. On a triangulated pair it also multiplies the
+  legs *as displayed* against the rate *as displayed* and prints the
+  **residual** between them. That residual is display rounding and nothing
+  else — the engine's product is exact at full precision — but it is real, it
+  is usually non-zero, and showing it beats letting a reader find it with a
+  calculator. See [the graph model](#graph-model).
 - **Rates board** — every currency reachable from a base, sortable by grade,
   age, hop count, rate or code, and filterable by code or currency name.
   Expanding a row shows the same "working" panel as the converter.
