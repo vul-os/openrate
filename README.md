@@ -50,7 +50,7 @@ walk it took through the currency graph, the individual source quotes behind
 every hop, how far apart those sources are, and a grade for the lot:
 
 <p align="center">
-  <img src="site/assets/app/board-dark.webp" alt="The openrate rates board against a ZAR base, showing a grade, hop count and age per currency, with the EUR row expanded to reveal its graph path and the two sources quoting it, 16.7 basis points apart." width="900">
+  <img src="site/assets/app/board-dark.webp" alt="The openrate rates board against a ZAR base, sorted by path length so the directly-quoted pairs float to the top: a grade, hop count and age per currency, with the EUR row expanded to reveal its graph path and the two sources quoting it, 9.6 basis points apart." width="900">
 </p>
 
 <p align="center">

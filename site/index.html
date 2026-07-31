@@ -93,7 +93,7 @@ document.documentElement.classList.add("js");
   <nav>
     <a href="#product">Product</a>
     <a href="#graph">The graph</a>
-    <a href="#spread">Disagreement</a>
+    <a href="#spread">Dispersion</a>
     <a href="#grades">Grades</a>
     <a href="#run">Run it</a>
     <a href="#api">API</a>
@@ -146,20 +146,20 @@ document.documentElement.classList.add("js");
           <hr>
           <dl>
             <dt>Amount</dt><dd>100.00 USD</dd>
-            <dt>Receives</dt><dd>1 650.38 ZAR</dd>
+            <dt>Receives</dt><dd>1 656.67 ZAR</dd>
           </dl>
           <hr>
           <dl>
-            <dt>Rate</dt><dd>16.503832</dd>
+            <dt>Rate</dt><dd>16.566672</dd>
             <dt>Path</dt><dd>USD → ZAR</dd>
             <dt>Hops</dt><dd>1 · direct</dd>
           </dl>
           <hr>
           <dl>
-            <dt>coinbase</dt><dd class="q">16.503832 · 8m</dd>
-            <dt>sarb</dt><dd class="q">16.6428 · 25h</dd>
-            <dt>Spread</dt><dd class="hot">84.2 bps</dd>
-            <dt>Agree</dt><dd class="hot">false</dd>
+            <dt>coinbase</dt><dd class="q">16.566672 · 8m</dd>
+            <dt>sarb</dt><dd class="q">16.5247 · 13h</dd>
+            <dt>Spread</dt><dd class="hot">25.4 bps</dd>
+            <dt>Agree</dt><dd>true</dd>
           </dl>
           <hr>
           <div class="stamp">
@@ -233,7 +233,11 @@ document.documentElement.classList.add("js");
             <span class="dots"><i></i><i></i><i></i></span>
             <span class="u">localhost:8080 — openrate · Convert</span>
           </div>
-          <div class="shotbox" style="--ar:880/960">
+          <!-- --ar is the file's own pixel size, and the same pair is on the img's
+               width/height attributes: slot and capture are the same shape by
+               construction, so nothing is cropped and nothing is stretched. Both
+               themes' files are cut from one clip rectangle, so they match too. -->
+          <div class="shotbox" style="--ar:2400/1932">
             <span class="fallback">Capture unavailable</span>
             <!-- loading="eager", NOT lazy: see the note beside the `hidden` handlers in
                  site.js. These images ship `hidden`, and a display:none element never gets
@@ -241,8 +245,8 @@ document.documentElement.classList.add("js");
                  and never issues the fetch at all — the slot stayed on its fallback
                  forever, with zero requests in the server log even after scrolling it into
                  view. Two screenshots do not need lazy-loading; correctness does. -->
-            <img class="themeshot" data-shot="converter" width="1280" height="960" loading="eager" decoding="async" hidden alt="The openrate converter: 100 USD converted to 1,650.38 ZAR at 16.503832 from coinbase, a B grade seal and 80% confidence, with the working expanded beneath it — the direct USD to ZAR path, a table showing coinbase at 16.503832 aged 8 minutes and sarb at 16.6428 aged 25 hours, and an agreement line reading mean 16.573316, std dev 59.3 bps, spread 84.2 bps.">
-            <noscript><img src="./assets/app/converter-dark.webp" width="1280" height="960" alt="The openrate converter: 100 USD converted to 1,650.38 ZAR at 16.503832 from coinbase, a B grade seal and 80% confidence, with the working expanded beneath it — the direct USD to ZAR path and a table of every source quoting the pair."></noscript>
+            <img class="themeshot" data-shot="converter" width="2400" height="1932" loading="eager" decoding="async" hidden alt="The openrate converter: 100 USD converted to 1,656.67 ZAR at 16.566672 from coinbase, a B grade seal and 80% confidence, with freshness current, directness direct, source exchange and corroboration 2 sources 25.4 bps. The working is expanded beneath it — the directly quoted USD to ZAR path, a table showing sarb at 16.5247 aged 13 hours and coinbase at 16.566672 aged 8 minutes, and an agreement line reading mean 16.545686, std dev 17.9 bps, min–max 16.5247–16.5667, spread 25.4 bps.">
+            <noscript><img src="./assets/app/converter-dark.webp" width="2400" height="1932" alt="The openrate converter: 100 USD converted to 1,656.67 ZAR at 16.566672 from coinbase, a B grade seal and 80% confidence, with the working expanded beneath it — the directly quoted USD to ZAR path and a table of every source quoting the pair."></noscript>
           </div>
         </div>
         <figcaption class="figcap">A real capture of the running binary against live ECB, SARB, Coinbase and Luno data — the quote every figure on this page is drawn from</figcaption>
@@ -285,7 +289,7 @@ document.documentElement.classList.add("js");
         </div>
         <figure>
           <div class="plate pad">
-            <div class="graph-illo" role="img" aria-label="A currency graph. ECB, quoting in euro, links GBP, JPY, USD and ZAR. SARB also quotes EUR against ZAR, so that edge carries two independent sources. Coinbase, quoting in dollars, links ZAR and AED, and Luno quotes bitcoin straight into rand. The walk from ZAR through USD to AED is highlighted as the shortest path.">
+            <div class="graph-illo" role="img" aria-label="A currency graph. ECB, quoting in euro, links GBP, JPY, USD and ZAR. SARB also quotes EUR against ZAR, so that edge carries two independent sources. Coinbase, quoting in dollars, links ZAR and AUD, and Luno quotes bitcoin straight into rand. The walk from ZAR through USD to AUD is highlighted as the shortest path.">
               <svg viewBox="0 0 720 470" aria-hidden="true">
                 <line class="edge" x1="235" y1="70" x2="95" y2="105"/>
                 <line class="edge" x1="235" y1="70" x2="395" y2="60"/>
@@ -316,7 +320,7 @@ document.documentElement.classList.add("js");
               <span class="nl" style="left:54.9%;top:12.8%">JPY</span>
               <span class="nl on" style="left:46.5%;top:52.1%">USD</span>
               <span class="nl on" style="left:20.8%;top:79.8%">ZAR</span>
-              <span class="nl on" style="left:84.0%;top:72.3%">AED</span>
+              <span class="nl on" style="left:84.0%;top:72.3%">AUD</span>
               <span class="nl" style="left:62.5%;top:90.4%">BTC</span>
               <span class="el" style="left:22.9%;top:16.0%">ecb</span>
               <span class="el" style="left:43.8%;top:9.5%">ecb</span>
@@ -335,39 +339,39 @@ document.documentElement.classList.add("js");
         <div class="copy">
           <h3>And a cross-rate is just a product</h3>
           <p>
-            There is no ZAR → AED quote anywhere in the open feed set, so openrate walks
+            There is no ZAR → AUD quote anywhere in the open feed set, so openrate walks
             through the dollar and multiplies. Both legs come from Coinbase's USD-based
             file, both are eight minutes old, and the result is the number the board reports
-            for AED — reproducible from the two legs printed beside it.
+            for AUD — reproducible from the two legs printed beside it.
           </p>
           <p style="margin-top:14px">
             Two hops also means <b>nothing to corroborate</b>: corroboration only ever looks
-            at quotes for the exact pair, and no source quotes ZAR → AED directly. It returns
+            at quotes for the exact pair, and no source quotes ZAR → AUD directly. It returns
             a neutral <code>×1.00</code> and lets the hop count do the work — which is why no
             live pair is ever both multi-hop and multi-source.
           </p>
         </div>
         <figure>
           <div class="plate pad">
-            <div class="walk" role="img" aria-label="A two-hop walk from ZAR to AED. ZAR to USD at 0.060592 from coinbase, eight minutes old; USD to AED at 3.67268 from coinbase, eight minutes old.">
+            <div class="walk" role="img" aria-label="A two-hop walk from ZAR to AUD. ZAR to USD at 0.060362 from coinbase, eight minutes old; USD to AUD at 1.425186 from coinbase, eight minutes old.">
               <div class="walk-node">ZAR</div>
               <div class="walk-leg">
-                <span class="m"><span class="r">0.060592</span><span class="s">coinbase</span><span class="s">8m old</span></span>
+                <span class="m"><span class="r">0.060362</span><span class="s">coinbase</span><span class="s">8m old</span></span>
                 <span class="ln" aria-hidden="true"></span>
               </div>
               <div class="walk-node">USD</div>
               <div class="walk-leg">
-                <span class="m"><span class="r">3.67268</span><span class="s">coinbase</span><span class="s">8m old</span></span>
+                <span class="m"><span class="r">1.425186</span><span class="s">coinbase</span><span class="s">8m old</span></span>
                 <span class="ln" aria-hidden="true"></span>
               </div>
-              <div class="walk-node end">AED</div>
+              <div class="walk-node end">AUD</div>
             </div>
             <div class="walk-sum">
-              <span>0.060592</span><span class="op">×</span><span>3.67268</span><span class="op">=</span><span class="eq">0.222535</span>
-              <span class="walk-note">2 hops · exchange class · 8m old · corroboration ×1.00 · grade B — the ZAR → AED row on the board in §05</span>
+              <span>0.060362</span><span class="op">×</span><span>1.425186</span><span class="op">=</span><span class="eq">0.086027</span>
+              <span class="walk-note">2 hops · exchange class · 8m old · corroboration ×1.00 · grade B — the ZAR → AUD row on the board in §05</span>
             </div>
           </div>
-          <figcaption class="figcap">ZAR → USD → AED, drawn — each leg multiplied, not averaged. Both ends are read off the captures (0.060592 in §01, 0.222535 in §05); the middle leg is the number that joins them, and it does so exactly at six decimal places.</figcaption>
+          <figcaption class="figcap">ZAR → USD → AUD, drawn — each leg multiplied, not averaged. Both ends are read off the captures (0.060362 on the converter's inverse line in §01 and again as the USD row in §05, 0.086027 as the AUD row in §05); the middle leg is the number that joins them, and it does so exactly at six decimal places.</figcaption>
         </figure>
       </div>
     </div>
@@ -376,8 +380,9 @@ document.documentElement.classList.add("js");
 
 <!-- ══ 03 · the disagreement ═════════════════════════════════════════════
      The instrument panel. Four registers, one argument: two independent
-     sources disagree by 84 bps, openrate shows you that instead of averaging
-     it away, and that disagreement is precisely what costs this quote its A.
+     sources are 25.4 bps apart, openrate shows you that instead of averaging
+     it away, and those four-tenths of a basis point past the tight band are
+     precisely what costs this quote a factor.
      Every figure is read off assets/app/converter-dark.webp (the USD → ZAR
      quote) and assets/app/board-dark.webp (the ZAR → EUR counterpoint), and
      every factor is one internal/quality/quality.go can actually emit.
@@ -388,12 +393,12 @@ document.documentElement.classList.add("js");
     <div class="rmain">
       <div class="shead rv">
         <span class="eyebrow"><span class="lbl">Dispersion</span></span>
-        <h2>Two sources. <em>Eighty-four basis points apart</em>.</h2>
+        <h2>Two sources. <em>Twenty-five basis points apart</em>.</h2>
         <p class="lede">
-          A central bank's daily fix and a live venue's tick will not agree, and the gap
-          between them is real information about how much the number can be leaned on.
-          openrate plots both on a scale zoomed to the quotes themselves, marks the mean it
-          did <b>not</b> silently return, and grades the pair on the distance.
+          A central bank's daily fix and a live venue's tick rarely land on the same number,
+          and the gap between them is real information about how much that number can be
+          leaned on. openrate plots both on a scale zoomed to the quotes themselves, marks
+          the mean it did <b>not</b> silently return, and grades the pair on the distance.
         </p>
       </div>
 
@@ -404,44 +409,48 @@ document.documentElement.classList.add("js");
             <span class="sub">2 direct quotes · 1 hop, direct</span>
           </div>
           <div class="instr-measure">
-            <b>84.2</b>
+            <b>25.4</b>
             <span class="lbl">basis points apart</span>
           </div>
         </div>
 
         <div class="scale">
-          <div class="scale-plot" role="img" aria-label="Both quotes plotted on a scale from 16.45 to 16.70 rand per dollar. Coinbase sits at 16.503832, eight minutes old; sarb sits at 16.6428, twenty-five hours old; the mean of 16.573316 falls between them, and the shaded gap between the two quotes measures 84.2 basis points.">
-            <div class="gap-bar" style="--a:21.53%;--b:77.12%"></div>
-            <div class="gap-rule" style="--a:21.53%;--b:77.12%"><span class="cap l"></span><span class="cap r"></span><span class="gap-tag">84.2 bps of daylight</span></div>
+          <!-- The scale runs 16.50 to 16.60, so a quote's x is (v - 16.50) / 0.10:
+               sarb 16.5247 -> 24.70%, coinbase 16.566672 -> 66.67%, mean 16.545686
+               -> 45.69%. sarb is the low quote this time and coinbase the high, the
+               opposite way round to the pair this figure was first drawn on. -->
+          <div class="scale-plot" role="img" aria-label="Both quotes plotted on a scale from 16.50 to 16.60 rand per dollar. sarb sits at 16.5247, thirteen hours old; coinbase sits at 16.566672, eight minutes old; the mean of 16.545686 falls between them, and the shaded gap between the two quotes measures 25.4 basis points.">
+            <div class="gap-bar" style="--a:24.70%;--b:66.67%"></div>
+            <div class="gap-rule" style="--a:24.70%;--b:66.67%"><span class="cap l"></span><span class="cap r"></span><span class="gap-tag">25.4 bps of daylight</span></div>
 
-            <div class="quote lo" style="--x:21.53%">
+            <div class="quote lo" style="--x:24.70%">
+              <span class="card">
+                <span class="src">sarb</span>
+                <span class="val">16.5247</span>
+                <span class="age">daily fix · 13h old</span>
+              </span>
+              <span class="stem"></span><span class="dot"></span>
+            </div>
+
+            <div class="quote hi" style="--x:66.67%">
               <span class="card">
                 <span class="src">coinbase</span>
-                <span class="val">16.503832</span>
+                <span class="val">16.566672</span>
                 <span class="age">live venue · 8m old</span>
               </span>
               <span class="stem"></span><span class="dot"></span>
             </div>
 
-            <div class="quote hi" style="--x:77.12%">
-              <span class="card">
-                <span class="src">sarb</span>
-                <span class="val">16.6428</span>
-                <span class="age">daily fix · 25h old</span>
-              </span>
-              <span class="stem"></span><span class="dot"></span>
-            </div>
-
-            <div class="meanline" style="--x:49.33%"><span class="tip"></span></div>
-            <span class="meantag" style="--x:49.33%">mean <b>16.573316</b></span>
+            <div class="meanline" style="--x:45.69%"><span class="tip"></span></div>
+            <span class="meantag" style="--x:45.69%">mean <b>16.545686</b></span>
           </div>
           <div class="axis">
-            <span class="t" style="--x:0%">16.45</span>
-            <span class="t" style="--x:20%">16.50</span>
-            <span class="t" style="--x:40%">16.55</span>
-            <span class="t" style="--x:60%">16.60</span>
-            <span class="t" style="--x:80%">16.65</span>
-            <span class="t" style="--x:100%">16.70</span>
+            <span class="t" style="--x:0%">16.50</span>
+            <span class="t" style="--x:20%">16.52</span>
+            <span class="t" style="--x:40%">16.54</span>
+            <span class="t" style="--x:60%">16.56</span>
+            <span class="t" style="--x:80%">16.58</span>
+            <span class="t" style="--x:100%">16.60</span>
           </div>
           <p class="scale-foot">
             ZAR per USD. The mean is drawn quietly on purpose: it is the single number an
@@ -453,15 +462,16 @@ document.documentElement.classList.add("js");
 
         <div class="cells">
           <div>
-            <span class="ct">What 84.2 bps is worth</span>
+            <span class="ct">What 25.4 bps is worth</span>
             <dl class="money">
-              <dt>coinbase</dt><dd>R16 503.83</dd>
-              <dt>sarb</dt><dd>R16 642.80</dd>
-              <dt class="big">on 1 000 USD</dt><dd class="big">R138.97</dd>
+              <dt>coinbase</dt><dd>R16 566.67</dd>
+              <dt>sarb</dt><dd>R16 524.70</dd>
+              <dt class="big">on 1 000 USD</dt><dd class="big">R41.97</dd>
             </dl>
             <p style="margin-top:14px;font-size:12.5px;line-height:1.6;color:var(--text-4)">
-              Same pair, same second, two defensible sources. Which one you were handed is
-              worth about a tank of fuel.
+              Same pair, same second, two defensible sources, and forty-two rand between
+              them on a thousand dollars. Small — until the amount isn't, and a single
+              averaged number would never have told you the choice was there to make.
             </p>
           </div>
 
@@ -472,14 +482,16 @@ document.documentElement.classList.add("js");
               <span class="b2">≤100 ×0.93</span>
             </div>
             <div class="marks">
-              <span class="mark tight" style="--x:16.7%"><b>16.7</b>ZAR→EUR</span>
+              <span class="mark wide" style="--x:25.4%"><b>25.4</b>USD→ZAR</span>
               <span class="mark" style="--x:50%"><b>50</b>agree</span>
-              <span class="mark wide" style="--x:84.2%"><b>84.2</b>USD→ZAR</span>
+              <span class="mark tight" style="--x:9.6%"><b>9.6</b>ZAR→EUR</span>
             </div>
             <p style="margin-top:6px;font-size:12.5px;line-height:1.6;color:var(--text-4)">
-              Linear, 0–100 bps. 84.2 clears the 50 bps agreement tolerance, so
-              <code>agree</code> comes back <b>false</b>, and it falls in the ×0.93 band.
-              Past 100 bps the factor drops to ×0.85, and past 300 to ×0.72.
+              Linear, 0–100 bps. 25.4 is well inside the 50 bps agreement tolerance, so
+              <code>agree</code> comes back <b>true</b> — and it still misses the ≤25 band
+              that returns ×1.00, by four-tenths of a basis point, so corroboration is
+              docked to ×0.93 anyway. Past 100 bps the factor drops to ×0.85, and past
+              300 to ×0.72.
             </p>
           </div>
 
@@ -489,7 +501,7 @@ document.documentElement.classList.add("js");
               <span class="step"><i>·</i>freshness <b>×0.90</b> <span style="color:var(--text-4)">8m — current</span></span>
               <span class="step"><i>·</i>directness <b>×1.00</b> <span style="color:var(--text-4)">direct</span></span>
               <span class="step"><i>·</i>authority <b>×0.96</b> <span style="color:var(--text-4)">exchange</span></span>
-              <span class="step" style="color:var(--amber)"><i>·</i>corroboration <b style="color:var(--amber)">×0.93</b> <span style="color:var(--amber)">84.2 bps</span></span>
+              <span class="step" style="color:var(--amber)"><i>·</i>corroboration <b style="color:var(--amber)">×0.93</b> <span style="color:var(--amber)">25.4 bps</span></span>
               <span class="step"><i>·</i>caveats <b>×1.00</b> <span style="color:var(--text-4)">none</span></span>
               <span class="out"><span class="n">0.80</span><span class="seal B" role="img" aria-label="Grade B">B</span></span>
             </div>
@@ -504,18 +516,18 @@ document.documentElement.classList.add("js");
 
       <div class="counter bleed rv">
         <div>
-          <span class="pair">ZAR → EUR · the same figure, drawn on a pair that agrees</span>
+          <span class="pair">ZAR → EUR · the same figure, drawn on a pair that clears the band</span>
           <p>
-            <b>sarb 0.052461</b> and <b>ecb 0.052549</b>, both 25 hours old, both official
-            class — <b>16.7 bps</b> apart. Inside the tolerance, so corroboration returns
-            ×1.00 and nothing else is deducted. Two independent central banks, checked
-            against each other, in agreement. That is what an A looks like.
+            <b>sarb 0.052599</b> at 13 hours old and <b>ecb 0.052549</b> at 37, both official
+            class — <b>9.6 bps</b> apart. Inside the ≤25 band, so corroboration returns ×1.00
+            and nothing else is deducted. Two independent central banks, checked against each
+            other, agreeing to within a thousandth of a percent. That is what an A looks like.
           </p>
         </div>
         <span class="verdict"><span class="n">0.90</span><span class="seal lg A" role="img" aria-label="Grade A">A</span></span>
       </div>
 
-      <p class="figcap rv" style="margin-top:16px">Two sources, 84 bps apart — shown, not smoothed over. Both quotes are legible in the captures in §01 and §05.</p>
+      <p class="figcap rv" style="margin-top:16px">Two sources, 25 bps apart — shown, not smoothed over. Both quotes are legible in the captures in §01 and §05.</p>
     </div>
   </div>
 </section>
@@ -575,10 +587,10 @@ document.documentElement.classList.add("js");
               </tr>
             </thead>
             <tbody>
-              <tr><th scope="row">Freshness</th><td class="same">×0.90 &nbsp;8m, current</td><td class="same">×0.90 &nbsp;25h, current</td></tr>
+              <tr><th scope="row">Freshness</th><td class="same">×0.90 &nbsp;8m, current</td><td class="same">×0.90 &nbsp;13h, current</td></tr>
               <tr><th scope="row">Directness</th><td class="same">×1.00 &nbsp;1 hop</td><td class="same">×1.00 &nbsp;1 hop</td></tr>
               <tr><th scope="row">Source authority</th><td class="diff">×0.96 exchange</td><td>×1.00 official</td></tr>
-              <tr><th scope="row">Corroboration</th><td class="diff">×0.93 &nbsp;84.2 bps</td><td>×1.00 &nbsp;16.7 bps</td></tr>
+              <tr><th scope="row">Corroboration</th><td class="diff">×0.93 &nbsp;25.4 bps</td><td>×1.00 &nbsp;9.6 bps</td></tr>
               <tr><th scope="row">Caveats</th><td class="same">×1.00</td><td class="same">×1.00</td></tr>
             </tbody>
             <tfoot>
@@ -607,8 +619,9 @@ document.documentElement.classList.add("js");
         <h3 style="margin-bottom:14px">Honest about its own limits</h3>
         <p style="font-size:15px;line-height:1.78;max-width:72ch">
           A lone quote, however fresh, is multiplied by 0.88 and can never reach an A — there
-          is nothing to check it against, which is why <b>BTC</b> and <b>ETH</b> grade C on the
-          board in §05 while every fiat row around them grades B.
+          is nothing to check it against, which is why <b>BTC</b>, <b>ETH</b>, <b>USDC</b> and
+          <b>USDT</b>, each quoted by Luno alone, grade C on the board in §05 while the fiat
+          rows either side of them grade B.
           <b>NGN</b> and <b>EGP</b> carry a parallel-market caveat and <b>CNY</b> a
           managed-regime one, each capping confidence at ×0.7, so those pairs sit at C or D no
           matter how good the feed is. And a currency that no longer trades is not quietly
@@ -630,10 +643,11 @@ document.documentElement.classList.add("js");
         <span class="eyebrow"><span class="lbl">Live board</span></span>
         <h2>Sort by <em>what you can't trust</em>.</h2>
         <p class="lede">
-          The whole board, every currency against the anchor, sortable by grade or by age —
+          The whole board, every currency against the anchor, sortable on every column —
           because the useful question is rarely "what is 1 ZAR in AED", it is "which of these
           numbers should I not lean on". Hop counts show at a glance which rates are quoted
-          and which are derived. Any row opens into the full working in place.
+          and which are derived; sorting on them, as the capture below does, floats the eight
+          directly quoted pairs to the top. Any row opens into the full working in place.
         </p>
       </div>
       <figure class="rv">
@@ -642,13 +656,15 @@ document.documentElement.classList.add("js");
             <span class="dots"><i></i><i></i><i></i></span>
             <span class="u">localhost:8080 — openrate · Live rates</span>
           </div>
-          <div class="shotbox" style="--ar:880/900">
+          <!-- Same contract as §01: --ar is the file's own pixel size, so the slot
+               is the shape the capture was cut to and object-fit has nothing to do. -->
+          <div class="shotbox" style="--ar:2400/1824">
             <span class="fallback">Capture unavailable</span>
-            <img class="themeshot" data-shot="board" width="1280" height="900" loading="eager" decoding="async" hidden alt="The openrate rates board with ZAR as the base and 42 pairs listed: each row shows the currency, rate, an A–D grade badge, hop count, age and source class. The EUR row is expanded to show its directly-quoted path and the two sources behind it — sarb at 0.052461 and ecb at 0.052549, mean 0.052505, std dev 11.8 bps, spread 16.7 bps.">
-            <noscript><img src="./assets/app/board-dark.webp" width="1280" height="900" alt="The openrate rates board sorted by currency: rate, an A–D grade badge, hop count, age and source class for each row, with the EUR row expanded to show its graph path and source table."></noscript>
+            <img class="themeshot" data-shot="board" width="2400" height="1824" loading="eager" decoding="async" hidden alt="The openrate rates board with ZAR as the base, 42 pairs, sorted by path so the directly quoted pairs come first: BTC and ETH graded C, EUR graded A, GBP, JPY and USD graded B, USDC and USDT graded C, then the first two-hop crosses AED and AUD graded B. The EUR row is expanded to show its directly quoted path from sarb and the two sources behind it — ecb at 0.052549 aged 37 hours and sarb at 0.052599 aged 13 hours, mean 0.052574, std dev 6.8 bps, spread 9.6 bps.">
+            <noscript><img src="./assets/app/board-dark.webp" width="2400" height="1824" alt="The openrate rates board sorted by path: currency, rate, an A–D grade badge, hop count, age and source class for each row, with the EUR row expanded to show its graph path and source table."></noscript>
           </div>
         </div>
-        <figcaption class="figcap">42 pairs against the ZAR anchor. The expanded EUR row is the counterpoint quote from §03 — two central banks, 16.7 bps apart, graded A</figcaption>
+        <figcaption class="figcap">42 pairs against the ZAR anchor, sorted by path so the eight directly quoted pairs surface first — and with them a C, an A and a B in the same eyeful. The expanded EUR row is the counterpoint quote from §03: two central banks, 9.6 bps apart, graded A</figcaption>
       </figure>
     </div>
   </div>
@@ -776,9 +792,9 @@ $ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code><
   "amount": 100,
   "from": "USD",
   "rate": {
-    "rate": 16.503832,
+    "rate": 16.566672,
     "hops": 1,
-    "as_of": "2026-06-24T09:12:00Z",
+    "as_of": "2026-07-31T12:21:49Z",
     "age_sec": 480,
     "path": ["USD", "ZAR"],
     "sources": ["coinbase"],
@@ -790,24 +806,24 @@ $ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code><
       "source_class": "exchange",
       "corroboration": {
         "sources": 2,
-        "spread_bps": 84.2,
-        "agree": false,
-        "mean": 16.573316,
-        "stdev": 0.098265,
-        "stdev_bps": 59.29,
-        "min": 16.503832,
-        "max": 16.6428
+        "spread_bps": 25.4,
+        "agree": true,
+        "mean": 16.545686,
+        "stdev": 0.029678,
+        "stdev_bps": 17.94,
+        "min": 16.5247,
+        "max": 16.566672
       }
     },
     "legs": [
-      { "from": "USD", "to": "ZAR", "rate": 16.503832, "source": "coinbase", "age_sec": 480 }
+      { "from": "USD", "to": "ZAR", "rate": 16.566672, "source": "coinbase", "age_sec": 480 }
     ],
     "quotes": [
-      { "source": "coinbase", "rate": 16.503832, "age_sec": 480 },
-      { "source": "sarb",     "rate": 16.6428,   "age_sec": 90000 }
+      { "source": "coinbase", "rate": 16.566672, "age_sec": 480 },
+      { "source": "sarb",     "rate": 16.5247,   "age_sec": 46800 }
     ]
   },
-  "result": 1650.3832,
+  "result": 1656.6672,
   "to": "ZAR"
 }</code></pre>
       </div>

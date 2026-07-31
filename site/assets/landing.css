@@ -239,14 +239,24 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .shotbar .dots { display: inline-flex; gap: 6px; flex: none; }
 .shotbar .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-3); display: block; }
 .shotbar .u { font-family: var(--mono); font-size: 11.5px; color: var(--text-3);  /* --text-4 measured 3.92:1 on --paper-3 */ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The captures are 1280 wide but the app itself is a centred column roughly
-   700px across, so a full-width paste wastes about half the frame on empty
-   chrome and leaves the UI too small to read. The frame is given a narrower
-   aspect ratio than the file and object-fit: cover crops the dead margins
-   symmetrically — nothing inside the app is cut, and the interface lands at
-   roughly 1.5x the size it had. */
-.shotbox { position: relative; width: 100%; aspect-ratio: var(--ar, 4 / 3); background: var(--ink); }
-.shotbox img.themeshot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+/* The slot and the file agree by construction. --ar is written as the file's
+   own pixel dimensions, the same pair as the img's width/height attributes,
+   so the box a capture lands in is the shape it was captured at and there is
+   nothing for object-fit to do.
+
+   This replaces an earlier arrangement where the frame was deliberately given
+   a *narrower* ratio than the file and object-fit: cover was left to crop the
+   app's page margins away. It cost more than it bought: a 1280x960 landscape
+   capture was being poured into a portrait 880x960 slot, so a fifth of every
+   capture was thrown away, and asking the browser to enlarge what survived
+   left the slot showing about 1.28 image pixels per CSS pixel — under-sampled
+   on any retina screen, which is exactly what "the screenshot looks blurry"
+   was. The crop is now done once, at capture time, against measured element
+   boxes; the capture is taken at 2x the width it is displayed at; and
+   object-fit: contain means that if the two ever drift apart again it shows
+   as letterboxing rather than as another silent crop. */
+.shotbox { position: relative; width: 100%; aspect-ratio: var(--ar, 4 / 3); background: var(--paper-2); }
+.shotbox img.themeshot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 /* [hidden] is a UA default and loses to the author rule above, so it is
    restated at author level — without this a themeshot that 404s would paint
    the browser's broken-image glyph over the fallback. */
@@ -338,7 +348,7 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    at its own true horizontal position, so the datum is unchanged and only the
    label's vertical placement (which carries no information either way) moves.
    Alternate axis ticks are dropped, keeping both endpoints and the midpoint.
-   And the "84.2 bps" tag over the rule goes, because at this width it lands
+   And the "25.4 bps" tag over the rule goes, because at this width it lands
    directly beneath the 40px headline measure saying the same thing. */
 @media (max-width: 760px) {
   .scale-plot { height: 218px; }
@@ -420,12 +430,18 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    darkened here. Ink has headroom and is left alone. */
 [data-theme="light"] .bands .b1 { color: color-mix(in srgb, var(--teal) 84%, #000); }
 [data-theme="light"] .bands .b2 { color: color-mix(in srgb, var(--amber) 84%, #000); }
-.marks { position: relative; height: 40px; margin-top: 8px; }
+.marks { position: relative; height: 66px; margin-top: 8px; }
 .mark { position: absolute; left: var(--x); top: 0; transform: translateX(-50%); white-space: nowrap; text-align: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--text-4); padding-top: 12px; }
 .mark::before { content: ""; position: absolute; left: 50%; top: 0; width: 1px; height: 8px; background: currentColor; }
 .mark b { display: block; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mark.tight { color: var(--teal); } .mark.wide { color: var(--amber); }
-.mark.wide { transform: translateX(-72%); }
+/* The two measured spreads sit 16 bps apart on a 0–100 scale — about 48px of
+   strip on a wide screen — and each label is a good deal wider than that. The
+   tighter of the two drops to a second row on a longer tick instead of being
+   nudged sideways off its own value: the x stays honest, and the only thing
+   that moves is the label's height, which carries no information. */
+.mark.tight { padding-top: 36px; transform: translateX(-26%); }
+.mark.tight::before { height: 32px; }
 
 /* consequence chain */
 .chain { display: flex; flex-direction: column; gap: 9px; font-family: var(--mono); font-size: 12px; }
