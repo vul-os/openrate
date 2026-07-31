@@ -171,12 +171,12 @@ func TestAllowedIsExactlyTheUnion(t *testing.T) {
 }
 
 // TestUIMetadataCoversEngineCurrencies keeps the repo's *second* currency table
-// honest. web/src/currencies.js carries display metadata (name + flag) keyed by
-// the same codes; when the engine admits a currency the UI has never heard of,
-// the dropdown silently degrades to a bare code. The two lists are maintained by
+// honest. web/ui.html carries a CCY_NAMES display-name table keyed by the same
+// codes; when the engine admits a currency the UI has never heard of, the
+// dropdown silently degrades to a bare code. The two lists are maintained by
 // hand in different languages, so nothing but a test couples them.
 func TestUIMetadataCoversEngineCurrencies(t *testing.T) {
-	path := filepath.Join("..", "..", "web", "src", "currencies.js")
+	path := filepath.Join("..", "..", "web", "ui.html")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		// Not a skip: the file is committed in this repo. If it moved, this test
@@ -184,10 +184,18 @@ func TestUIMetadataCoversEngineCurrencies(t *testing.T) {
 		t.Fatalf("cannot read the UI currency table at %s: %v", path, err)
 	}
 
-	// Keys look like:  USD: { name: "US Dollar", flag: "🇺🇸" },
+	// Scope the search to the CCY_NAMES object literal so a stray ISO-code-shaped
+	// string elsewhere in the page can't be miscounted as display metadata.
+	tableRE := regexp.MustCompile(`(?s)CCY_NAMES\s*=\s*\{(.*?)\};`)
+	tm := tableRE.FindStringSubmatch(string(data))
+	if tm == nil {
+		t.Fatalf("could not find a CCY_NAMES = {...}; object literal in %s — the UI currency table moved or was renamed", path)
+	}
+
+	// Entries look like:  USD:"US Dollar",EUR:"Euro",...
 	// The width is 2–5 because stablecoin tickers (USDT, USDC) are not 3 chars.
-	keyRE := regexp.MustCompile(`(?m)^\s{2}([A-Z0-9]{2,5}):\s*\{`)
-	matches := keyRE.FindAllStringSubmatch(string(data), -1)
+	keyRE := regexp.MustCompile(`([A-Z0-9]{2,5}):"`)
+	matches := keyRE.FindAllStringSubmatch(tm[1], -1)
 	ui := map[string]bool{}
 	for _, m := range matches {
 		ui[m[1]] = true
@@ -210,8 +218,8 @@ func TestUIMetadataCoversEngineCurrencies(t *testing.T) {
 		}
 	}
 	if len(missing) > 0 {
-		t.Errorf("web/src/currencies.js is missing display metadata for %d engine currency/currencies: %s\n"+
-			"The converter will render these as bare codes. Add them to CCY or remove them from fiat.go.",
+		t.Errorf("web/ui.html is missing display metadata for %d engine currency/currencies: %s\n"+
+			"The converter will render these as bare codes. Add them to CCY_NAMES or remove them from fiat.go.",
 			len(missing), strings.Join(missing, ", "))
 	}
 }

@@ -3,21 +3,10 @@
 *.test
 *.out
 
-# Node / Vite
+# web/node_modules is stale leftover from the retired Vite/React toolchain
+# (the UI is now a single hand-written web/ui.html — no npm, no build step)
+# and is removed separately; ignored here so it can never be committed.
 web/node_modules/
-web/.vite/
-
-# Playwright (E2E boot guard) output
-web/test-results/
-# Playwright writes .last-run.json relative to the CWD it was invoked from, so
-# a run started at the repo root drops one here rather than under web/.
-/test-results/
-web/playwright-report/
-web/blob-report/
-web/.playwright/
-
-# web/dist is committed (the built UI is embedded into the binary so a clone is
-# self-contained); regenerate with `npm --prefix web run build`.
 
 # Local — every .env variant except the checked-in template. Was an exact-match
 # `.env` only, so `.env.local` / `.env.bak` / `.env.production` (real paid-API

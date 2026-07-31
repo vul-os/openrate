@@ -1,6 +1,7 @@
 // Command openrate runs the rate engine: it ingests open central-bank/venue
 // sources into a currency graph, materializes an all-pairs snapshot anchored on
-// ZAR, and serves a JSON API plus an embedded React UI from a single binary.
+// ZAR, and serves a JSON API plus a hand-written, dependency-free embedded UI
+// from a single binary.
 package main
 
 import (
@@ -71,11 +72,7 @@ func main() {
 		log.Printf("interest rates: %d source(s), refresh %s", len(intSrcs), *intRefresh)
 	}
 
-	if sub, err := web.FS(); err == nil {
-		mux.Handle("/", http.FileServer(http.FS(sub)))
-	} else {
-		log.Printf("web ui unavailable: %v", err)
-	}
+	mux.Handle("/", web.Handler())
 
 	var limiter *ratelimit.Limiter
 	if *rpm > 0 {

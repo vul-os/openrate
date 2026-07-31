@@ -1,6 +1,6 @@
 /* openrate — site behaviour. Shared by index.html and docs.html.
-   No dependencies, no network calls. Three things: the theme switch, the
-   guilloché engraving, and scroll reveals. */
+   No dependencies, no network calls. Theme switch, product screenshots,
+   the guilloché engraving, scroll reveals, and syntax highlighting. */
 
 (function () {
   "use strict";
@@ -20,7 +20,34 @@
       b.setAttribute("aria-label", t === "dark" ? "Switch to paper theme" : "Switch to ink theme");
       b.innerHTML = t === "dark" ? ICON.sun : ICON.moon;
     });
+    paintShots();
   }
+
+  /* ── product screenshots ─────────────────────────────────────────────────
+     Real captures of the running app (web/ui.html), one pair per subject —
+     see site.css for why src is never in the markup. setSrc guards the
+     assignment: writing src RESTARTS the request even when the value is
+     unchanged, which would re-abort the same fetch every time the theme is
+     toggled back and forth. */
+  var shots = [].slice.call(document.querySelectorAll("img.themeshot"));
+  function setSrc(el, path) {
+    if (el && el.getAttribute("src") !== path) el.setAttribute("src", path);
+  }
+  function paintShots() {
+    var t = root.dataset.theme === "light" ? "light" : "dark";
+    shots.forEach(function (im) { setSrc(im, "./assets/app/" + im.dataset.shot + "-" + t + ".webp"); });
+  }
+  // Every img.themeshot ships `hidden` in the markup — start hidden, reveal
+  // on success — rather than starting visible and hiding on error. A fetch
+  // that 404s (the captures don't exist yet, see site.css) still takes a
+  // beat to fail; starting visible left a window where the browser had
+  // already painted its broken-image glyph and the raw alt text before the
+  // error handler could catch up. Starting hidden means the placeholder
+  // behind it is the only thing ever on screen until a real file loads.
+  shots.forEach(function (im) {
+    im.addEventListener("error", function () { im.hidden = true; });
+    im.addEventListener("load", function () { im.hidden = false; });
+  });
   var ICON = {
     sun: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2M12 19.6v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.4 12h2M19.6 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>',
     moon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 13.2A8.6 8.6 0 1 1 10.8 3.2a6.7 6.7 0 0 0 10 10z"/></svg>',
@@ -85,16 +112,53 @@
 
   /* ── reveals ──────────────────────────────────────────────────────────── */
   var rv = document.querySelectorAll(".rv");
-  if (!rv.length) return;
-  if (!("IntersectionObserver" in window) ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    rv.forEach(function (el) { el.classList.add("in"); });
-    return;
+  if (rv.length) {
+    if (!("IntersectionObserver" in window) ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      rv.forEach(function (el) { el.classList.add("in"); });
+    } else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+        });
+      }, { threshold: 0.08, rootMargin: "0px 0px -6% 0px" });
+      rv.forEach(function (el) { io.observe(el); });
+    }
   }
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+
+  /* ── syntax highlighting ─────────────────────────────────────────────────
+     Vendored highlight.js (assets/vendor/highlight.min.js) tokenises every
+     code block — the landing's terminal/response plates and the docs
+     viewer's rendered markdown alike — so no token colour is ever
+     hand-authored. Exposed as window.orHighlight because docs.html injects
+     its markdown asynchronously, after this script has already run once; it
+     re-invokes this against the freshly-rendered subtree.
+
+     A `data-prompt` block additionally gets its literal "$ " line prefix
+     split into its own <span class="prompt"> before the rest of the line is
+     handed to hljs — the highlighter doesn't model shell prompts (none do),
+     so this stays a structural split, not a hand-picked token colour. */
+  function highlightRoot(root) {
+    if (!window.hljs) return;
+    (root || document).querySelectorAll("pre code[data-prompt]").forEach(function (el) {
+      if (el.dataset.hlDone) return;
+      var lang = (el.className.match(/language-(\w+)/) || [0, "bash"])[1];
+      var src = el.textContent.replace(/\n$/, "").split("\n");
+      el.innerHTML = src.map(function (line) {
+        if (line.slice(0, 2) === "$ ") {
+          return '<span class="prompt">$</span> ' + hljs.highlight(line.slice(2), { language: lang }).value;
+        }
+        return line === "" ? "" : hljs.highlight(line, { language: lang }).value;
+      }).join("\n");
+      el.classList.add("hljs");
+      el.dataset.hlDone = "1";
     });
-  }, { threshold: 0.08, rootMargin: "0px 0px -6% 0px" });
-  rv.forEach(function (el) { io.observe(el); });
+    (root || document).querySelectorAll('pre code[class*="language-"]:not([data-prompt])').forEach(function (el) {
+      if (el.dataset.hlDone) return;
+      hljs.highlightElement(el);
+      el.dataset.hlDone = "1";
+    });
+  }
+  highlightRoot(document);
+  window.orHighlight = highlightRoot;
 })();

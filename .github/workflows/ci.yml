@@ -81,59 +81,13 @@ jobs:
       - name: Docs — site/docs generated, in sync, and link-clean
         run: go test ./site/gen -v
 
-  # The web UI is embedded into the binary (web/embed.go embeds web/dist), so a
-  # bundle that builds but does not RUN ships a blank screen to every user. The
-  # E2E suite boots the BUILT bundle in real chromium and fails on any uncaught
-  # exception or an empty root — the check `vite build` cannot make.
-  web-e2e:
-    name: Web — build & boot the bundle in a real browser
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install
-        run: npm ci
-
-      - name: Install chromium
-        run: npx playwright install --with-deps chromium
-
-      # `npm test` → pretest:e2e (vite build) → playwright test
-      - name: Boot guard + E2E
-        run: npm test
-
-      # web/dist is COMMITTED and embedded into the Go binary by web/embed.go, so
-      # the bundle a user runs is the one in git — not the one CI just built. If
-      # someone edits web/src without rebuilding, every release ships the old UI
-      # and nothing else notices. The build above is byte-reproducible, so any
-      # diff here means the committed bundle is stale.
-      - name: Committed web/dist is up to date with web/src
-        working-directory: .
-        run: |
-          # `git diff` alone is blind to files vite ADDS (content-hashed chunk
-          # names change when their source changes, so a stale build often
-          # leaves an old committed chunk untouched and adds a new untracked
-          # one rather than modifying a tracked path). `git add -N` records
-          # untracked paths as empty intent-to-add blobs first, so an added
-          # file shows up as a diff instead of silently passing.
-          git add -N -- web/dist
-          if ! git diff --exit-code -- web/dist; then
-            echo "::error::web/dist is stale. Run 'npm --prefix web run build' and commit the result."
-            exit 1
-          fi
-          echo "committed web/dist matches a fresh build"
-
-      - name: Upload report on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: openrate-playwright-report
-          path: web/playwright-report/
-          retention-days: 7
+      # The web UI (web/ui.html) is hand-written HTML/CSS/JS with no build step
+      # and is embedded verbatim by web/embed.go — there is no bundle that can
+      # go stale relative to a source tree, because ui.html IS the source. The
+      # boot-guard properties the old Playwright suite checked (the UI is
+      # present, non-trivial, exposes the converter/board, references no
+      # external origin) are asserted directly against the embedded bytes in
+      # web/embed_test.go, which the Test step above already runs; this step
+      # just makes that coverage legible in the CI log.
+      - name: Web UI — embedded, self-contained, no external origins
+        run: go test ./web -v

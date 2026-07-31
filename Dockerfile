@@ -1,5 +1,6 @@
-# openrate — single static binary with the web UI embedded (web/dist is
-# committed and baked in via go:embed). No Node needed at build or run time.
+# openrate — single static binary with the web UI embedded (web/ui.html is a
+# hand-written, dependency-free page baked in via go:embed). No Node needed at
+# build or run time.
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 COPY . .

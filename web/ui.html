@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>openrate</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4IiB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJvcGVucmF0ZSI+CiAgPHRpdGxlPm9wZW5yYXRlPC90aXRsZT4KICA8IS0tIENhbm9uaWNhbCBzcXVhcmUgYXBwIHRpbGUsIHRvIHRoZSBWdWxvcyBwcm9kdWN0LWxvZ28gc3RhbmRhcmQ6IDEyOCBib3gsCiAgICAgICByeCAyOCwgYSBuZWFyLWJsYWNrIGdyb3VuZCB0aW50ZWQgdG93YXJkIHRoZSBwcm9kdWN0J3Mgb3duIGh1ZS4gIzA4MTExRAogICAgICAgaXMgYmx1ZS10aW50ZWQgYXQgcm91Z2hseSB0aGUgbHVtaW5hbmNlIG9mIHphbmEncyAjMTQxMTBiIGFuZCBrb3R2YSdzCiAgICAgICAjMGYwZDBiOyB0aGUgcHJldmlvdXMgIzBGMUQyRSBzYXQgYXQgdHdpY2UgdGhhdCBicmlnaHRuZXNzIGFuZCB2YW5pc2hlZAogICAgICAgYWdhaW5zdCB0aGUgZGFyayBwcm9kdWN0IGdyaWQgdGhlc2UgdGlsZXMgYXJlIGRpc3BsYXllZCBvbi4gLS0+CiAgPHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxMjgiIHJ4PSIyOCIgZmlsbD0iIzA4MTExRCIvPgogIDwhLS0gVGhlIG1hcms6IHR3byBvZmZzZXQgYXJjcywgRXhjaGFuZ2UgQmx1ZSBvdmVyIFJhdGUgVGVhbC4gQSByYXRlIGlzIGEKICAgICAgIHJhdGlvIOKAlCB0d28gcXVhbnRpdGllcyBoZWxkIGFnYWluc3QgZWFjaCBvdGhlciDigJQgYW5kIHRoZSBvZmZzZXQgaXMgd2hhdAogICAgICAgc2hvd3MgdGhhdC4gR2VvbWV0cnkgaWRlbnRpY2FsIHRvIGFzc2V0cy9vcGVucmF0ZS5zdmcsIHNjYWxlZCB0byA4NC8xMjgKICAgICAgICg2NiUpIHNvIGl0cyBvcHRpY2FsIHdlaWdodCBtYXRjaGVzIHRoZSByZXN0IG9mIHRoZSBmbGVldCdzIHRpbGVzLiAtLT4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMy42LDEzLjYpIHNjYWxlKDAuODQpIj4KICAgIDxwYXRoIGQ9Ik0yNiA1OCBBNDIgNDIgMCAwIDEgMTEwIDU4IFoiIGZpbGw9IiMzQjgyRjYiLz4KICAgIDxwYXRoIGQ9Ik0xMCA2MiBBNDIgNDIgMCAwIDAgOTQgNjIgWiIgZmlsbD0iIzE0QjhBNiIvPgogIDwvZz4KPC9zdmc+Cg==">
+<script>
+  // Applied before first paint so the stored/system theme choice never flashes.
+  // "or-theme" is the same localStorage key the marketing site uses, so a
+  // reader's choice carries across both surfaces.
+  try {
+    var t = localStorage.getItem("or-theme");
+    if (t) document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
+<style>
+  :root{
+    --bg:#08111D; --panel:#0E1622; --panel-2:#131C29; --line:#1C2632; --line-2:#293445;
+    --text:#ECEFF4; --text-2:#A7B1C0; --text-3:#788495; --text-4:#4E5A6C;
+    --blue:#3B82F6; --teal:#14B8A6; --amber:#D8A03C; --red:#EF6459;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",Consolas,monospace;
+    --ui:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --r:10px; --r-lg:14px; --gut:clamp(16px,4vw,32px);
+  }
+  [data-theme="light"]{
+    --bg:#F3F4F6; --panel:#FFFFFF; --panel-2:#F8F9FB; --line:#E1E4E9; --line-2:#CBD1DA;
+    --text:#10151C; --text-2:#3D4654; --text-3:#697485; --text-4:#8B95A5;
+    --blue:#1F5FD8; --teal:#0E8E7C; --amber:#93650F; --red:#C23A31;
+  }
+  @media (prefers-color-scheme:light){ :root:not([data-theme="dark"]){
+    --bg:#F3F4F6; --panel:#FFFFFF; --panel-2:#F8F9FB; --line:#E1E4E9; --line-2:#CBD1DA;
+    --text:#10151C; --text-2:#3D4654; --text-3:#697485; --text-4:#8B95A5;
+    --blue:#1F5FD8; --teal:#0E8E7C; --amber:#93650F; --red:#C23A31;
+  }}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  /* The hidden attribute must win over any display:flex/grid rule below it —
+     otherwise a "hidden" .err/.seal/.facets renders as an empty box. */
+  [hidden]{display:none!important}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:15.5px;line-height:1.55;
+    min-height:100dvh;overflow-x:clip}
+  a{color:inherit}
+  button,input,select{font:inherit;color:inherit}
+  input,select{background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--r);color:var(--text)}
+  ::selection{background:color-mix(in srgb,var(--blue) 30%,transparent)}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .lbl{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-4)}
+  .wrap{max-width:980px;margin:0 auto;padding:0 var(--gut)}
+  /* ── nav ─────────────────────────────────────────────────────────── */
+  .nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;height:60px;
+    padding:0 var(--gut);background:color-mix(in srgb,var(--bg) 85%,transparent);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:18px}
+  .brand svg{width:24px;height:24px;flex:none}
+  .brand i{font-style:normal;color:var(--teal)}
+  .nav .spacer{flex:1}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;
+    border:1px solid var(--line-2);border-radius:50%;background:transparent;cursor:pointer;color:var(--text-2)}
+  .icon-btn:hover{color:var(--text);border-color:var(--text-3)}
+  .icon-btn svg{width:17px;height:17px}
+  main{padding:clamp(20px,4vw,40px) 0 clamp(48px,8vw,88px)}
+  section{padding-top:clamp(28px,4vw,44px)}
+  h1,h2{font-weight:600;letter-spacing:-.02em;margin-bottom:6px}
+  h1{font-size:clamp(1.4rem,3vw,1.8rem)}
+  h2{font-size:clamp(1.2rem,2.4vw,1.5rem);margin-top:8px}
+  .sub{color:var(--text-3);font-size:.94rem;max-width:56ch;margin-bottom:18px}
+  /* ── converter ───────────────────────────────────────────────────── */
+  .instr{background:var(--panel);border:1px solid var(--line-2);border-radius:var(--r-lg);
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.6);overflow:hidden}
+  .instr-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  #status{font-family:var(--mono);font-size:12px;color:var(--text-3)}
+  .instr-body{padding:clamp(14px,2.4vw,20px)}
+  .leg{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+  .leg-label{display:flex;align-items:center;justify-content:space-between;min-height:20px;margin-bottom:8px}
+  .leg-row{display:grid;grid-template-columns:minmax(0,1fr) 176px;gap:12px;align-items:center}
+  .amount,.result{font-family:var(--mono);font-size:clamp(1.4rem,3.2vw,1.9rem);font-weight:600;
+    letter-spacing:-.03em;border:none;background:transparent;padding:0;width:100%;min-width:0}
+  .amount{min-height:44px}
+  .amount::-webkit-outer-spin-button,.amount::-webkit-inner-spin-button{-webkit-appearance:none}
+  .result{color:var(--teal);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:1;transition:opacity .15s}
+  .result.stale{opacity:.5}
+  select.csel{min-height:44px;padding:0 10px;font-family:var(--mono);font-weight:600;font-size:13.5px;
+    width:100%;cursor:pointer}
+  .axle{height:44px;position:relative;display:flex;align-items:center;justify-content:center}
+  .axle::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line)}
+  .swap{position:relative;width:44px;height:44px;border-radius:50%;background:var(--panel-2);
+    border:1px solid var(--line-2);cursor:pointer;display:grid;place-items:center;color:var(--text-2)}
+  .swap:hover{color:var(--teal);border-color:var(--teal)}
+  .swap svg{width:16px;height:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .chip{min-height:44px;min-width:44px;padding:0 13px;border-radius:100px;border:1px solid var(--line-2);
+    background:transparent;color:var(--text-3);font-family:var(--mono);font-size:12.5px;cursor:pointer}
+  .chip:hover{border-color:var(--text-3);color:var(--text)}
+  .chip.on{background:color-mix(in srgb,var(--teal) 15%,transparent);border-color:var(--teal);color:var(--teal)}
+  .seal{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;
+    font-weight:700;font-size:15px;border:1.5px solid color-mix(in srgb,var(--sc) 55%,transparent);
+    background:color-mix(in srgb,var(--sc) 12%,transparent);color:var(--sc)}
+  .seal.A{--sc:var(--teal)} .seal.B{--sc:var(--blue)} .seal.C{--sc:var(--amber)} .seal.D{--sc:var(--red)}
+  .seal.sm{width:22px;height:22px;font-size:12px}
+  .inverse{display:flex;flex-wrap:wrap;gap:8px 20px;margin:16px 0 0;font-family:var(--mono);font-size:12.5px;color:var(--text-3)}
+  .inverse b{color:var(--text)}
+  .facets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:16px}
+  .facet{background:var(--panel);padding:10px 12px;display:flex;flex-direction:column;gap:5px;min-width:0}
+  .facet .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .facet .v{font-family:var(--mono);font-size:12.5px;overflow-wrap:anywhere}
+  .facet .v.A{color:var(--teal)} .facet .v.B{color:var(--blue)} .facet .v.C{color:var(--amber)} .facet .v.D{color:var(--red)}
+  .facet .v.warn{color:var(--amber)}
+  .disclose{margin-top:14px;min-height:44px;display:inline-flex;align-items:center;gap:7px;
+    background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:13px}
+  .disclose:hover{color:var(--teal)}
+  .disclose svg{width:10px;height:10px;transition:transform .2s}
+  .disclose.open svg{transform:rotate(90deg)}
+  .work{margin-top:12px;padding:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r)}
+  .work-sec{display:flex;align-items:center;gap:9px;margin:16px 0 8px;font-size:12px}
+  .work-sec:first-child{margin-top:0}
+  .work-sec::after{content:"";flex:1;height:1px;background:var(--line)}
+  .path-rail{display:flex;align-items:stretch;overflow-x:auto;gap:2px;padding-bottom:4px}
+  .path-node{flex:none;display:flex;align-items:center;padding:0 10px;font-family:var(--mono);
+    font-weight:700;font-size:12px;border:1px solid var(--line-2);border-radius:100px;height:30px;background:var(--panel-2)}
+  .path-hop{flex:1 1 90px;min-width:80px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:2px;font-family:var(--mono);font-size:11.5px;color:var(--text-2);text-align:center}
+  .path-hop small{font-family:var(--ui);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-4)}
+  table.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.mini th{text-align:left;color:var(--text-4);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    padding:6px 8px;border-bottom:1px solid var(--line-2)}
+  table.mini td{padding:7px 8px;border-bottom:1px solid var(--line);font-family:var(--mono)}
+  .stats{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12.5px;color:var(--text-3)}
+  .stats b{color:var(--text);font-family:var(--mono)}
+  .stats b.warn{color:var(--amber)}
+  .note{font-size:12.5px;color:var(--text-4);line-height:1.6}
+  .caveats{list-style:none;margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .caveats li{font-size:12.5px;color:var(--amber);border-left:2px solid var(--amber);padding-left:9px}
+  .err{display:flex;gap:9px;align-items:flex-start;margin-top:14px;padding:11px 14px;border-radius:var(--r);
+    background:color-mix(in srgb,var(--red) 12%,transparent);border:1px solid color-mix(in srgb,var(--red) 35%,transparent);
+    color:var(--red);font-size:13px}
+  .err svg{flex:none;width:15px;height:15px;margin-top:2px}
+  /* ── board ───────────────────────────────────────────────────────── */
+  .board-shell{background:var(--panel);border:1px solid var(--line-2);border-radius:var(--r-lg);overflow:hidden}
+  .board-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;
+    background:var(--panel-2);border-bottom:1px solid var(--line)}
+  .board-bar select{min-height:44px;padding:0 10px;font-family:var(--mono);font-size:12.5px}
+  #board-filter{flex:1 1 140px;min-width:0;max-width:260px;min-height:44px;padding:0 13px;
+    border-radius:100px;font-family:var(--mono);font-size:12.5px}
+  .board-wrap{overflow-x:auto}
+  table.board{width:100%;border-collapse:collapse;min-width:560px}
+  table.board th{position:sticky;top:0;text-align:left;padding:10px 12px;background:var(--panel-2);
+    border-bottom:1px solid var(--line-2);font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--text-4);cursor:pointer;white-space:nowrap;user-select:none}
+  table.board th:hover{color:var(--text-2)}
+  table.board th.sorted{color:var(--text)}
+  table.board td{padding:11px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:13px}
+  table.board td.num,table.board th.num-col{text-align:right}
+  tr.row{cursor:pointer}
+  tr.row:hover,tr.row.open{background:var(--panel-2)}
+  tr.row td:first-child{font-weight:600}
+  .row-name{font-family:var(--ui);font-size:11.5px;color:var(--text-4);margin-left:8px;font-weight:400}
+  .row-mut{color:var(--text-4);font-size:12px}
+  .detail-cell{padding:0!important;background:var(--bg)}
+  .detail-cell .work{margin:10px 12px 16px;border-radius:var(--r)}
+  .board-foot{padding:10px 14px;border-top:1px solid var(--line);font-family:var(--mono);
+    font-size:11.5px;color:var(--text-4);display:flex;flex-wrap:wrap;gap:6px 16px}
+  .board-empty{padding:26px;text-align:center;color:var(--text-4);font-size:13px}
+  /* ── responsive ──────────────────────────────────────────────────── */
+  @media (max-width:640px){
+    .leg-row{grid-template-columns:1fr;gap:8px}
+    .facets{grid-template-columns:repeat(2,minmax(0,1fr))}
+    table.board .col-src,table.board .col-age{display:none}
+  }
+  @media (max-width:420px){
+    .brand span{display:none}
+    .facets{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+<header class="nav">
+  <span class="brand">
+    <svg viewBox="0 0 120 120" role="img" aria-label="openrate">
+      <path d="M26 58 A42 42 0 0 1 110 58 Z" fill="var(--blue)"/>
+      <path d="M10 62 A42 42 0 0 0 94 62 Z" fill="var(--teal)"/>
+    </svg>
+    <span>open<i>rate</i></span>
+  </span>
+  <span class="spacer"></span>
+  <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme"></button>
+</header>
+
+<main class="wrap">
+  <section id="convert">
+    <h1>Convert</h1>
+    <p class="sub">Every rate carries the path it took through the currency graph, the sources behind it, and a grade for how much to trust it.</p>
+
+    <div class="instr">
+      <div class="instr-head">
+        <span class="lbl">Convert</span>
+        <span id="status" class="num">loading…</span>
+      </div>
+      <div class="instr-body">
+        <div class="leg">
+          <div class="leg-label"><label class="lbl" for="amount">You send</label></div>
+          <div class="leg-row">
+            <input id="amount" class="amount num" type="number" inputmode="decimal" min="0" value="100" aria-label="Amount to convert">
+            <select id="from" class="csel" aria-label="From currency"><option>Loading…</option></select>
+          </div>
+        </div>
+        <div class="axle">
+          <button id="swap" class="swap" type="button" aria-label="Swap currencies">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg>
+          </button>
+        </div>
+        <div class="leg">
+          <div class="leg-label">
+            <span class="lbl">They receive</span>
+            <span id="seal" class="seal sm" hidden></span>
+          </div>
+          <div class="leg-row">
+            <output id="result" class="result num">—</output>
+            <select id="to" class="csel" aria-label="To currency"><option>Loading…</option></select>
+          </div>
+        </div>
+
+        <div class="chips" id="chips">
+          <button class="chip" type="button" data-amt="1">1</button>
+          <button class="chip on" type="button" data-amt="100">100</button>
+          <button class="chip" type="button" data-amt="1000">1,000</button>
+          <button class="chip" type="button" data-amt="10000">10,000</button>
+        </div>
+
+        <div id="convert-err" class="err" hidden></div>
+        <div id="inverse" class="inverse" hidden></div>
+        <div id="facets" class="facets" hidden></div>
+
+        <button id="work-toggle" class="disclose" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          <span class="lbl" id="work-label">Show the working</span>
+        </button>
+        <div id="work-panel" class="work" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="board">
+    <h2>Live rates</h2>
+    <p class="sub">Every currency openrate can reach from a base, graded. Sort by grade or age to find the numbers you shouldn't lean on.</p>
+
+    <div class="board-shell">
+      <div class="board-bar">
+        <label class="lbl" for="board-base">Base</label>
+        <select id="board-base" aria-label="Base currency"><option>…</option></select>
+        <input id="board-filter" type="search" placeholder="Filter currencies…" aria-label="Filter currencies">
+        <span id="board-count" class="lbl"></span>
+      </div>
+      <div class="board-wrap">
+        <table class="board" id="board-table">
+          <thead>
+            <tr>
+              <th data-key="ccy">Currency</th>
+              <th data-key="rate" class="num-col">Rate</th>
+              <th data-key="grade">Grade</th>
+              <th data-key="hops">Path</th>
+              <th data-key="age" class="num-col col-age">Age</th>
+              <th data-key="src" class="col-src">Source</th>
+            </tr>
+          </thead>
+          <tbody id="board-body"><tr><td colspan="6" class="board-empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div id="board-foot" class="board-foot"></div>
+    </div>
+    <div id="board-err" class="err" hidden></div>
+  </section>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  /* ── currency display names (codes not listed just show the code) ──── */
+  var CCY_NAMES = {
+    USD:"US Dollar",EUR:"Euro",GBP:"British Pound",JPY:"Japanese Yen",ZAR:"South African Rand",
+    AUD:"Australian Dollar",CAD:"Canadian Dollar",CHF:"Swiss Franc",CNY:"Chinese Yuan",HKD:"Hong Kong Dollar",
+    SGD:"Singapore Dollar",INR:"Indian Rupee",KRW:"South Korean Won",BRL:"Brazilian Real",MXN:"Mexican Peso",
+    NZD:"New Zealand Dollar",SEK:"Swedish Krona",NOK:"Norwegian Krone",DKK:"Danish Krone",PLN:"Polish Zloty",
+    CZK:"Czech Koruna",HUF:"Hungarian Forint",RON:"Romanian Leu",BGN:"Bulgarian Lev",ISK:"Icelandic Krona",
+    TRY:"Turkish Lira",ILS:"Israeli Shekel",IDR:"Indonesian Rupiah",MYR:"Malaysian Ringgit",PHP:"Philippine Peso",
+    THB:"Thai Baht",AED:"UAE Dirham",SAR:"Saudi Riyal",NGN:"Nigerian Naira",KES:"Kenyan Shilling",
+    GHS:"Ghanaian Cedi",EGP:"Egyptian Pound",MAD:"Moroccan Dirham",BWP:"Botswana Pula",
+    BTC:"Bitcoin",ETH:"Ethereum",USDT:"Tether",USDC:"USD Coin"
+  };
+  var GRADE_RANK = {A:0,B:1,C:2,D:3};
+  /* ── fetch helper: always resolves to a clean one-line error, never a
+     raw HTML/error-page body ─────────────────────────────────────────── */
+  function get(path){
+    return fetch(path).catch(function(){ throw new Error("network error — is openrate reachable?"); })
+      .then(function(r){
+        if (r.ok) return r.json();
+        return r.json().catch(function(){ return null; }).then(function(j){
+          var msg = (j && j.error) ? j.error : (r.status + " " + r.statusText);
+          throw new Error(path.replace(/\?.*/,"") + " → " + msg);
+        });
+      });
+  }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function ccyName(c){ return CCY_NAMES[c] || c; }
+  function ageLabel(sec){
+    if (sec == null) return "—";
+    if (sec < 90) return Math.max(1, Math.round(sec)) + "s";
+    var m = Math.round(sec / 60); if (m < 60) return m + "m";
+    var h = Math.round(m / 60); if (h < 48) return h + "h";
+    var d = Math.round(h / 24); if (d < 400) return d + "d";
+    return (d / 365).toFixed(1) + "y";
+  }
+  function fmt(n, d){
+    if (d == null) d = 4;
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    return v.toLocaleString(undefined, {maximumFractionDigits: d});
+  }
+  function fmtAmount(n){
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    var a = Math.abs(v), d = (a === 0 || a >= 1) ? 2 : (a >= 0.01 ? 4 : 8);
+    return v.toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+  }
+  function fmtRate(n){
+    var v = Number(n);
+    if (!isFinite(v) || v === 0) return "0";
+    var a = Math.abs(v), d = a >= 1000 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 6 : 8;
+    return v.toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+  }
+  function $(id){ return document.getElementById(id); }
+  /* ── theme: shares the "or-theme" key with the marketing site ──────── */
+  var themeBtn = $("theme-toggle");
+  var SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2M12 19.6v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.4 12h2M19.6 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>';
+  var MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20.8 13.2A8.6 8.6 0 1 1 10.8 3.2a6.7 6.7 0 0 0 10 10z"/></svg>';
+  function currentTheme(){
+    try { var t = localStorage.getItem("or-theme"); if (t) return t; } catch (e) {}
+    return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  function applyTheme(t){
+    document.documentElement.dataset.theme = t;
+    themeBtn.innerHTML = t === "dark" ? MOON : SUN;
+    themeBtn.setAttribute("aria-label", t === "dark" ? "Switch to light theme" : "Switch to dark theme");
+    try { localStorage.setItem("or-theme", t); } catch (e) {}
+  }
+  applyTheme(currentTheme());
+  themeBtn.addEventListener("click", function(){ applyTheme(currentTheme() === "dark" ? "light" : "dark"); });
+  /* ── state ───────────────────────────────────────────────────────── */
+  var currencies = [], defaultBase = "ZAR", ratesData = null, boardSort = {k: "ccy", dir: 1};
+  var fromSel = $("from"), toSel = $("to"), baseSel = $("board-base"), amountEl = $("amount");
+  var resultEl = $("result"), statusEl = $("status"), sealEl = $("seal"), inverseEl = $("inverse");
+  var facetsEl = $("facets"), convertErrEl = $("convert-err");
+  var workToggle = $("work-toggle"), workPanel = $("work-panel"), workLabel = $("work-label");
+  function fillSelect(sel, value){
+    sel.innerHTML = "";
+    currencies.forEach(function(c){
+      var o = document.createElement("option");
+      o.value = c; o.textContent = c + " — " + ccyName(c);
+      sel.appendChild(o);
+    });
+    if (value && currencies.indexOf(value) !== -1) sel.value = value;
+  }
+  function showErr(el, msg){
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 22 20H2L12 3.5zM12 10v4.4M12 17.2v.01"/></svg><span>' + esc(msg) + "</span>";
+    el.hidden = false;
+  }
+  /* ── "the working": path through the graph, sources, spread, grade ─── */
+  function renderWork(rate, from, to){
+    var q = rate.quality || {}, c = q.corroboration || {};
+    var legs = rate.legs || [];
+    var path = (rate.path && rate.path.length) ? rate.path : [from, to];
+    var quotes = (rate.quotes || []).slice().sort(function(a,b){ return a.rate - b.rate; });
+    var rail = path.map(function(ccy, i){
+      var node = '<span class="path-node">' + esc(ccy) + "</span>";
+      if (i === path.length - 1) return node;
+      var leg = legs[i];
+      var hop = '<span class="path-hop">' + (leg ? fmt(leg.rate, 6) : "—") +
+        '<small>' + (leg ? esc(leg.source) + " · " + ageLabel(leg.age_sec) : "") + "</small></span>";
+      return node + hop;
+    }).join("");
+    var html = '<div class="work-sec"><span class="lbl">Path — ' +
+      (rate.hops <= 1 ? "directly quoted" : rate.hops + " hops") + '</span></div><div class="path-rail">' + rail + "</div>";
+    if (quotes.length) {
+      html += '<div class="work-sec"><span class="lbl">Sources quoting ' + esc(from) + '→' + esc(to) + ' (' + quotes.length + ')</span></div>' +
+        '<table class="mini"><thead><tr><th>Source</th><th>Rate</th><th>Age</th></tr></thead><tbody>' +
+        quotes.map(function(qq){
+          return "<tr><td>" + esc(qq.source) + '</td><td class="num">' + fmt(qq.rate, 6) + '</td><td class="num">' + ageLabel(qq.age_sec) + "</td></tr>";
+        }).join("") + "</tbody></table>";
+    }
+    if (c.sources > 1) {
+      var wide = c.spread_bps > 50;
+      html += '<div class="work-sec"><span class="lbl">Agreement</span></div><div class="stats">' +
+        "<span>mean <b>" + fmt(c.mean, 6) + "</b></span>" +
+        "<span>std dev <b>" + fmt(c.stdev_bps, 1) + " bps</b></span>" +
+        "<span>min–max <b>" + fmtRate(c.min) + "–" + fmtRate(c.max) + "</b></span>" +
+        '<span>spread <b class="' + (wide ? "warn" : "") + '">' + fmt(c.spread_bps, 1) + " bps</b></span></div>";
+      if (wide) html += '<p class="note" style="margin-top:8px">Sources disagree by more than half a percent — normal across a weekend or market close, but why this pair isn’t graded A.</p>';
+    } else {
+      html += '<p class="note" style="margin-top:8px">One source quotes this pair — nothing to cross-check it against.</p>';
+    }
+    if (q.caveats && q.caveats.length) {
+      html += '<ul class="caveats">' + q.caveats.map(function(t){ return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>";
+    }
+    return html;
+  }
+  /* ── converter ───────────────────────────────────────────────────── */
+  var convertSeq = 0, lastRate = null;
+  function doConvert(){
+    var from = fromSel.value, to = toSel.value, amount = Number(amountEl.value);
+    if (!from || !to || !isFinite(amount)) return;
+    var seq = ++convertSeq;
+    statusEl.textContent = "converting…";
+    resultEl.classList.add("stale");
+    convertErrEl.hidden = true;
+    get("/api/v1/convert?" + new URLSearchParams({from: from, to: to, amount: String(amount)}))
+      .then(function(out){
+        if (seq !== convertSeq) return;
+        lastRate = out.rate;
+        var rate = out.rate || {}, q = rate.quality || {};
+        resultEl.textContent = fmtAmount(out.result);
+        resultEl.classList.remove("stale");
+        statusEl.textContent = rate.age_sec != null
+          ? ageLabel(rate.age_sec) + " old · " + (rate.sources || []).join(", ")
+          : "—";
+        if (q.grade) { sealEl.hidden = false; sealEl.className = "seal sm " + q.grade; sealEl.textContent = q.grade; }
+        else sealEl.hidden = true;
+        if (rate.rate) {
+          inverseEl.hidden = false;
+          inverseEl.innerHTML = "1 " + esc(from) + " = <b>" + fmt(rate.rate, 6) + "</b> " + esc(to) +
+            " &nbsp;·&nbsp; 1 " + esc(to) + " = <b>" + fmt(1 / rate.rate, 6) + "</b> " + esc(from);
+        }
+        var facets = [
+          ["grade", q.grade || "—", q.grade],
+          ["confidence", q.confidence != null ? Math.round(q.confidence * 100) + "%" : "—"],
+          ["freshness", q.freshness || "—"],
+          ["directness", (q.directness || "—").replace(/_/g, " ")],
+          ["source", (q.source_class || "—").replace(/_/g, " ")],
+          ["corroboration", (q.corroboration && q.corroboration.sources > 1)
+            ? q.corroboration.sources + " · " + fmt(q.corroboration.spread_bps, 1) + "bps" : "single"]
+        ];
+        facetsEl.hidden = false;
+        facetsEl.innerHTML = facets.map(function(f){
+          return '<div class="facet"><span class="lbl">' + f[0] + '</span><span class="v ' + (f[2] || "") + '">' + esc(f[1]) + "</span></div>";
+        }).join("");
+        workToggle.hidden = false;
+        if (!workPanel.hidden) workPanel.innerHTML = renderWork(rate, from, to);
+      })
+      .catch(function(e){
+        if (seq !== convertSeq) return;
+        statusEl.textContent = "—";
+        resultEl.classList.remove("stale");
+        showErr(convertErrEl, "The engine isn't answering — " + e.message);
+      });
+  }
+  var debounceTimer;
+  function debouncedConvert(){ clearTimeout(debounceTimer); debounceTimer = setTimeout(doConvert, 220); }
+  fromSel.addEventListener("change", doConvert);
+  toSel.addEventListener("change", doConvert);
+  amountEl.addEventListener("input", debouncedConvert);
+  $("swap").addEventListener("click", function(){
+    var f = fromSel.value; fromSel.value = toSel.value; toSel.value = f; doConvert();
+  });
+  document.querySelectorAll("#chips .chip").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll("#chips .chip").forEach(function(b){ b.classList.remove("on"); });
+      btn.classList.add("on");
+      amountEl.value = btn.dataset.amt;
+      doConvert();
+    });
+  });
+  workToggle.addEventListener("click", function(){
+    var open = workPanel.hidden;
+    workPanel.hidden = !open;
+    workToggle.classList.toggle("open", open);
+    workLabel.textContent = open ? "Hide the working" : "Show the working";
+    if (open && lastRate) workPanel.innerHTML = renderWork(lastRate, fromSel.value, toSel.value);
+  });
+  /* ── board ───────────────────────────────────────────────────────── */
+  var boardBody = $("board-body"), boardFoot = $("board-foot"), boardCount = $("board-count");
+  var boardFilter = $("board-filter"), boardErr = $("board-err"), openRow = null;
+  function boardRows(){
+    if (!ratesData) return [];
+    var q = boardFilter.value.trim().toLowerCase();
+    var list = Object.keys(ratesData.rates).filter(function(ccy){
+      return !q || ccy.toLowerCase().indexOf(q) !== -1 || ccyName(ccy).toLowerCase().indexOf(q) !== -1;
+    });
+    function val(ccy){
+      var p = ratesData.rates[ccy];
+      switch (boardSort.k) {
+        case "rate": return p.rate;
+        case "grade": return GRADE_RANK[(p.quality || {}).grade] != null ? GRADE_RANK[p.quality.grade] : 9;
+        case "hops": return p.hops || 9;
+        case "age": return p.age_sec == null ? Infinity : p.age_sec;
+        case "src": return ((p.quality || {}).source_class) || "";
+        default: return ccy;
+      }
+    }
+    list.sort(function(a, b){
+      var x = val(a), y = val(b);
+      var c2 = typeof x === "string" ? x.localeCompare(y) : x - y;
+      return (c2 || a.localeCompare(b)) * boardSort.dir;
+    });
+    return list;
+  }
+  function renderBoard(){
+    var rows = boardRows();
+    boardCount.textContent = rows.length + (rows.length === 1 ? " pair" : " pairs");
+    document.querySelectorAll("table.board th").forEach(function(th){
+      th.classList.toggle("sorted", th.dataset.key === boardSort.k);
+    });
+    if (!rows.length) {
+      boardBody.innerHTML = '<tr><td colspan="6" class="board-empty">No currency matches the filter.</td></tr>';
+      return;
+    }
+    boardBody.innerHTML = rows.map(function(ccy){
+      var p = ratesData.rates[ccy], q = p.quality || {};
+      var rowClass = "row" + (openRow === ccy ? " open" : "");
+      var main = '<tr class="' + rowClass + '" data-ccy="' + esc(ccy) + '">' +
+        "<td>" + esc(ccy) + '<span class="row-name">' + esc(ccyName(ccy)) + "</span></td>" +
+        '<td class="num">' + fmtRate(p.rate) + "</td>" +
+        "<td>" + (q.grade ? '<span class="seal sm ' + q.grade + '">' + q.grade + "</span>" : "—") + "</td>" +
+        "<td>" + (p.hops <= 1 ? "direct" : p.hops + " hops") + "</td>" +
+        '<td class="num row-mut col-age">' + ageLabel(p.age_sec) + "</td>" +
+        '<td class="row-mut col-src">' + esc((q.source_class || "").replace(/_/g, " ")) + "</td></tr>";
+      if (openRow === ccy) {
+        main += '<tr><td class="detail-cell" colspan="6"><div class="work">' +
+          renderWork(p, ratesData.base, ccy) + "</div></td></tr>";
+      }
+      return main;
+    }).join("");
+    boardBody.querySelectorAll("tr.row").forEach(function(tr){
+      tr.addEventListener("click", function(){
+        var ccy = tr.dataset.ccy;
+        openRow = (openRow === ccy) ? null : ccy;
+        renderBoard();
+      });
+    });
+  }
+  document.querySelectorAll("table.board th").forEach(function(th){
+    th.addEventListener("click", function(){
+      var k = th.dataset.key;
+      boardSort = (boardSort.k === k) ? {k: k, dir: -boardSort.dir} : {k: k, dir: 1};
+      renderBoard();
+    });
+  });
+  boardFilter.addEventListener("input", renderBoard);
+  function loadRates(base){
+    return get("/api/v1/rates?base=" + encodeURIComponent(base)).then(function(d){
+      ratesData = d;
+      boardErr.hidden = true;
+      boardFoot.innerHTML = "";
+      renderBoard();
+    }).catch(function(e){
+      boardBody.innerHTML = "";
+      showErr(boardErr, "Couldn't load the live board — " + e.message);
+    });
+  }
+  baseSel.addEventListener("change", function(){ loadRates(baseSel.value); });
+  function loadMeta(){
+    return get("/api/v1/meta").then(function(m){
+      currencies = (m.currencies || []).slice().sort();
+      defaultBase = m.default_base || defaultBase;
+      fillSelect(fromSel, currencies.indexOf("USD") !== -1 ? "USD" : currencies[0]);
+      fillSelect(toSel, defaultBase);
+      fillSelect(baseSel, defaultBase);
+      var live = (m.sources || []).filter(function(s){ return !s.last_error && s.edges > 0; });
+      boardFoot.innerHTML = live.map(function(s){
+        return "<span>" + esc(s.name) + " · " + s.edges + " edges</span>";
+      }).join("");
+      doConvert();
+      return loadRates(baseSel.value);
+    }).catch(function(e){
+      statusEl.textContent = "—";
+      boardBody.innerHTML = "";
+      showErr(convertErrEl, "The engine isn't answering — " + e.message);
+      showErr(boardErr, "Couldn't load the live board — " + e.message);
+    });
+  }
+  loadMeta();
+})();
+</script>
+</body>
+</html>

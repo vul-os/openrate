@@ -58,8 +58,8 @@ type Options struct {
 	// RateLimit sets per-IP API requests/minute. 0 (the default) disables it —
 	// the anti-scraping limiter is rarely wanted for an embedded engine.
 	RateLimit int
-	// ServeUI mounts the embedded React UI at "/". Off by default; embedders
-	// usually want only the JSON API.
+	// ServeUI mounts the embedded UI at "/". Off by default; embedders usually
+	// want only the JSON API.
 	ServeUI bool
 	// CORSOrigin sets Access-Control-Allow-Origin on JSON responses. Empty
 	// defaults to "*" (public, read-only); set a specific origin to lock down.
@@ -128,9 +128,7 @@ func Start(opts Options) (*Local, error) {
 	}
 
 	if opts.ServeUI {
-		if sub, err := web.FS(); err == nil {
-			mux.Handle("/", http.FileServer(http.FS(sub)))
-		}
+		mux.Handle("/", web.Handler())
 	}
 
 	var limiter *ratelimit.Limiter

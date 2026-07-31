@@ -26,11 +26,16 @@
 
 <script>
 /* Apply the stored theme before first paint so the page never flashes ink at a
-   reader who chose paper. Shares the "or-theme" key with the app. */
+   reader who chose paper. Shares the "or-theme" key with the app. The "js"
+   class is what gates the scroll-reveal animation (see .rv in site.css) — it
+   is added here, before paint, specifically so a reader with JavaScript
+   disabled never gets it and the page falls back to its default (fully
+   visible, unanimated) state rather than content stuck at opacity: 0. */
 try {
   var t = localStorage.getItem("or-theme");
   if (t) document.documentElement.dataset.theme = t;
 } catch (e) {}
+document.documentElement.classList.add("js");
 </script>
 
 <script type="application/ld+json">
@@ -80,6 +85,7 @@ try {
   </a>
   <div class="sp"></div>
   <nav>
+    <a href="#product">Product</a>
     <a href="#graph">The graph</a>
     <a href="#grades">Grades</a>
     <a href="#policy">Policy rates</a>
@@ -165,6 +171,44 @@ try {
         </div>
       </div>
       <figcaption class="shot-cap"><span class="lbl">Each source keeps its own base — ECB in EUR, SARB in ZAR — as edges in one graph. ZAR → USD → AED, two hops, highlighted.</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ══ product ═══════════════════════════════════════════════════════════
+     The one moment on this page that isn't a diagram: a real capture of
+     web/ui.html, theme-swapped by site.js (see the note in site.css). The
+     captures don't exist yet, so this ships as a clearly-marked "capture
+     pending" placeholder — see the design report for the manifest a later
+     pass fills in. ═══════════════════════════════════════════════════════ -->
+<section class="sect ruled" id="product">
+  <div class="wrap">
+    <div class="head rv">
+      <span class="eyebrow"><span class="lbl">The product</span></span>
+      <h2>Not a mockup. <em>The running app</em>.</h2>
+      <p class="lede">
+        Convert an amount and the grade comes with it. Expand the working and the graph
+        path, every source quoting the pair, and the spread between them are right there —
+        the same numbers the API returns, read off the screen instead.
+      </p>
+    </div>
+    <figure class="rv">
+      <div class="plate shot">
+        <div class="shot-bar">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <span class="path">openrate — Convert</span>
+        </div>
+        <div class="shot-box" style="--ar:1280/960">
+          <div class="shot-placeholder">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10.5" r="1.4"/><path d="M21 15.5l-5.2-5.2a1.5 1.5 0 0 0-2.1 0L4 19"/></svg>
+            <span class="tag">Capture pending</span>
+            <span class="file">assets/app/converter-{theme}.webp</span>
+          </div>
+          <img class="themeshot" data-shot="converter" width="1280" height="960" loading="eager" decoding="async" hidden alt="The openrate converter: 100 USD converted to ZAR, a B grade seal, the six quality facets, and the working expanded beneath it — the graph path plus a table of every source quoting the pair.">
+          <noscript><img src="./assets/app/converter-dark.webp" width="1280" height="960" alt="The openrate converter: 100 USD converted to ZAR, a B grade seal, the six quality facets, and the working expanded beneath it — the graph path plus a table of every source quoting the pair."></noscript>
+        </div>
+      </div>
+      <figcaption class="shot-cap"><span class="lbl">A real capture of the running app, not a redraw — the same USD → ZAR quote used in the API example further down</span></figcaption>
     </figure>
   </div>
 </section>
@@ -388,47 +432,20 @@ try {
         </div>
       </div>
       <figure>
-        <div class="plate illo">
-          <table class="ledger" aria-label="Rate board sorted worst grade first: ZWL grade D, NGN grade C, CNY grade C, AED grade B, USD grade A">
-            <thead><tr><th>Currency</th><th>1 ZAR =</th><th>Grade</th><th>Hops</th><th class="colage">Age</th><th class="colnote">Note</th></tr></thead>
-            <tbody>
-              <tr>
-                <td class="cur">ZWL</td><td class="rate">0.8700</td>
-                <td><span class="seal sm D">D</span></td>
-                <td><span class="hops"><i class="on"></i><i class="on"></i><i></i></span></td>
-                <td class="age colage">14h ago</td>
-                <td class="note colnote">1 source, thin liquidity</td>
-              </tr>
-              <tr>
-                <td class="cur">NGN</td><td class="rate">84.19</td>
-                <td><span class="seal sm C">C</span></td>
-                <td><span class="hops"><i class="on"></i><i class="on"></i><i></i></span></td>
-                <td class="age colage">1h ago</td>
-                <td class="note colnote">parallel-market caveat</td>
-              </tr>
-              <tr>
-                <td class="cur">CNY</td><td class="rate">0.3910</td>
-                <td><span class="seal sm C">C</span></td>
-                <td><span class="hops"><i class="on"></i><i class="on"></i><i class="on"></i></span></td>
-                <td class="age colage">40m ago</td>
-                <td class="note colnote">managed-regime caveat</td>
-              </tr>
-              <tr>
-                <td class="cur">AED</td><td class="rate">0.1995</td>
-                <td><span class="seal sm B">B</span></td>
-                <td><span class="hops"><i class="on"></i><i class="on"></i><i></i></span></td>
-                <td class="age colage">48s ago</td>
-                <td class="note colnote">via USD, 2 hops</td>
-              </tr>
-              <tr>
-                <td class="cur">USD</td><td class="rate">0.0543</td>
-                <td><span class="seal sm A">A</span></td>
-                <td><span class="hops"><i class="on"></i><i></i><i></i></span></td>
-                <td class="age colage">28s ago</td>
-                <td class="note colnote">direct, 2 sources agree</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="plate shot">
+          <div class="shot-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="path">openrate — Live rates</span>
+          </div>
+          <div class="shot-box" style="--ar:1280/900">
+            <div class="shot-placeholder">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10.5" r="1.4"/><path d="M21 15.5l-5.2-5.2a1.5 1.5 0 0 0-2.1 0L4 19"/></svg>
+              <span class="tag">Capture pending</span>
+              <span class="file">assets/app/board-{theme}.webp</span>
+            </div>
+            <img class="themeshot" data-shot="board" width="1280" height="900" loading="lazy" decoding="async" hidden alt="The openrate rates board sorted by grade: currency, rate, an A–D grade badge, hop count and age for each row, with one row expanded to show its graph path and source table.">
+            <noscript><img src="./assets/app/board-dark.webp" width="1280" height="900" alt="The openrate rates board sorted by grade: currency, rate, an A–D grade badge, hop count and age for each row, with one row expanded to show its graph path and source table."></noscript>
+          </div>
         </div>
       </figure>
     </div>
@@ -502,17 +519,17 @@ try {
           <span class="dots"><i></i><i></i><i></i></span>
           <span class="ttl">terminal</span>
         </div>
-<pre><span class="c"># clone &amp; run — serves the API and the UI on :8080</span>
-<span class="p">$</span> git clone https://github.com/vul-os/openrate
-<span class="p">$</span> cd openrate
-<span class="p">$</span> go run ./cmd/openrate
+<pre><code class="language-bash" data-prompt="1"># clone &amp; run — serves the API and the UI on :8080
+$ git clone https://github.com/vul-os/openrate
+$ cd openrate
+$ go run ./cmd/openrate
 
-<span class="c"># or install the command directly</span>
-<span class="p">$</span> go install github.com/vul-os/openrate/cmd/openrate@latest
-<span class="p">$</span> openrate -base ZAR -refresh 5m
+# or install the command directly
+$ go install github.com/vul-os/openrate/cmd/openrate@latest
+$ openrate -base ZAR -refresh 5m
 
-<span class="c"># or in Docker</span>
-<span class="p">$</span> docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</pre>
+# or in Docker
+$ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code></pre>
       </div>
       <ol class="steps">
         <li><span class="n">01</span><div><b>Nothing to configure</b><span>The default source set — ECB, SARB, Coinbase, Luno — is free and needs no keys. It works on first run.</span></div></li>
@@ -552,27 +569,27 @@ try {
         <span class="dots"><i></i><i></i><i></i></span>
         <span class="ttl">GET /api/v1/convert?from=USD&amp;to=ZAR&amp;amount=100</span>
       </div>
-<pre>{
-  <span class="k">"result"</span>: <span class="n">1668.77</span>,
-  <span class="k">"rate"</span>: {
-    <span class="k">"rate"</span>: <span class="n">16.687657</span>,
-    <span class="k">"hops"</span>: <span class="n">1</span>,
-    <span class="k">"path"</span>: [<span class="s">"USD"</span>, <span class="s">"ZAR"</span>],
-    <span class="k">"sources"</span>: [<span class="s">"coinbase"</span>],
-    <span class="k">"quotes"</span>: [
-      { <span class="k">"source"</span>: <span class="s">"coinbase"</span>, <span class="k">"rate"</span>: <span class="n">16.687657</span>, <span class="k">"age_sec"</span>: <span class="n">28</span> },
-      { <span class="k">"source"</span>: <span class="s">"sarb"</span>,     <span class="k">"rate"</span>: <span class="n">16.777</span>,    <span class="k">"age_sec"</span>: <span class="n">67470</span> }
+<pre><code class="language-json">{
+  "result": 1668.77,
+  "rate": {
+    "rate": 16.687657,
+    "hops": 1,
+    "path": ["USD", "ZAR"],
+    "sources": ["coinbase"],
+    "quotes": [
+      { "source": "coinbase", "rate": 16.687657, "age_sec": 28 },
+      { "source": "sarb",     "rate": 16.777,    "age_sec": 67470 }
     ],
-    <span class="k">"quality"</span>: {
-      <span class="k">"grade"</span>: <span class="s">"B"</span>,
-      <span class="k">"confidence"</span>: <span class="n">0.89</span>,
-      <span class="k">"freshness"</span>: <span class="s">"realtime"</span>,
-      <span class="k">"directness"</span>: <span class="s">"direct"</span>,
-      <span class="k">"source_class"</span>: <span class="s">"exchange"</span>,
-      <span class="k">"corroboration"</span>: { <span class="k">"sources"</span>: <span class="n">2</span>, <span class="k">"spread_bps"</span>: <span class="n">53.54</span>, <span class="k">"agree"</span>: false }
+    "quality": {
+      "grade": "B",
+      "confidence": 0.89,
+      "freshness": "realtime",
+      "directness": "direct",
+      "source_class": "exchange",
+      "corroboration": { "sources": 2, "spread_bps": 53.54, "agree": false }
     }
   }
-}</pre>
+}</code></pre>
     </div>
   </div>
 </section>
@@ -604,6 +621,7 @@ try {
       <div class="ftr-col">
         <span class="lbl">Product</span>
         <ul>
+          <li><a href="#product">The converter</a></li>
           <li><a href="#graph">The graph model</a></li>
           <li><a href="#grades">Accuracy grades</a></li>
           <li><a href="#policy">Policy rates</a></li>
@@ -640,6 +658,7 @@ try {
 </footer>
 
 </div>
+<script src="./assets/vendor/highlight.min.js"></script>
 <script src="./assets/site.js" defer></script>
 </body>
 </html>
