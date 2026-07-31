@@ -21,6 +21,14 @@ See [CHANGELOG.md](CHANGELOG.md) for what has already shipped.
 
 ## Next
 
+- **Installable converter.** A web manifest and icons for `web/ui.html` so
+  the converter can be added to a phone home screen or run as its own
+  window — small, mostly-assets work; icons already have one source of
+  truth in `brand/logo.svg`. Offline caching of last-known rates is a
+  separate, bigger job (service worker, cache invalidation, update
+  cycles) and isn't scoped yet — and it would need its own explicit
+  staleness indicator, since serving a cached rate as if it were current
+  would cut against the whole point of a `quality` grade on every number.
 - **More open sources.** Additional crypto venues (VALR as a Luno failover for
   ZAR, Kraken/Bitstamp majors, verified Binance ZAR symbols) and additional
   central banks (Fed H.10 via a FRED key, BoE IADB, SNB, RBA) — all free,

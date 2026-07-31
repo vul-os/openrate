@@ -1,0 +1,571 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   openrate — landing page ("The Board").
+
+   Loaded only by index.html, on top of site.css. site.css keeps everything
+   the two surfaces share — the vendored @font-face set, the colour tokens
+   (including the contrast corrections documented there, which nothing here
+   overrides), the base reset, the header, the footer, the hljs mapping and
+   the whole docs.html stylesheet. This file is the landing page's own
+   architecture and nothing else, so a change here can never reach the docs.
+
+   The art direction: openrate is a rate *board* and a ledger. The page is
+   ruled — a continuous hairline runs down the left of every section like the
+   axis of a chart, ticked once per section and numbered in mono. Figures are
+   the display type: a measured quantity is set in Geist Mono at a size that
+   makes it the subject, and Fraunces carries the headlines. Colour is
+   rationed to one job — teal means "the engine measured this" — so an accent
+   on this page is always information, never decoration.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --rail: 100px;           /* width of the left axis gutter */
+  --rail-line: 0px;        /* the axis sits on the wrap's own content edge, so a
+                              .bleed panel lands exactly on it rather than
+                              covering it */
+  --sp: clamp(60px, 7.5vw, 118px);  /* vertical rhythm between board entries */
+}
+@media (max-width: 1080px) { :root { --rail: 0px; } }
+
+/* ── the ruled board ──────────────────────────────────────────────────────
+   Each section's .wrap carries the axis as a pseudo-element rather than a
+   border on a grid cell: the line has to bleed through the section padding
+   above and below it to read as one continuous axis down the page, and a
+   cell border stops at the cell. top/bottom are pulled out by exactly the
+   section padding, so consecutive sections join seamlessly. */
+.sect { position: relative; padding: var(--sp) 0; scroll-margin-top: 78px; }
+.sect.ruled { border-top: 1px solid var(--line); }
+.sect.sunk { background: var(--ink-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+.rail { position: relative; display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); }
+.rail::before {
+  content: ""; position: absolute; z-index: 0;
+  left: var(--rail-line, 0px); width: 1px;
+  top: calc(-1 * var(--sp)); bottom: calc(-1 * var(--sp));
+  background: var(--line-2);
+}
+.rail::after {
+  content: ""; position: absolute; z-index: 1;
+  left: -7px; width: 15px; height: 1px; top: 4px;
+  background: var(--line-3);
+}
+@media (max-width: 1080px) {
+  .rail { grid-template-columns: minmax(0, 1fr); }
+  .rail::before, .rail::after { display: none; }
+}
+
+/* The axis reading: an ordinal, set like a scale label. */
+.sx {
+  position: relative; z-index: 1; grid-column: 1;
+  font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .16em;
+  color: var(--text-4); line-height: 1; padding-left: 15px;
+}
+@media (max-width: 1080px) {
+  .sx { margin-bottom: 14px; display: flex; align-items: center; gap: 10px; padding-left: 0; }
+  .sx::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+}
+.rmain { grid-column: 2; min-width: 0; }
+@media (max-width: 1080px) { .rmain { grid-column: 1; } }
+/* One element per page is allowed to reclaim the axis gutter: §03's
+   instrument panel is the argument this whole page exists to make, and it
+   should read as wider than the prose it interrupts. */
+.rmain > .bleed { margin-left: calc(-1 * var(--rail)); }
+
+/* ── section heads ────────────────────────────────────────────────────── */
+.shead { max-width: 66ch; margin-bottom: clamp(30px, 4vw, 54px); }
+.shead .eyebrow { margin-bottom: 16px; }
+.shead h2 { margin-bottom: 18px; }
+.shead .lede { max-width: 60ch; }
+h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
+
+/* ── hero ─────────────────────────────────────────────────────────────────
+   Two columns at desk width: the claim, and the claim's evidence. The
+   evidence is a printed docket, because "with its receipts" should not be a
+   metaphor on a page whose whole argument is that the working is available. */
+.hero { position: relative; padding: clamp(50px, 6.5vw, 96px) 0 var(--sp); overflow: clip; }
+.hero .guilloche { top: -340px; right: -300px; width: 900px; height: 900px; opacity: .3; }
+[data-theme="light"] .hero .guilloche { opacity: .24; }
+.hero-grid {
+  position: relative; z-index: 1;
+  display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
+  gap: clamp(30px, 4.5vw, 64px); align-items: start;
+}
+@media (max-width: 980px) { .hero-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; }
+.hero h1 {
+  font-size: clamp(3rem, 8.2vw, 6.2rem); line-height: .94; font-weight: 460;
+  letter-spacing: -.026em; margin-top: 4px;
+}
+.hero .lede { font-size: clamp(1.02rem, 1.5vw, 1.16rem); max-width: 46ch; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* ── the docket ───────────────────────────────────────────────────────────
+   A dealing slip: perforated top and bottom edge (a repeating radial mask,
+   not an image), mono throughout, tabular figures, one accent on the line
+   that costs the quote its A. Every figure on it is read off
+   assets/app/converter-dark.webp — the capture of the running binary
+   further down this same page — so a reader can check the page against its
+   own screenshot. */
+.docket {
+  position: relative; background: var(--paper-2); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow-2); padding: 26px clamp(18px, 2.6vw, 30px) 24px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
+  --perf: 9px;
+  -webkit-mask:
+    radial-gradient(var(--perf) at 50% 0, transparent 98%, #000 100%) 50% 0 / 26px var(--perf) repeat-x,
+    radial-gradient(var(--perf) at 50% 100%, transparent 98%, #000 100%) 50% 100% / 26px var(--perf) repeat-x,
+    linear-gradient(#000, #000) 50% 50% / 100% calc(100% - var(--perf) * 2) no-repeat;
+          mask:
+    radial-gradient(var(--perf) at 50% 0, transparent 98%, #000 100%) 50% 0 / 26px var(--perf) repeat-x,
+    radial-gradient(var(--perf) at 50% 100%, transparent 98%, #000 100%) 50% 100% / 26px var(--perf) repeat-x,
+    linear-gradient(#000, #000) 50% 50% / 100% calc(100% - var(--perf) * 2) no-repeat;
+}
+.docket-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 12px; }
+.docket .lbl { color: var(--text-3); }  /* the shared .lbl is --text-4, which is 4.29:1 on --paper-2 */
+.docket-head .who { font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--text-2); }
+.docket-head .req { font-size: 11.5px; color: var(--text-3); }  /* --text-4 measured 4.29:1 on --paper-2 */
+.docket hr { border: none; border-top: 1px dashed var(--line-2); margin: 0; }
+.docket dl { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 4px 14px; padding: 13px 0; }
+.docket dt { color: var(--text-3); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.docket dd { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.docket dd.q { color: var(--text-2); }
+.docket dd.hot { color: var(--amber); }
+.docket .stamp { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-top: 15px; }
+.docket .stamp .conf { display: flex; flex-direction: column; gap: 5px; }
+.docket .stamp .conf b { font-size: clamp(30px, 4vw, 40px); font-weight: 600; letter-spacing: -.03em; color: var(--text); line-height: 1; }
+.docket-foot { padding-top: 14px; font-size: 11px; line-height: 1.6; color: var(--text-3); }  /* as above: this sits on --paper-2 */
+
+/* The grade seal: a struck stamp, not a pill. */
+.seal {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 50%; flex: none;
+  font-family: var(--mono); font-size: 19px; font-weight: 600; line-height: 1;
+  border: 1.5px solid currentColor;
+  background: color-mix(in srgb, currentColor 11%, var(--paper));
+}
+.seal.lg { width: 62px; height: 62px; font-size: 27px; border-width: 2px; }
+.seal.sm { width: 24px; height: 24px; font-size: 12px; border-width: 1px; }
+.seal.A { color: var(--teal); }
+.seal.B { color: var(--blue); }
+.seal.C { color: var(--amber); }
+.seal.D { color: var(--red); }
+
+/* ── stat rail ────────────────────────────────────────────────────────────
+   The numbers ARE the display type here. Ruled top and bottom, edge to edge
+   inside the wrap, one hairline between each reading. */
+.stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line);
+  margin-top: clamp(34px, 4.5vw, 58px);
+}
+.stat { padding: 20px 18px 20px 0; position: relative; }
+.stat + .stat { padding-left: clamp(14px, 2vw, 26px); border-left: 1px solid var(--line); }
+.stat b {
+  display: block; font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: clamp(30px, 4.2vw, 52px); font-weight: 600; letter-spacing: -.045em;
+  line-height: 1; color: var(--text); margin-bottom: 12px;
+}
+.stat.on b { color: var(--teal); }
+.stat .lbl { display: block; line-height: 1.45; letter-spacing: .1em; }
+@media (max-width: 760px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat:nth-child(3) { padding-left: 0; border-left: none; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+
+/* ── the sources band ─────────────────────────────────────────────────────
+   Full-bleed inside the wrap: the four feeds that are on before you
+   configure anything, each with the base it publishes in — which is the
+   whole point of the graph model, stated before the model is explained. */
+.band { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--ink-2); }
+.band-in { max-width: var(--max); margin: 0 auto; padding: 0 var(--gut); }
+.band-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.band-cell { padding: clamp(24px, 3vw, 38px) clamp(14px, 2vw, 26px) clamp(24px, 3vw, 38px) 0; }
+.band-cell + .band-cell { padding-left: clamp(16px, 2.2vw, 30px); border-left: 1px solid var(--line); }
+.band-cell .nm { font-family: var(--mono); font-size: clamp(15px, 1.7vw, 19px); font-weight: 600; letter-spacing: .02em; color: var(--text); display: block; margin-bottom: 10px; }
+.band-cell .base { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--teal); margin-bottom: 11px; }
+.band-cell .base::before { content: ""; width: 5px; height: 5px; background: currentColor; transform: rotate(45deg); }
+.band-cell p { font-size: 13px; line-height: 1.6; color: var(--text-4); }
+@media (max-width: 800px) {
+  .band-grid { grid-template-columns: 1fr 1fr; }
+  .band-cell:nth-child(3) { padding-left: 0; border-left: none; }
+  .band-cell:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+@media (max-width: 460px) {
+  .band-grid { grid-template-columns: minmax(0, 1fr); }
+  .band-cell { padding-left: 0 !important; border-left: none !important; }
+  .band-cell + .band-cell { border-top: 1px solid var(--line); }
+}
+
+/* ── split rows ───────────────────────────────────────────────────────── */
+.split { display: grid; grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr); gap: clamp(26px, 4vw, 60px); align-items: center; }
+.split + .split { margin-top: clamp(48px, 6vw, 88px); padding-top: clamp(48px, 6vw, 88px); border-top: 1px solid var(--line); }
+.split.flip > .copy { order: 2; }
+/* §07's terminal carries long install lines and needs the wide half. */
+.split.wide-left { grid-template-columns: minmax(0, 1.14fr) minmax(0, .86fr); align-items: start; }
+.split .copy h3 { margin-bottom: 14px; }
+.split .copy p { font-size: 15px; line-height: 1.75; }
+@media (max-width: 900px) {
+  /* minmax(0,1fr), never a bare 1fr: a bare 1fr is minmax(auto,1fr), so one
+     white-space:nowrap label inside the track raises the track's min-content
+     and the whole grid grows wider than the viewport. That is exactly how
+     this page picked up 22px of body scroll at 390. */
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .split.flip > .copy { order: 0; }
+}
+
+.ticks { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+.ticks li { position: relative; padding-left: 22px; font-size: 14px; line-height: 1.65; color: var(--text-4); }
+.ticks li::before { content: ""; position: absolute; left: 0; top: 9px; width: 9px; height: 1px; background: var(--teal); }
+.ticks b { color: var(--text-2); font-weight: 600; }
+
+/* ── plates ───────────────────────────────────────────────────────────── */
+.plate { position: relative; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--paper); box-shadow: var(--shadow-1); overflow: hidden; }
+.plate::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: linear-gradient(90deg, var(--blue), var(--teal), transparent); opacity: .55; }
+.plate.pad { padding: clamp(20px, 3vw, 34px); }
+/* Sentence case, not uppercase: these captions carry real sentences, and
+   uppercase mono at 11.5px stops being readable after about six words. */
+.figcap { display: block; margin-top: 14px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; line-height: 1.7; color: var(--text-4); max-width: 78ch; }
+
+/* ── product screenshots ──────────────────────────────────────────────────
+   Real captures of the running binary, theme-swapped by paintShots() in
+   site.js. No src in the markup (the theme isn't known until JS has read
+   localStorage) and, critically, loading stays EAGER: these images ship
+   `hidden`, a display:none element never gets a layout box, and native
+   lazy-loading therefore never decides one is near the viewport — a lazy
+   themeshot never fetches at all. See the matching note in site.js. */
+.shotframe { border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; background: var(--paper-2); box-shadow: var(--shadow-2); }
+.shotbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--paper-3); border-bottom: 1px solid var(--line); }
+.shotbar .dots { display: inline-flex; gap: 6px; flex: none; }
+.shotbar .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-3); display: block; }
+.shotbar .u { font-family: var(--mono); font-size: 11.5px; color: var(--text-3);  /* --text-4 measured 3.92:1 on --paper-3 */ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The captures are 1280 wide but the app itself is a centred column roughly
+   700px across, so a full-width paste wastes about half the frame on empty
+   chrome and leaves the UI too small to read. The frame is given a narrower
+   aspect ratio than the file and object-fit: cover crops the dead margins
+   symmetrically — nothing inside the app is cut, and the interface lands at
+   roughly 1.5x the size it had. */
+.shotbox { position: relative; width: 100%; aspect-ratio: var(--ar, 4 / 3); background: var(--ink); }
+.shotbox img.themeshot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+/* [hidden] is a UA default and loses to the author rule above, so it is
+   restated at author level — without this a themeshot that 404s would paint
+   the browser's broken-image glyph over the fallback. */
+.shotbox img.themeshot[hidden] { display: none; }
+.shotbox .fallback {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 20px;
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-4);
+}
+
+/* ── the instrument panel ─────────────────────────────────────────────────
+   The dispersion figure. Built as a CSS grid of four registers rather than
+   one SVG floating in a box, so it fills its frame at every width and each
+   register can reflow independently:
+
+     1. masthead   — which pair, how many quotes, and the headline measure
+     2. the scale  — where the two quotes actually sit against the price
+     3. thresholds — the same spread against the bands the engine grades on
+     4. consequence— what that costs, in money and in the grade
+
+   All positioning is percentage-based against the plot's own box, and every
+   label is real HTML rather than SVG <text>: a viewBox that shrinks on a
+   phone shrinks in-SVG text with it, down past legible. */
+.instr { border: 1px solid var(--line-2); border-radius: var(--r); background: var(--paper); box-shadow: var(--shadow-1); overflow: hidden; }
+
+.instr-top {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px;
+  padding: clamp(18px, 2.4vw, 26px) clamp(18px, 2.6vw, 30px);
+  border-bottom: 1px solid var(--line);
+}
+.instr-top .pair { font-family: var(--mono); font-size: clamp(17px, 2.2vw, 22px); font-weight: 600; color: var(--text); letter-spacing: .01em; display: block; margin-bottom: 9px; }
+.instr-top .sub { font-family: var(--mono); font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-4); }
+.instr-measure { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.instr-measure b {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: clamp(38px, 6.4vw, 76px); font-weight: 600; letter-spacing: -.05em;
+  line-height: .88; color: var(--amber);
+}
+.instr-measure .lbl { color: var(--text-3); }
+
+/* — register 2: the scale — */
+.scale {
+  position: relative; padding: clamp(64px, 6.5vw, 80px) clamp(26px, 4vw, 54px) 0;
+  border-bottom: 1px solid var(--line);
+}
+.scale-plot { position: relative; height: clamp(150px, 16vw, 186px); }
+
+/* The disagreement itself. Hatched rather than filled: a solid block reads as
+   a panel behind the data, whereas ruled hatching reads as a measured region
+   — and engraved hatching is the idiom this whole site is set in. It occupies
+   only the lower half so it never sits behind either quote's label. */
+.gap-bar {
+  position: absolute; left: var(--a); right: calc(100% - var(--b)); bottom: 0; height: 46%;
+  background: repeating-linear-gradient(45deg,
+    color-mix(in srgb, var(--amber) 26%, transparent) 0 1px,
+    transparent 1px 8px);
+  border-left: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+}
+.gap-rule { position: absolute; left: var(--a); right: calc(100% - var(--b)); top: -26px; height: 1px; }
+.gap-rule::before { content: ""; position: absolute; inset: 0; background: var(--amber); }  /* see .axis::before */
+.gap-rule .cap { position: absolute; top: -5px; width: 1px; height: 11px; background: var(--amber); }
+.gap-rule .cap.l { left: 0; } .gap-rule .cap.r { right: 0; }
+.gap-tag {
+  position: absolute; left: 50%; top: -26px; transform: translate(-50%, -100%);
+  white-space: nowrap; font-family: var(--mono); font-size: clamp(11.5px, 1.3vw, 13px); font-weight: 600;
+  letter-spacing: .08em; color: var(--amber); padding-bottom: 6px;
+}
+
+/* The two quotes. A zero-width flex column centred on the datum: the card,
+   then a stem that flexes to whatever is left, then the dot on the axis. Laid
+   out rather than absolutely offset, so the stem always physically joins the
+   label to its point no matter how tall the card or the plot ends up. */
+.quote { position: absolute; left: var(--x); top: 0; bottom: 0; width: 0; display: flex; flex-direction: column; align-items: center; }
+.quote .stem { flex: 1 1 auto; min-height: 16px; width: 1px; background: var(--line-3); margin-top: 10px; }
+.quote .dot { flex: none; width: 11px; height: 11px; margin-bottom: -5px; border-radius: 50%; background: var(--paper); border: 2px solid var(--text); }
+.quote .card { display: flex; flex-direction: column; gap: 5px; white-space: nowrap; text-align: center; }
+/* Both labels sit at one height. Staggering them would put a difference on
+   the vertical axis that does not exist in the data — the only thing that
+   varies here is how far apart the two quotes are, and that is horizontal. */
+.quote .card { top: 0; }
+/* ── the scale on a narrow screen ─────────────────────────────────────────
+   Below ~760px the plot is about 300px wide and the two labels are ~125px
+   each: side by side at their true positions they touch, and the axis wants
+   to print six five-digit ticks into the same 300px. Squeezing the type
+   solves neither, so the figure changes shape instead.
+
+   The two quotes move onto separate rows — each still stemmed to its own dot
+   at its own true horizontal position, so the datum is unchanged and only the
+   label's vertical placement (which carries no information either way) moves.
+   Alternate axis ticks are dropped, keeping both endpoints and the midpoint.
+   And the "84.2 bps" tag over the rule goes, because at this width it lands
+   directly beneath the 40px headline measure saying the same thing. */
+@media (max-width: 760px) {
+  .scale-plot { height: 218px; }
+  .quote { display: block; }
+  .quote .card { position: absolute; left: 0; }
+  .quote.lo .card { top: 0; transform: translateX(-30%); }
+  .quote.hi .card { top: 52%; transform: translateX(-62%); }
+  .quote .stem { position: absolute; left: 0; bottom: 0; height: 100%; margin: 0; }
+  .quote .dot { position: absolute; left: 0; bottom: -5px; margin: 0 0 0 -5px; }
+  .gap-bar { height: 30%; }
+  .gap-tag { display: none; }
+  .axis .t:nth-child(2), .axis .t:nth-child(4), .axis .t:nth-child(5) { display: none; }
+  .instr-measure { align-items: flex-start; text-align: left; }
+}
+.quote .src { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--teal); }
+.quote .val { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(15px, 1.9vw, 21px); font-weight: 600; letter-spacing: -.02em; color: var(--text); }
+.quote .age { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--text-4); }
+
+/* the mean — drawn as what it is: the one number an averaging API would
+   hand you instead of the two above it. */
+/* The mean is drawn as a chip sitting on its own dashed line just above the
+   axis — deliberately quieter than either quote, because it is the one number
+   openrate declines to hand you on its own. */
+.meanline { position: absolute; left: var(--x); bottom: 0; height: 100%; width: 1px; border-left: 1px dashed var(--text-5); }
+.meanline .tip { position: absolute; left: 0; top: -3px; width: 7px; height: 7px; margin-left: -3.5px; background: var(--text-5); transform: rotate(45deg); }
+.meantag {
+  position: absolute; left: var(--x); bottom: 4px; transform: translateX(-50%);
+  white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 11.5px; letter-spacing: .05em; color: var(--text-4); line-height: 1.6;
+  background: var(--paper); padding: 2px 9px;
+}
+.meantag b { font-weight: 600; color: var(--text-3); }
+
+/* the axis */
+.axis { position: relative; height: 1px; }
+/* The rule itself is a pseudo-element, not a background on .axis: the tick
+   labels are children of .axis, and a background there makes the 1px rule the
+   labels' computed backdrop — which both misreports contrast and would tint
+   any label that ever overlapped it. */
+.axis::before { content: ""; position: absolute; inset: 0; background: var(--line-3); }
+.axis .t { position: absolute; left: var(--x); top: 0; transform: translateX(-50%); padding-top: 11px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--text-4); }
+.axis .t::before { content: ""; position: absolute; left: 50%; top: 0; width: 1px; height: 6px; background: var(--line-3); }
+.axis .t:first-child { transform: none; } .axis .t:first-child::before { left: 0; }
+.axis .t:last-child { transform: translateX(-100%); } .axis .t:last-child::before { left: 100%; }
+/* --text-4, not --text-5: this is a real paragraph a reader has to read, and
+   --text-5 (#44505F on ink) measures about 2.6:1 — nowhere near the 4.5:1
+   floor. --text-4 is the darkest token that clears it on all three surfaces. */
+.scale-foot { padding: 30px 0 clamp(20px, 2.6vw, 28px); font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; line-height: 1.7; color: var(--text-4); max-width: 96ch; }
+
+/* — register 3 + 4: the consequence cells — */
+.cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cells > div { padding: clamp(20px, 2.6vw, 28px) clamp(18px, 2.4vw, 26px); min-width: 0; }
+.cells > div + div { border-left: 1px solid var(--line); }
+.cells .ct { display: block; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-4); margin-bottom: 16px; }
+@media (max-width: 900px) {
+  .cells { grid-template-columns: minmax(0, 1fr); }
+  .cells > div + div { border-left: none; border-top: 1px solid var(--line); }
+}
+
+/* money cell */
+.money { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 8px 12px; font-family: var(--mono); font-size: 12.5px; }
+.money dt { color: var(--text-4); letter-spacing: .05em; }
+.money dd { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.money .big { border-top: 1px solid var(--line); padding-top: 9px; margin-top: 1px; }
+.money .big dd, .money dd.big { color: var(--amber); font-size: 16px; font-weight: 600; }
+
+/* Threshold strip. The axis is a plain linear 0–100 bps, so a marker's x is
+   simply its value as a percentage and nothing has to be trusted — the two
+   bands past 100 bps are named in the caption rather than drawn compressed,
+   which would have made the scale lie. */
+.bands { display: flex; height: 34px; border: 1px solid var(--line-2); border-radius: var(--r-xs); overflow: hidden; }
+.bands span { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; border-right: 1px solid var(--line-2); min-width: 0; overflow: hidden; }
+.bands span:last-child { border-right: none; }
+.bands span { font-weight: 600; }
+.bands .b1 { flex: 25 1 0; background: color-mix(in srgb, var(--teal) 9%, transparent); color: var(--teal); }
+.bands .b2 { flex: 75 1 0; background: color-mix(in srgb, var(--amber) 9%, transparent); color: var(--amber); }
+/* On paper the accents already sit near the 4.5:1 floor against plain --paper;
+   over their own tint they fell to ~4.0:1, so the label (not the token) is
+   darkened here. Ink has headroom and is left alone. */
+[data-theme="light"] .bands .b1 { color: color-mix(in srgb, var(--teal) 84%, #000); }
+[data-theme="light"] .bands .b2 { color: color-mix(in srgb, var(--amber) 84%, #000); }
+.marks { position: relative; height: 40px; margin-top: 8px; }
+.mark { position: absolute; left: var(--x); top: 0; transform: translateX(-50%); white-space: nowrap; text-align: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--text-4); padding-top: 12px; }
+.mark::before { content: ""; position: absolute; left: 50%; top: 0; width: 1px; height: 8px; background: currentColor; }
+.mark b { display: block; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mark.tight { color: var(--teal); } .mark.wide { color: var(--amber); }
+.mark.wide { transform: translateX(-72%); }
+
+/* consequence chain */
+.chain { display: flex; flex-direction: column; gap: 9px; font-family: var(--mono); font-size: 12px; }
+.chain .step { display: flex; align-items: center; gap: 10px; color: var(--text-4); }
+.chain .step i { font-style: normal; color: var(--text-5); flex: none; width: 12px; }
+.chain .step b { color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.chain .out { display: flex; align-items: center; gap: 12px; margin-top: 6px; padding-top: 13px; border-top: 1px solid var(--line); }
+.chain .out .n { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600; letter-spacing: -.03em; color: var(--text); }
+
+/* the counterpoint: the same figure, a pair whose sources agree */
+.counter {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(16px, 2.5vw, 32px); align-items: center;
+  margin-top: clamp(20px, 2.6vw, 28px); padding: clamp(18px, 2.4vw, 26px) clamp(18px, 2.6vw, 30px);
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--ink-2);
+}
+.counter p { font-size: 13.5px; line-height: 1.7; }
+.counter p b { color: var(--text-2); }
+.counter .pair { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text); display: block; margin-bottom: 8px; letter-spacing: .04em; }
+.counter .verdict { display: flex; align-items: center; gap: 14px; }
+.counter .verdict .n { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600; letter-spacing: -.03em; color: var(--text); }
+@media (max-width: 700px) { .counter { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── the walk ─────────────────────────────────────────────────────────── */
+.walk { display: flex; align-items: center; gap: 0; }
+.walk-node {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: clamp(50px, 7vw, 64px); height: clamp(50px, 7vw, 64px); border-radius: 50%;
+  border: 1px solid var(--line-3); background: var(--paper-2);
+  font-family: var(--mono); font-size: clamp(11px, 1.4vw, 13px); font-weight: 600; letter-spacing: .04em; color: var(--text);
+}
+.walk-node.end { border-color: var(--teal); color: var(--teal); }
+.walk-leg { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 4px; }
+.walk-leg .ln { width: 100%; height: 1px; background: linear-gradient(90deg, var(--line-3), var(--teal)); position: relative; }
+.walk-leg .ln::after { content: ""; position: absolute; right: 0; top: -3px; border-left: 5px solid var(--teal); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+.walk-leg .m { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.walk-leg .r { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(12px, 1.5vw, 14.5px); font-weight: 600; color: var(--text); }
+.walk-leg .s { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-4); white-space: nowrap; }
+.walk-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-top: clamp(20px, 3vw, 30px); padding-top: 18px; border-top: 1px solid var(--line); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(14px, 1.9vw, 18px); color: var(--text-3); }
+.walk-sum .eq { color: var(--teal); font-weight: 600; }
+.walk-sum .op { color: var(--text-5); }
+.walk-note { display: block; width: 100%; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; line-height: 1.6; color: var(--text-4); text-transform: none; margin-top: 4px; }
+
+/* ── grade seals ──────────────────────────────────────────────────────── */
+.seals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line-2); }
+.seal-card { padding: 24px 20px 26px 0; }
+.seal-card + .seal-card { padding-left: clamp(16px, 2.2vw, 28px); border-left: 1px solid var(--line); }
+.seal-card .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.seal-card .band { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text-4); }
+.seal-card .verdict { display: block; font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-2); margin-bottom: 9px; }
+.seal-card p { font-size: 13px; line-height: 1.6; color: var(--text-4); }
+@media (max-width: 860px) {
+  .seals { grid-template-columns: 1fr 1fr; }
+  .seal-card:nth-child(3) { padding-left: 0; border-left: none; }
+  .seal-card:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+@media (max-width: 460px) {
+  .seals { grid-template-columns: minmax(0, 1fr); }
+  .seal-card { padding-left: 0 !important; border-left: none !important; }
+  .seal-card + .seal-card { border-top: 1px solid var(--line); }
+}
+
+/* ── the two-quote ledger ─────────────────────────────────────────────────
+   The confidence equation, run twice on two real captured quotes. Every
+   value in the table is one the engine can actually emit: quality.go only
+   ever returns freshness from {1.0, .9, .72, .45}, source authority from
+   {1.0, .96, .92, .7, .8, .85} and corroboration from {1.0, .93, .85, .72,
+   .88}. The two rows differ in exactly two cells, which is the whole
+   lesson — an A and a B here are one source class and one spread apart. */
+.ledger { width: 100%; border-collapse: collapse; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.ledger th, .ledger td { padding: 13px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.ledger th:first-child, .ledger td:first-child { text-align: left; padding-left: 0; white-space: normal; }
+.ledger td:last-child, .ledger th:last-child { padding-right: 0; }
+.ledger thead th { font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); border-bottom-color: var(--line-2); }
+.ledger tbody td { font-size: 13.5px; color: var(--text-3); }
+.ledger tbody th { font-size: 12px; font-weight: 500; color: var(--text-4); letter-spacing: .04em; }
+.ledger td.diff { color: var(--amber); font-weight: 600; }
+.ledger td.same { color: var(--text-4); }  /* --text-5 is a rule colour, not a text colour: it measured 2.0-2.3:1 here */
+.ledger tfoot td, .ledger tfoot th { border-bottom: none; padding-top: 18px; font-size: 15px; color: var(--text); font-weight: 600; }
+.ledger .gcell { display: inline-flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.ledger-scroll { overflow-x: auto; }
+.eqline { margin-top: 20px; font-family: var(--mono); font-size: clamp(12px, 1.5vw, 14px); line-height: 2; color: var(--text-4); overflow-x: auto; }
+.eqline b { color: var(--text-2); font-weight: 600; }
+.eqline .r { color: var(--teal); font-weight: 600; }
+
+/* ── policy cards ─────────────────────────────────────────────────────── */
+.policy { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.pcard { background: var(--paper); padding: 20px 18px; display: flex; flex-direction: column; gap: 12px; }
+.pcard .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pcard .area { font-family: var(--mono); font-size: 11px; letter-spacing: .11em; text-transform: uppercase; color: var(--text-4); }
+.pcard .rate { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(22px, 2.8vw, 30px); font-weight: 600; letter-spacing: -.035em; color: var(--text); line-height: 1; }
+.pcard svg { width: 100%; height: 32px; }
+.pcard svg path { fill: none; stroke: var(--teal); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.pcard .btm { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--text-5); }
+@media (max-width: 820px) { .policy { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 440px) { .policy { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── code + steps + api ───────────────────────────────────────────────── */
+.code { border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; background: var(--code-bg); box-shadow: var(--shadow-1); }
+.code .bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: color-mix(in srgb, var(--code-bg) 100%, white 4%); border-bottom: 1px solid rgba(255,255,255,.08); }
+.code .dots { display: inline-flex; gap: 6px; flex: none; }
+.code .dots i { width: 9px; height: 9px; border-radius: 50%; display: block; }
+.code .dots i:nth-child(1) { background: color-mix(in srgb, #F2665C 62%, transparent); }
+.code .dots i:nth-child(2) { background: color-mix(in srgb, var(--code-meta) 62%, transparent); }
+.code .dots i:nth-child(3) { background: color-mix(in srgb, var(--code-string) 62%, transparent); }
+.code .ttl { font-family: var(--mono); font-size: 12px; color: var(--code-comment); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code pre { margin: 0; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--code-text); }
+.code .prompt { color: var(--code-string); user-select: none; }
+
+.steps { list-style: none; display: flex; flex-direction: column; }
+.steps li { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 16px; padding: 19px 0; border-bottom: 1px solid var(--line); }
+.steps li:last-child { border-bottom: none; }
+.steps .n { font-family: var(--mono); font-size: 11.5px; color: var(--text-4); padding-top: 3px; }  /* --text-5 measured 2.2-2.4:1 */
+.steps b { display: block; font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+.steps span { font-size: 13.5px; color: var(--text-4); line-height: 1.65; }
+
+.api-scroll { overflow-x: auto; border-top: 1px solid var(--line-2); }
+.api { width: 100%; border-collapse: collapse; min-width: 560px; }
+.api th, .api td { text-align: left; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.api th { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-4); }
+.api td { font-size: 13.5px; color: var(--text-4); line-height: 1.6; }
+.api td:first-child { font-family: var(--mono); font-size: 12.5px; color: var(--teal); white-space: nowrap; padding-right: 26px; }
+.api tbody tr:last-child td { border-bottom: none; }
+
+/* ── graph illustration ───────────────────────────────────────────────── */
+.graph-illo { position: relative; }
+.graph-illo svg { width: 100%; height: auto; display: block; }
+.graph-illo .edge { stroke: var(--line-3); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.graph-illo .trace { fill: none; stroke: var(--teal); stroke-width: 1.75; vector-effect: non-scaling-stroke; }
+.graph-illo .node circle { fill: var(--paper-2); stroke: var(--line-3); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.graph-illo .node.on circle { stroke: var(--teal); }
+.graph-illo .nl, .graph-illo .el { position: absolute; transform: translate(-50%, -50%); font-family: var(--mono); white-space: nowrap; pointer-events: none; }
+.graph-illo .nl { font-size: clamp(10px, 1.25vw, 12.5px); font-weight: 600; letter-spacing: .04em; color: var(--text-2); }
+.graph-illo .nl.on { color: var(--teal); }
+.graph-illo .el {
+  font-size: clamp(8.5px, 1vw, 10.5px); letter-spacing: .11em; text-transform: uppercase;
+  color: var(--text-4); background: var(--paper); padding: 2px 6px; border-radius: var(--r-xs);
+}
+.graph-illo .el.on { color: var(--teal); }
+
+/* Motion lives in site.css: the .rv reveal, its html.js gate and the
+   prefers-reduced-motion block are defined there once, alongside the
+   guilloché animation the same block has to switch off. Duplicating them
+   here only created two places for the no-JS gate to drift. */

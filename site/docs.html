@@ -16,9 +16,9 @@
   <meta name="twitter:description" content="openrate documentation: the graph model, the accuracy contract, the JSON API, configuration, the Go library, policy rates and where the data comes from.">
   <meta property="og:image" content="https://vulos.org/projects/openrate/assets/og-card.png">
   <meta property="og:image:type" content="image/png">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="openrate — openrate documentation: the graph model, the accuracy contract, the JSON API, configuration, the Go library, policy rates and where the data comes from.">
+  <meta property="og:image:width" content="2400">
+  <meta property="og:image:height" content="1260">
+  <meta property="og:image:alt" content="openrate documentation: the graph model, the accuracy contract, the JSON API, configuration, the Go library, policy rates and where the data comes from.">
   <meta name="twitter:image" content="https://vulos.org/projects/openrate/assets/og-card.png">
 <meta name="theme-color" content="#06090E">
 <link rel="icon" href="./assets/openrate-mark.svg">
@@ -49,6 +49,9 @@ document.documentElement.classList.add("js");
     <a href="./index.html#run">Run it</a>
     <a href="./docs.html" class="on">Docs</a>
   </nav>
+  <a class="icon-btn" href="https://vulos.org" target="_blank" rel="noopener" aria-label="Vulos">
+    <img src="./assets/vulos-logo.png" alt="" width="18" height="18">
+  </a>
   <a class="icon-btn bare" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener" aria-label="GitHub">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.41 7.86 10.94.58.1.79-.25.79-.56v-2.02c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.19a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.19 3.17-1.19.63 1.59.23 2.76.12 3.05.74.81 1.18 1.85 1.18 3.11 0 4.44-2.7 5.42-5.28 5.7.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.74 18.27.5 12 .5z"/></svg>
   </a>
@@ -74,6 +77,14 @@ document.documentElement.classList.add("js");
   </aside>
 
   <main class="docs-main">
+    <!-- This viewer fetches ./docs/<slug>.md and renders it client-side (see
+         the script at the bottom) — there is no server to pre-render it, so
+         unlike index.html, this page's content genuinely needs JavaScript.
+         A reader without it gets a real link to the same docs on GitHub
+         instead of a permanent "Loading…". -->
+    <noscript>
+      <p class="docs-err">This page renders its documentation with JavaScript, which is off in this browser. Read the same docs directly on <a href="https://github.com/vul-os/openrate/tree/main/docs" target="_blank" rel="noopener">GitHub</a>, or in <a href="https://github.com/vul-os/openrate/blob/main/README.md" target="_blank" rel="noopener">the README</a>.</p>
+    </noscript>
     <div class="crumb"><span class="lbl" id="crumb"></span></div>
     <article class="md" id="content">Loading…</article>
   </main>

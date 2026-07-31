@@ -31,7 +31,7 @@ The zero value is valid and mirrors the binary's defaults.
 | `Refresh` | `time.Duration` | `1h` | Source refresh interval |
 | `Sources` | `string` | default set | Comma-separated source spec (see [Configuration](configuration.md)) |
 | `RateLimit` | `int` | `0` (disabled) | Per-IP API requests/minute |
-| `ServeUI` | `bool` | `false` | Mount the embedded React UI at `/` |
+| `ServeUI` | `bool` | `false` | Mount the embedded UI (`web/ui.html`) at `/` |
 | `ReadyTimeout` | `time.Duration` | `10s` | How long `Start` waits for `/healthz` |
 
 > Rate limiting and the UI default **off** for embedded use — most embedders want

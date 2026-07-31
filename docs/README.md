@@ -13,7 +13,7 @@ Everything you need to run, consume, embed, and extend openrate.
 | [Interest rates](interest-rates.md) | The optional policy/reference-rate engine under `/api/v1/interest/*` |
 | [Accuracy & quality](../ACCURACY.md) | The grade/confidence model behind every rate |
 | [Sources](../SOURCES.md) | Full source catalog, cadence, and freshness notes |
-| [Web UI](web-ui.md) | The embedded React dashboard |
+| [Web UI](web-ui.md) | The embedded, dependency-free HTML UI (converter + rates board) |
 
 ## Reference
 

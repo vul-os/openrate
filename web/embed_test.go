@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -40,6 +42,7 @@ func TestUIContainsCoreElements(t *testing.T) {
 		"or-theme",             // shared localStorage key with the marketing site
 		"prefers-color-scheme", // system theme fallback
 		"<svg",                 // inline brand mark, not a linked image
+		"/licenses.txt",        // link to the third-party notices the binary serves
 	}
 	for _, m := range must {
 		if !strings.Contains(s, m) {
@@ -103,6 +106,55 @@ func snippet(s string, i int) string {
 		end = len(s)
 	}
 	return s[i:end]
+}
+
+// A coverage floor for the notices file, mirroring minUISize: the real file
+// is ~20KB (Go stdlib licence + patent grant alone are several KB).
+const minLicensesSize = 5000
+
+func TestLicensesEmbedded(t *testing.T) {
+	if len(Licenses) < minLicensesSize {
+		t.Fatalf("embedded THIRD-PARTY-NOTICES.txt is %d bytes, want at least %d — looks empty or truncated", len(Licenses), minLicensesSize)
+	}
+	if !strings.Contains(string(Licenses), "THIRD-PARTY NOTICES") {
+		t.Error("embedded licenses file doesn't look like THIRD-PARTY-NOTICES.txt")
+	}
+}
+
+// TestLicensesInSyncWithRoot is the staleness guard go:embed itself cannot
+// provide: an embed pattern may not contain ".." (embed.go can't reach the
+// repo-root THIRD-PARTY-NOTICES.txt directly), so web/THIRD-PARTY-NOTICES.txt
+// is a committed copy. If scripts/gen-notices.sh regenerates the root file
+// and nobody re-copies it here, the binary would silently serve outdated
+// attribution — this test fails loudly instead.
+func TestLicensesInSyncWithRoot(t *testing.T) {
+	root, err := os.ReadFile(filepath.Join("..", "THIRD-PARTY-NOTICES.txt"))
+	if err != nil {
+		t.Fatalf("cannot read repo-root THIRD-PARTY-NOTICES.txt: %v", err)
+	}
+	if !bytes.Equal(root, Licenses) {
+		t.Fatalf("web/THIRD-PARTY-NOTICES.txt has drifted from the repo-root copy. "+
+			"Re-run scripts/gen-notices.sh, then `cp THIRD-PARTY-NOTICES.txt web/THIRD-PARTY-NOTICES.txt` "+
+			"(root is %d bytes, web copy is %d bytes)", len(root), len(Licenses))
+	}
+}
+
+func TestHandlerServesLicenses(t *testing.T) {
+	h := Handler()
+	req := httptest.NewRequest(http.MethodGet, "/licenses.txt", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /licenses.txt: status = %d, want 200", rec.Code)
+	}
+	ct := rec.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/plain") {
+		t.Fatalf("GET /licenses.txt: Content-Type = %q, want text/plain", ct)
+	}
+	if !bytes.Equal(rec.Body.Bytes(), Licenses) {
+		t.Fatal("GET /licenses.txt: body does not match the embedded notices byte-for-byte")
+	}
 }
 
 func TestHandlerServesUI(t *testing.T) {

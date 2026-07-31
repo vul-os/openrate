@@ -96,6 +96,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `site/docs.html` are rebuilt on the app's own theme and share
   `site/assets/site.css`; the docs viewer gains cross-document search, per-block
   copy buttons and the same theme switch, with the choice shared with the app.
+- **The embedded UI is now one hand-written HTML file, not a Vite/React app.**
+  `web/ui.html` (590 lines, inline `<style>` and `<script>`, vanilla JS, no
+  build step) replaces the compiled `web/dist` bundle. `web/embed.go` now
+  exposes `Handler()` (was `FS()`); `cmd/openrate/main.go` and root
+  `openrate.go` were updated to call it. The converter and the rates board —
+  including the "show the working" panel (graph path, hops, sources, spread)
+  and the live A–D grade badge — are reimplemented in plain HTML and carried
+  over intact; what a reader sees of the FX side is unchanged, only how it
+  ships. No webfonts ship with it any more — system font stacks only.
 
 ### Fixed
 
@@ -166,6 +175,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in `web/index.html` still advertised $9/$39/$149 tiers and an "openrate Cloud"
   with an SLA, months after commit `333882e` removed those claims from
   everywhere a human could see them. Search engines could still read them.
+- **The Node/Vite toolchain and every npm-derived byte in `web/`.** Deleted
+  `web/dist/`, `web/src/`, `web/e2e/`, `web/public/`, `web/scripts/`,
+  `web/tools/`, `web/index.html`, `web/test-results/`, `package.json`,
+  `package-lock.json`, `vite.config.js` and `playwright.config.js`. `web/` now
+  ships zero npm-derived code, with no build step, no npm, and no
+  `node_modules` anywhere in the build path. `scripts/gen-notices.sh` no
+  longer shells out to `npm ci`/`license-checker` against `web/`; the
+  Geist-font and vendored-JS attribution it still owes now reads directly off
+  the files `site/` vendors under `site/assets/fonts/` and
+  `site/assets/vendor/`, which were the ones actually requiring it all along.
+- **The interest-rate ("Policy rates") UI**, added above earlier in this same
+  Unreleased cycle, is gone along with the in-binary docs viewer, the accuracy
+  explainer page, the marketing footer, the Vulos mark and the guilloché
+  decoration in the app. `/api/v1/interest/*` is untouched and still serves
+  data — it just has no page rendering it right now.
 
 ### Testing / CI
 
@@ -192,6 +216,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently grade as `unknown`.
 - CI now runs `gofmt`, `go test -race`, and verifies the committed `web/dist`
   matches a fresh build (it is embedded in the binary, so a stale bundle ships).
+- **`web-e2e` (Node/Playwright/`vite build`/dist-staleness) is gone from CI**,
+  replaced by a `go test ./web -v` step. `web/embed_test.go` asserts the
+  embedded UI is present, non-trivial, exposes the converter/board markup and
+  the `/api/v1/*` calls they issue, and references no external origin — the
+  same boot-guard properties the Playwright suite checked, now against the
+  embedded bytes directly and with nothing to install.
 
 ## [0.2.0] - 2026-07-17
 

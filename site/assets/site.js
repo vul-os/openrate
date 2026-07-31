@@ -44,6 +44,12 @@
   // already painted its broken-image glyph and the raw alt text before the
   // error handler could catch up. Starting hidden means the placeholder
   // behind it is the only thing ever on screen until a real file loads.
+  //
+  // The cost of that trick: `hidden` is display:none, and a display:none
+  // element has no layout box, so native lazy-loading can never decide it is
+  // near the viewport. A themeshot marked loading="lazy" therefore never
+  // fetches at all — its slot sits on the placeholder forever and the server
+  // log shows zero requests for it. Every themeshot must stay loading="eager".
   shots.forEach(function (im) {
     im.addEventListener("error", function () { im.hidden = true; });
     im.addEventListener("load", function () { im.hidden = false; });
@@ -124,6 +130,39 @@
       }, { threshold: 0.08, rootMargin: "0px 0px -6% 0px" });
       rv.forEach(function (el) { io.observe(el); });
     }
+  }
+
+  /* ── count-up numbers ─────────────────────────────────────────────────────
+     Every .count element's own text content IS the target value AND the
+     no-JS / reduced-motion fallback: nothing here changes what the number
+     eventually settles on, only how it gets there. Reading the target back
+     out of the DOM instead of a data-attribute means the two can never
+     drift apart — there is only one number to keep correct. */
+  var counts = document.querySelectorAll(".count");
+  if (counts.length && "IntersectionObserver" in window &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    var animateCount = function (el) {
+      var target = el.textContent.trim();
+      var value = parseFloat(target);
+      if (!isFinite(value)) return;
+      var decimals = (target.split(".")[1] || "").length;
+      var start = null, dur = 850;
+      function tick(now) {
+        if (start === null) start = now;
+        var p = Math.min(1, (now - start) / dur);
+        var eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = (value * eased).toFixed(decimals);
+        if (p < 1) requestAnimationFrame(tick);
+        else el.textContent = target; // exact original string, no float drift
+      }
+      requestAnimationFrame(tick);
+    };
+    var countIo = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { animateCount(e.target); countIo.unobserve(e.target); }
+      });
+    }, { threshold: 0.4 });
+    counts.forEach(function (el) { countIo.observe(el); });
   }
 
   /* ── syntax highlighting ─────────────────────────────────────────────────

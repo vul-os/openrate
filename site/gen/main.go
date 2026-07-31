@@ -93,8 +93,14 @@ var notShipped = map[string]string{
 // siteAlias maps a repo-relative asset path onto the name the site bundle ships
 // it under, so a canonical doc can reference the repo copy and still resolve on
 // the site. site/assets/openrate-mark.svg is byte-identical to assets/openrate.svg.
+// Both entries are byte-identical copies of the same mark under different
+// names; brand/logo.svg is the canonical source the README points at, and
+// without this alias it falls through to the rawURL rule below and the docs
+// page fetches the project's own logo from raw.githubusercontent — an
+// off-origin request, on a site whose whole premise is that it makes none.
 var siteAlias = map[string]string{
 	"assets/openrate.svg": "assets/openrate-mark.svg",
+	"brand/logo.svg":      "assets/openrate-mark.svg",
 }
 
 // mdLinkRE matches a markdown link or image: optional "!", [label], (target).

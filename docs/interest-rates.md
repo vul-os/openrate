@@ -33,7 +33,7 @@ Configured with `-interest-sources` (or `OPENRATE_INTEREST_SOURCES`). Default
 
 | Source | Key | Coverage |
 |---|---|---|
-| `bis` | — | 49 central banks' policy rates + daily history, one CSV call (BIS `WS_CBPOL`) |
+| `bis` | — | 48 central banks' policy rates + daily history, one CSV call (BIS `WS_CBPOL`) |
 | `sarbrates` | — | South African ZARONIA overnight + 1W–12M compounded + index, deep history |
 | `fred` | `OPENRATE_FRED_API_KEY` | US SOFR, EFFR, OBFR, bank prime, 2Y/10Y Treasury |
 

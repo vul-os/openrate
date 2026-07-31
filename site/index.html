@@ -4,14 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>openrate — exchange rates with their receipts</title>
-<meta name="description" content="Open-source, ZAR-anchored exchange-rate engine. Rates from central banks and live public venues — never a resold paid API — with the graph path, the source spread and an A–D accuracy grade on every price. One Go binary, self-hosted, free.">
-  <meta name="color-scheme" content="dark light">
+<meta name="description" content="Open-source, ZAR-anchored exchange-rate engine. Rates from central-bank reference files and free public venues — never a resold paid API — with the graph path, every source quoting the pair, how far apart they are, and an A–D accuracy grade on every price. One Go binary, zero dependencies, self-hosted, free.">
+<meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#06090E">
 <link rel="icon" href="./assets/openrate-mark.svg">
 <link rel="canonical" href="https://vulos.org/projects/openrate/">
 <link rel="preload" as="font" type="font/woff2" href="./assets/fonts/geist-sans-latin-500-normal.woff2" crossorigin>
-<link rel="preload" as="font" type="font/woff2" href="./assets/fonts/geist-sans-latin-400-normal.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="./assets/fonts/geist-mono-latin-600-normal.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="./assets/fonts/fraunces-variable-latin-standard-normal.woff2" crossorigin>
 <link rel="stylesheet" href="./assets/site.css">
+<link rel="stylesheet" href="./assets/landing.css">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="openrate">
@@ -19,6 +21,10 @@
 <meta property="og:description" content="Every rate carries the path it took through the currency graph, the sources behind it, how far apart they are, and a grade for the lot. Open-source, self-hosted, ZAR-anchored.">
 <meta property="og:url" content="https://vulos.org/projects/openrate/">
 <meta property="og:image" content="https://vulos.org/projects/openrate/assets/og-card.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="openrate — every rate, with its receipts: a currency graph from GBP/EUR/JPY through USD to ZAR, each edge labelled with its source, and the gauges 43 currencies, 4 open sources, 1 binary, self-hosted.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="openrate — exchange rates with their receipts">
 <meta name="twitter:description" content="Open, ZAR-anchored exchange rates with an A–D accuracy grade and the full working on every price.">
@@ -27,7 +33,7 @@
 <script>
 /* Apply the stored theme before first paint so the page never flashes ink at a
    reader who chose paper. Shares the "or-theme" key with the app. The "js"
-   class is what gates the scroll-reveal animation (see .rv in site.css) — it
+   class is what gates the scroll-reveal animation (see .rv in landing.css) — it
    is added here, before paint, specifically so a reader with JavaScript
    disabled never gets it and the page falls back to its default (fully
    visible, unanimated) state rather than content stuck at opacity: 0. */
@@ -50,7 +56,7 @@ document.documentElement.classList.add("js");
       "description": "Open, ZAR-anchored exchange-rate engine and API. Rates from central-bank reference files and free public venues, modelled as a currency graph, with the path, source quotes, cross-source dispersion and an A–D accuracy grade returned on every price. Also serves central-bank policy rates for 48 areas.",
       "url": "https://vulos.org/projects/openrate/",
       "isAccessibleForFree": true,
-      "license": "https://spdx.org/licenses/MIT.html",
+      "license": ["https://spdx.org/licenses/MIT.html", "https://spdx.org/licenses/Apache-2.0.html"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "Vulos", "url": "https://vulos.org" }
     },
@@ -58,9 +64,9 @@ document.documentElement.classList.add("js");
       "@type": "FAQPage",
       "mainEntity": [
         { "@type": "Question", "name": "Where do openrate's exchange rates come from?",
-          "acceptedAnswer": { "@type": "Answer", "text": "From open sources — central-bank reference files (ECB, SARB, Bank of Canada) and free public venues (Coinbase, Luno) — never resold from a paid API. Optional paid feeds can be added with your own keys." } },
+          "acceptedAnswer": { "@type": "Answer", "text": "From open sources — central-bank reference files (ECB, SARB, Bank of Canada) and free public venues (Coinbase, Luno) — never resold from a paid API. Four are enabled by default and need no key; optional paid feeds can be added with your own keys." } },
         { "@type": "Question", "name": "What does the accuracy grade mean?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Every rate carries a grade A–D and a confidence score derived by multiplying five factors: freshness, directness (hop count), source authority, cross-source agreement, and currency caveats. Each factor is returned alongside the grade, so the score is reproducible rather than asserted." } },
+          "acceptedAnswer": { "@type": "Answer", "text": "Every rate carries a grade A–D and a 0-1 confidence derived by multiplying five factors: freshness, directness (hop count), source authority, cross-source agreement, and currency caveats. Each factor is returned alongside the grade, so the score is reproducible rather than asserted." } },
         { "@type": "Question", "name": "Is openrate free?",
           "acceptedAnswer": { "@type": "Answer", "text": "Yes. openrate is dual-licensed MIT OR Apache-2.0 and self-hostable at no cost. There is no hosted plan, no account and no API key — you run the binary yourself." } },
         { "@type": "Question", "name": "Why a currency graph instead of a base currency?",
@@ -87,438 +93,628 @@ document.documentElement.classList.add("js");
   <nav>
     <a href="#product">Product</a>
     <a href="#graph">The graph</a>
+    <a href="#spread">Disagreement</a>
     <a href="#grades">Grades</a>
-    <a href="#policy">Policy rates</a>
     <a href="#run">Run it</a>
     <a href="#api">API</a>
     <a href="./docs.html">Docs</a>
   </nav>
+  <a class="icon-btn" href="https://vulos.org" target="_blank" rel="noopener" aria-label="Vulos">
+    <img src="./assets/vulos-logo.png" alt="" width="18" height="18">
+  </a>
   <a class="icon-btn bare" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener" aria-label="GitHub">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.41 7.86 10.94.58.1.79-.25.79-.56v-2.02c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.19a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.19 3.17-1.19.63 1.59.23 2.76.12 3.05.74.81 1.18 1.85 1.18 3.11 0 4.44-2.7 5.42-5.28 5.7.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.74 18.27.5 12 .5z"/></svg>
   </a>
   <button class="icon-btn" data-theme-toggle type="button" aria-label="Toggle theme"></button>
 </header>
 
-<!-- ══ hero ══════════════════════════════════════════════════════════════ -->
+<!-- ══ hero ══════════════════════════════════════════════════════════════
+     The claim on the left; the claim's evidence on the right. The docket is
+     not a mockup — every figure printed on it is read off
+     assets/app/converter-dark.webp, the capture of the running binary that
+     appears further down this same page, so the two can be checked against
+     each other. ═══════════════════════════════════════════════════════════ -->
 <section class="hero">
   <div class="guilloche"></div>
   <div class="wrap">
-    <div class="hero-in">
-      <span class="eyebrow"><span class="lbl">Open exchange-rate engine</span></span>
-      <h1>Every rate,<br><em>with its receipts</em>.</h1>
-      <p class="lede">
-        Most rate APIs hand you a number and ask you to trust it. openrate hands you the
-        walk it took through the currency graph, the individual source quotes behind every
-        hop, how far apart those sources are, and a grade for the lot — built from
-        central-bank files and free public venues, never a resold paid API.
-      </p>
-      <div class="cta">
-        <a class="btn btn-solid" href="#run">
-          Run it in one command
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </a>
-        <a class="btn btn-ghost" href="./docs.html">Read the docs</a>
-        <a class="btn btn-ghost" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener">Source</a>
-      </div>
-
-      <div class="gauges">
-        <div class="gauge"><b class="num">43</b><span class="lbl">currencies</span></div>
-        <div class="gauge live"><b class="num">4</b><span class="lbl">open sources</span></div>
-        <div class="gauge"><b class="num">48</b><span class="lbl">policy areas</span></div>
-        <div class="gauge"><b class="num">1</b><span class="lbl">binary, no database</span></div>
-      </div>
-    </div>
-
-    <figure class="hero-shot rv">
-      <div class="plate illo illo-grid">
-        <div class="graph-illo-wrap" role="img" aria-label="A currency graph: EUR, GBP and JPY reachable from ECB's own quotes; ZAR and AED reachable through USD via SARB and a bring-your-own-key source, with the ZAR to USD to AED walk highlighted as the shortest path.">
-          <svg class="graph-illo" viewBox="0 0 760 500" aria-hidden="true">
-            <defs>
-              <linearGradient id="heroPathGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stop-color="var(--blue)"/>
-                <stop offset="1" stop-color="var(--teal)"/>
-              </linearGradient>
-              <marker id="heroArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
-                <path class="arrowhead" d="M0,0 L10,5 L0,10 Z"/>
-              </marker>
-            </defs>
-            <line class="edge" x1="210" y1="120" x2="80" y2="190"/>
-            <line class="edge" x1="210" y1="120" x2="330" y2="70"/>
-            <line class="edge" x1="210" y1="120" x2="350" y2="300"/>
-            <path class="trace" d="M140,430 L350,300 L600,380" marker-end="url(#heroArrow)"/>
-            <g class="node"><circle cx="210" cy="120" r="29"/></g>
-            <g class="node"><circle cx="80" cy="190" r="29"/></g>
-            <g class="node"><circle cx="330" cy="70" r="29"/></g>
-            <g class="node accent"><circle cx="350" cy="300" r="29"/></g>
-            <g class="node accent"><circle cx="140" cy="430" r="29"/></g>
-            <g class="node accent"><circle cx="600" cy="380" r="29"/></g>
-          </svg>
-          <!-- Text is real HTML, not SVG <text> — a viewBox that shrinks on a
-               phone shrinks in-SVG text with it (down to ~6px), but an HTML
-               overlay positioned by percentage stays a fixed, legible size at
-               any illustration scale. -->
-          <span class="node-lbl" style="left:27.63%;top:24%">EUR</span>
-          <span class="node-lbl" style="left:10.53%;top:38%">GBP</span>
-          <span class="node-lbl" style="left:43.42%;top:14%">JPY</span>
-          <span class="node-lbl accent" style="left:46.05%;top:60%">USD</span>
-          <span class="node-lbl accent" style="left:18.42%;top:86%">ZAR</span>
-          <span class="node-lbl accent" style="left:78.95%;top:76%">AED</span>
-          <span class="edge-lbl" style="left:19.08%;top:31%">ECB</span>
-          <span class="edge-lbl" style="left:35.53%;top:19%">ECB</span>
-          <span class="edge-lbl" style="left:36.84%;top:42%">ECB</span>
-          <span class="edge-lbl accent" style="left:32.24%;top:73%">SARB</span>
-          <span class="edge-lbl accent" style="left:62.5%;top:68%">OXR</span>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="lbl">Open exchange-rate engine</span></span>
+        <h1>Every rate,<br><em>with its receipts</em>.</h1>
+        <p class="lede">
+          Most rate APIs hand you a number and ask you to trust it. openrate hands you the
+          walk it took through the currency graph, every source quoting the pair, how far
+          apart those sources are, and a grade for the lot — built from central-bank files
+          and free public venues, never a resold paid API.
+        </p>
+        <div class="cta">
+          <a class="btn btn-solid" href="#run">
+            Run it in one command
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="./docs.html">Read the docs</a>
+          <a class="btn btn-ghost" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener">Source</a>
         </div>
       </div>
-      <figcaption class="shot-cap"><span class="lbl">Each source keeps its own base — ECB in EUR, SARB in ZAR — as edges in one graph. ZAR → USD → AED, two hops, highlighted.</span></figcaption>
-    </figure>
-  </div>
-</section>
 
-<!-- ══ product ═══════════════════════════════════════════════════════════
-     The one moment on this page that isn't a diagram: a real capture of
-     web/ui.html, theme-swapped by site.js (see the note in site.css). The
-     captures don't exist yet, so this ships as a clearly-marked "capture
-     pending" placeholder — see the design report for the manifest a later
-     pass fills in. ═══════════════════════════════════════════════════════ -->
-<section class="sect ruled" id="product">
-  <div class="wrap">
-    <div class="head rv">
-      <span class="eyebrow"><span class="lbl">The product</span></span>
-      <h2>Not a mockup. <em>The running app</em>.</h2>
-      <p class="lede">
-        Convert an amount and the grade comes with it. Expand the working and the graph
-        path, every source quoting the pair, and the spread between them are right there —
-        the same numbers the API returns, read off the screen instead.
-      </p>
-    </div>
-    <figure class="rv">
-      <div class="plate shot">
-        <div class="shot-bar">
-          <span class="dots"><i></i><i></i><i></i></span>
-          <span class="path">openrate — Convert</span>
-        </div>
-        <div class="shot-box" style="--ar:1280/960">
-          <div class="shot-placeholder">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10.5" r="1.4"/><path d="M21 15.5l-5.2-5.2a1.5 1.5 0 0 0-2.1 0L4 19"/></svg>
-            <span class="tag">Capture pending</span>
-            <span class="file">assets/app/converter-{theme}.webp</span>
+      <figure class="rv">
+        <div class="docket">
+          <div class="docket-head">
+            <span class="who">Quote docket</span>
+            <span class="req">GET /api/v1/convert</span>
           </div>
-          <img class="themeshot" data-shot="converter" width="1280" height="960" loading="eager" decoding="async" hidden alt="The openrate converter: 100 USD converted to ZAR, a B grade seal, the six quality facets, and the working expanded beneath it — the graph path plus a table of every source quoting the pair.">
-          <noscript><img src="./assets/app/converter-dark.webp" width="1280" height="960" alt="The openrate converter: 100 USD converted to ZAR, a B grade seal, the six quality facets, and the working expanded beneath it — the graph path plus a table of every source quoting the pair."></noscript>
+          <hr>
+          <dl>
+            <dt>Amount</dt><dd>100.00 USD</dd>
+            <dt>Receives</dt><dd>1 650.38 ZAR</dd>
+          </dl>
+          <hr>
+          <dl>
+            <dt>Rate</dt><dd>16.503832</dd>
+            <dt>Path</dt><dd>USD → ZAR</dd>
+            <dt>Hops</dt><dd>1 · direct</dd>
+          </dl>
+          <hr>
+          <dl>
+            <dt>coinbase</dt><dd class="q">16.503832 · 8m</dd>
+            <dt>sarb</dt><dd class="q">16.6428 · 25h</dd>
+            <dt>Spread</dt><dd class="hot">84.2 bps</dd>
+            <dt>Agree</dt><dd class="hot">false</dd>
+          </dl>
+          <hr>
+          <div class="stamp">
+            <span class="conf"><span class="lbl">Confidence</span><b>0.80</b></span>
+            <span class="seal lg B" role="img" aria-label="Grade B">B</span>
+          </div>
+          <p class="docket-foot">
+            Not a mockup — every figure above is read off the capture of the running
+            binary in <a href="#product" style="color:var(--teal)">§01</a>, and reappears
+            unchanged in <a href="#spread" style="color:var(--teal)">§03</a> and the API
+            response in <a href="#api" style="color:var(--teal)">§08</a>.
+          </p>
         </div>
-      </div>
-      <figcaption class="shot-cap"><span class="lbl">A real capture of the running app, not a redraw — the same USD → ZAR quote used in the API example further down</span></figcaption>
-    </figure>
+      </figure>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b class="num count">43</b><span class="lbl">currency codes<br>39 fiat · 4 crypto</span></div>
+      <div class="stat on"><b class="num count">4</b><span class="lbl">sources on by default<br>no key, no account</span></div>
+      <div class="stat"><b class="num count">0</b><span class="lbl">third-party Go<br>dependencies</span></div>
+      <div class="stat"><b class="num count">1</b><span class="lbl">binary<br>no database</span></div>
+    </div>
   </div>
 </section>
 
-<!-- ══ the graph ═════════════════════════════════════════════════════════ -->
+<!-- ══ the open feeds ════════════════════════════════════════════════════ -->
+<div class="band">
+  <div class="band-in">
+    <div class="band-grid">
+      <div class="band-cell">
+        <span class="nm">ecb</span>
+        <span class="base">base EUR</span>
+        <p>The European Central Bank's daily reference file. Official class — the strongest authority weight the grader gives.</p>
+      </div>
+      <div class="band-cell">
+        <span class="nm">sarb</span>
+        <span class="base">quotes ZAR</span>
+        <p>The South African Reserve Bank's own USD, GBP, EUR and JPY fixes against the rand. Official class, daily cadence.</p>
+      </div>
+      <div class="band-cell">
+        <span class="nm">coinbase</span>
+        <span class="base">base USD</span>
+        <p>A live public venue, refreshed on the minute. Exchange class — real-time, but weighted below a central bank.</p>
+      </div>
+      <div class="band-cell">
+        <span class="nm">luno</span>
+        <span class="base">quotes ZAR</span>
+        <p>Crypto legs quoted straight into rand, which is how BTC and ETH reach the graph without a USD detour.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 01 · the running app ══════════════════════════════════════════════ -->
+<section class="sect" id="product">
+  <div class="wrap rail">
+    <div class="sx">01</div>
+    <div class="rmain">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="lbl">The product</span></span>
+        <h2>Not a mockup. <em>The running app</em>.</h2>
+        <p class="lede">
+          Convert an amount and the grade comes with it. Expand the working and the graph
+          path, every source quoting the pair, and the spread between them are right there —
+          the same numbers the API returns, read off the screen instead.
+        </p>
+      </div>
+      <figure class="rv">
+        <div class="shotframe">
+          <div class="shotbar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="u">localhost:8080 — openrate · Convert</span>
+          </div>
+          <div class="shotbox" style="--ar:880/960">
+            <span class="fallback">Capture unavailable</span>
+            <!-- loading="eager", NOT lazy: see the note beside the `hidden` handlers in
+                 site.js. These images ship `hidden`, and a display:none element never gets
+                 a layout box, so native lazy-loading never decides it is near the viewport
+                 and never issues the fetch at all — the slot stayed on its fallback
+                 forever, with zero requests in the server log even after scrolling it into
+                 view. Two screenshots do not need lazy-loading; correctness does. -->
+            <img class="themeshot" data-shot="converter" width="1280" height="960" loading="eager" decoding="async" hidden alt="The openrate converter: 100 USD converted to 1,650.38 ZAR at 16.503832 from coinbase, a B grade seal and 80% confidence, with the working expanded beneath it — the direct USD to ZAR path, a table showing coinbase at 16.503832 aged 8 minutes and sarb at 16.6428 aged 25 hours, and an agreement line reading mean 16.573316, std dev 59.3 bps, spread 84.2 bps.">
+            <noscript><img src="./assets/app/converter-dark.webp" width="1280" height="960" alt="The openrate converter: 100 USD converted to 1,650.38 ZAR at 16.503832 from coinbase, a B grade seal and 80% confidence, with the working expanded beneath it — the direct USD to ZAR path and a table of every source quoting the pair."></noscript>
+          </div>
+        </div>
+        <figcaption class="figcap">A real capture of the running binary against live ECB, SARB, Coinbase and Luno data — the quote every figure on this page is drawn from</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 02 · the graph ════════════════════════════════════════════════════ -->
 <section class="sect ruled" id="graph">
-  <div class="wrap">
-    <div class="head rv">
-      <span class="eyebrow"><span class="lbl">The model</span></span>
-      <h2>A graph, <em>not a base</em>.</h2>
-      <p class="lede">
-        Most rate APIs pick one base currency and derive everything through it, so every
-        number inherits that one feed's problems. openrate keeps each source's quotes in
-        its <b>native base</b> — ECB in EUR, SARB in ZAR, Coinbase in USD — as edges in a
-        currency graph. Any pair is the product of the rates along the shortest path.
-      </p>
-    </div>
-
-    <div class="split rv">
-      <div class="copy">
-        <h3>You can see the walk</h3>
-        <p>
-          Open any rate and the path is drawn: each node a currency, each hop labelled with
-          its own rate, the source that quoted it, and how old that quote is. If a number is
-          a cross-rate, you can see exactly which two numbers it was multiplied from.
-        </p>
-        <ul class="ticks">
-          <li><b>Direct quotes win.</b> Breadth-first search reaches a pair by the fewest hops first, so a quoted pair always beats a triangulated one.</li>
-          <li><b>Freshest breaks ties.</b> Among equal-length paths, the most recent edge is used.</li>
-          <li><b>Any base is free.</b> ZAR is the default view, not a privileged position — pass <code>?base=</code> for any other.</li>
-          <li><b>No single point of contamination.</b> A bad edge only affects paths that cross it, not every pair in the set.</li>
-        </ul>
-      </div>
-      <figure>
-        <div class="plate flat illo">
-          <div class="walk" role="img" aria-label="Two-hop walk from ZAR to AED: ZAR to USD at 0.0543 from SARB, three minutes old; USD to AED at 3.6725 from OXR, forty-eight seconds old.">
-            <div class="walk-node"><span class="cur">ZAR</span></div>
-            <div class="walk-leg">
-              <div class="leg-line" aria-hidden="true"></div>
-              <div class="leg-meta"><b class="num">0.0543</b><span class="src">SARB</span><span>3m ago</span></div>
-            </div>
-            <div class="walk-node"><span class="cur">USD</span></div>
-            <div class="walk-leg">
-              <div class="leg-line" aria-hidden="true"></div>
-              <div class="leg-meta"><b class="num">3.6725</b><span class="src">OXR</span><span>48s ago</span></div>
-            </div>
-            <div class="walk-node"><span class="cur">AED</span></div>
-          </div>
-          <div class="walk-sum">
-            <span class="num">0.0543</span><span class="op">×</span><span class="num">3.6725</span><span class="op">=</span><span class="num result">0.1995</span>
-            <span class="lbl cap">ZAR → AED, no direct quote exists</span>
-          </div>
-        </div>
-        <figcaption class="shot-cap"><span class="lbl">ZAR → USD → AED, two hops, drawn — each leg multiplied, not averaged</span></figcaption>
-      </figure>
-    </div>
-
-    <div class="split flip rv">
-      <div class="copy">
-        <h3>And you can see the disagreement</h3>
-        <p>
-          Where more than one source quotes a pair directly, openrate plots them on a scale
-          zoomed to the quotes themselves, marks the mean, and reports the standard deviation
-          and spread in basis points. Sources disagreeing by half a percent is normal across
-          a market close — a daily central-bank fix against a live exchange tick — and the
-          point is that you can see it rather than average it away silently.
+  <div class="wrap rail">
+    <div class="sx">02</div>
+    <div class="rmain">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="lbl">The model</span></span>
+        <h2>A graph, <em>not a base</em>.</h2>
+        <p class="lede">
+          Most rate APIs pick one base currency and derive everything through it, so every
+          number inherits that one feed's problems. openrate keeps each source's quotes in
+          its <b>native base</b> — ECB in EUR, SARB in ZAR, Coinbase in USD — as edges in a
+          currency graph. Any pair is the product of the rates along the shortest path.
         </p>
       </div>
-      <figure>
-        <div class="plate flat illo">
-          <div class="disp-illo-wrap" role="img" aria-label="USD to ZAR quotes plotted on a scale from 16.60 to 16.85: coinbase at 16.6877, sarb at 16.7770, mean at 16.7323, spread 53.54 basis points.">
-          <svg class="disp-illo" viewBox="0 0 640 220" aria-hidden="true">
-            <line class="mean-line" x1="336" y1="30" x2="336" y2="140"/>
-            <line class="axis" x1="30" y1="130" x2="610" y2="130"/>
-            <line class="tick" x1="40" y1="125" x2="40" y2="136"/>
-            <line class="tick" x1="152" y1="125" x2="152" y2="136"/>
-            <line class="tick" x1="264" y1="125" x2="264" y2="136"/>
-            <line class="tick" x1="376" y1="125" x2="376" y2="136"/>
-            <line class="tick" x1="488" y1="125" x2="488" y2="136"/>
-            <line class="tick" x1="600" y1="125" x2="600" y2="136"/>
 
-            <line class="bracket" x1="236" y1="10" x2="437" y2="10"/>
-            <line class="bracket" x1="236" y1="6" x2="236" y2="14"/>
-            <line class="bracket" x1="437" y1="6" x2="437" y2="14"/>
-
-            <line class="stem" x1="236" y1="130" x2="236" y2="76"/>
-            <g class="pin a"><circle cx="236" cy="70" r="5"/></g>
-
-            <line class="stem" x1="437" y1="130" x2="437" y2="76"/>
-            <g class="pin b"><circle cx="437" cy="70" r="5"/></g>
-          </svg>
-          <!-- HTML overlay, not SVG <text> — see the graph illustration above
-               for why: a shrinking viewBox shrinks in-SVG text past legible. -->
-          <span class="tick-lbl" style="left:6.25%;top:68%">16.60</span>
-          <span class="tick-lbl" style="left:23.75%;top:68%">16.65</span>
-          <span class="tick-lbl" style="left:41.25%;top:68%">16.70</span>
-          <span class="tick-lbl" style="left:58.75%;top:68%">16.75</span>
-          <span class="tick-lbl" style="left:76.25%;top:68%">16.80</span>
-          <span class="tick-lbl" style="left:93.75%;top:68%">16.85</span>
-          <span class="bracket-lbl" style="left:52.5%;top:2.7%">53.54 bps</span>
-          <span class="pin-src" style="left:36.875%;top:16%">coinbase</span>
-          <span class="pin-lbl" style="left:36.875%;top:24.5%">16.6877</span>
-          <span class="pin-src" style="left:68.28%;top:16%">sarb</span>
-          <span class="pin-lbl" style="left:68.28%;top:24.5%">16.7770</span>
-          <span class="mean-lbl" style="left:52.5%;top:82%">mean 16.7323</span>
-          </div>
+      <div class="split rv">
+        <div class="copy">
+          <h3>You can see the walk</h3>
+          <p>
+            Open any rate and the path is drawn: each node a currency, each hop labelled with
+            its own rate, the source that quoted it, and how old that quote is. If a number is
+            a cross-rate, you can see exactly which two numbers it was multiplied from.
+          </p>
+          <ul class="ticks">
+            <li><b>Direct quotes win.</b> Breadth-first search reaches a pair by the fewest hops first, so a quoted pair always beats a triangulated one.</li>
+            <li><b>Freshest breaks ties.</b> Each node's edges are sorted newest-first, so among equal-length paths the most recent edge is taken.</li>
+            <li><b>Age is the oldest edge.</b> A path is only as fresh as its stalest leg, and that is the age reported.</li>
+            <li><b>Any base is free.</b> ZAR is the default view, not a privileged position — pass <code>?base=</code> for any other.</li>
+            <li><b>No single point of contamination.</b> A bad edge only affects paths that cross it, not every pair in the set.</li>
+          </ul>
         </div>
-        <figcaption class="shot-cap"><span class="lbl">Two sources, 53 bps apart — shown, not smoothed over</span></figcaption>
-      </figure>
+        <figure>
+          <div class="plate pad">
+            <div class="graph-illo" role="img" aria-label="A currency graph. ECB, quoting in euro, links GBP, JPY, USD and ZAR. SARB also quotes EUR against ZAR, so that edge carries two independent sources. Coinbase, quoting in dollars, links ZAR and AED, and Luno quotes bitcoin straight into rand. The walk from ZAR through USD to AED is highlighted as the shortest path.">
+              <svg viewBox="0 0 720 470" aria-hidden="true">
+                <line class="edge" x1="235" y1="70" x2="95" y2="105"/>
+                <line class="edge" x1="235" y1="70" x2="395" y2="60"/>
+                <line class="edge" x1="235" y1="70" x2="335" y2="245"/>
+                <!-- EUR–ZAR and USD–ZAR are drawn as two parallel hairlines: both
+                     edges are quoted by two independent sources, and that doubling
+                     is exactly what §03 measures. -->
+                <line class="edge" x1="237.4" y1="70.7" x2="152.4" y2="375.7"/>
+                <line class="edge" x1="232.6" y1="69.3" x2="147.6" y2="374.3"/>
+                <line class="edge" x1="336.4" y1="247.1" x2="151.4" y2="377.1"/>
+                <line class="edge" x1="333.6" y1="243.0" x2="148.6" y2="373.0"/>
+                <line class="edge" x1="335" y1="245" x2="605" y2="340"/>
+                <line class="edge" x1="150" y1="375" x2="450" y2="425"/>
+                <path class="trace" d="M150,375 L335,245 L605,340"/>
+                <g class="node"><circle cx="95" cy="105" r="26"/></g>
+                <g class="node"><circle cx="235" cy="70" r="26"/></g>
+                <g class="node"><circle cx="395" cy="60" r="26"/></g>
+                <g class="node on"><circle cx="335" cy="245" r="26"/></g>
+                <g class="node on"><circle cx="150" cy="375" r="26"/></g>
+                <g class="node on"><circle cx="605" cy="340" r="26"/></g>
+                <g class="node"><circle cx="450" cy="425" r="26"/></g>
+              </svg>
+              <!-- Labels are real HTML, not SVG <text> — a viewBox that shrinks on a
+                   phone shrinks in-SVG text with it, down to ~6px, but an HTML overlay
+                   positioned by percentage stays a fixed, legible size at any scale. -->
+              <span class="nl" style="left:13.2%;top:22.3%">GBP</span>
+              <span class="nl" style="left:32.6%;top:14.9%">EUR</span>
+              <span class="nl" style="left:54.9%;top:12.8%">JPY</span>
+              <span class="nl on" style="left:46.5%;top:52.1%">USD</span>
+              <span class="nl on" style="left:20.8%;top:79.8%">ZAR</span>
+              <span class="nl on" style="left:84.0%;top:72.3%">AED</span>
+              <span class="nl" style="left:62.5%;top:90.4%">BTC</span>
+              <span class="el" style="left:22.9%;top:16.0%">ecb</span>
+              <span class="el" style="left:43.8%;top:9.5%">ecb</span>
+              <span class="el" style="left:41.5%;top:33.5%">ecb</span>
+              <span class="el" style="left:22.5%;top:47.3%">ecb · sarb</span>
+              <span class="el on" style="left:29.0%;top:68.5%">coinbase · sarb</span>
+              <span class="el on" style="left:66.5%;top:58.5%">coinbase</span>
+              <span class="el" style="left:44.0%;top:88.0%">luno</span>
+            </div>
+          </div>
+          <figcaption class="figcap">Each source keeps its own base. Two edges here carry two independent sources apiece — that doubling is what §03 measures</figcaption>
+        </figure>
+      </div>
+
+      <div class="split flip rv">
+        <div class="copy">
+          <h3>And a cross-rate is just a product</h3>
+          <p>
+            There is no ZAR → AED quote anywhere in the open feed set, so openrate walks
+            through the dollar and multiplies. Both legs come from Coinbase's USD-based
+            file, both are eight minutes old, and the result is the number the board reports
+            for AED — reproducible from the two legs printed beside it.
+          </p>
+          <p style="margin-top:14px">
+            Two hops also means <b>nothing to corroborate</b>: corroboration only ever looks
+            at quotes for the exact pair, and no source quotes ZAR → AED directly. It returns
+            a neutral <code>×1.00</code> and lets the hop count do the work — which is why no
+            live pair is ever both multi-hop and multi-source.
+          </p>
+        </div>
+        <figure>
+          <div class="plate pad">
+            <div class="walk" role="img" aria-label="A two-hop walk from ZAR to AED. ZAR to USD at 0.060592 from coinbase, eight minutes old; USD to AED at 3.67268 from coinbase, eight minutes old.">
+              <div class="walk-node">ZAR</div>
+              <div class="walk-leg">
+                <span class="m"><span class="r">0.060592</span><span class="s">coinbase</span><span class="s">8m old</span></span>
+                <span class="ln" aria-hidden="true"></span>
+              </div>
+              <div class="walk-node">USD</div>
+              <div class="walk-leg">
+                <span class="m"><span class="r">3.67268</span><span class="s">coinbase</span><span class="s">8m old</span></span>
+                <span class="ln" aria-hidden="true"></span>
+              </div>
+              <div class="walk-node end">AED</div>
+            </div>
+            <div class="walk-sum">
+              <span>0.060592</span><span class="op">×</span><span>3.67268</span><span class="op">=</span><span class="eq">0.222535</span>
+              <span class="walk-note">2 hops · exchange class · 8m old · corroboration ×1.00 · grade B — the ZAR → AED row on the board in §05</span>
+            </div>
+          </div>
+          <figcaption class="figcap">ZAR → USD → AED, drawn — each leg multiplied, not averaged. Both ends are read off the captures (0.060592 in §01, 0.222535 in §05); the middle leg is the number that joins them, and it does so exactly at six decimal places.</figcaption>
+        </figure>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ══ grades ════════════════════════════════════════════════════════════ -->
+<!-- ══ 03 · the disagreement ═════════════════════════════════════════════
+     The instrument panel. Four registers, one argument: two independent
+     sources disagree by 84 bps, openrate shows you that instead of averaging
+     it away, and that disagreement is precisely what costs this quote its A.
+     Every figure is read off assets/app/converter-dark.webp (the USD → ZAR
+     quote) and assets/app/board-dark.webp (the ZAR → EUR counterpoint), and
+     every factor is one internal/quality/quality.go can actually emit.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<section class="sect ruled" id="spread">
+  <div class="wrap rail">
+    <div class="sx">03</div>
+    <div class="rmain">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="lbl">Dispersion</span></span>
+        <h2>Two sources. <em>Eighty-four basis points apart</em>.</h2>
+        <p class="lede">
+          A central bank's daily fix and a live venue's tick will not agree, and the gap
+          between them is real information about how much the number can be leaned on.
+          openrate plots both on a scale zoomed to the quotes themselves, marks the mean it
+          did <b>not</b> silently return, and grades the pair on the distance.
+        </p>
+      </div>
+
+      <div class="instr bleed rv">
+        <div class="instr-top">
+          <div>
+            <span class="pair">USD → ZAR</span>
+            <span class="sub">2 direct quotes · 1 hop, direct</span>
+          </div>
+          <div class="instr-measure">
+            <b>84.2</b>
+            <span class="lbl">basis points apart</span>
+          </div>
+        </div>
+
+        <div class="scale">
+          <div class="scale-plot" role="img" aria-label="Both quotes plotted on a scale from 16.45 to 16.70 rand per dollar. Coinbase sits at 16.503832, eight minutes old; sarb sits at 16.6428, twenty-five hours old; the mean of 16.573316 falls between them, and the shaded gap between the two quotes measures 84.2 basis points.">
+            <div class="gap-bar" style="--a:21.53%;--b:77.12%"></div>
+            <div class="gap-rule" style="--a:21.53%;--b:77.12%"><span class="cap l"></span><span class="cap r"></span><span class="gap-tag">84.2 bps of daylight</span></div>
+
+            <div class="quote lo" style="--x:21.53%">
+              <span class="card">
+                <span class="src">coinbase</span>
+                <span class="val">16.503832</span>
+                <span class="age">live venue · 8m old</span>
+              </span>
+              <span class="stem"></span><span class="dot"></span>
+            </div>
+
+            <div class="quote hi" style="--x:77.12%">
+              <span class="card">
+                <span class="src">sarb</span>
+                <span class="val">16.6428</span>
+                <span class="age">daily fix · 25h old</span>
+              </span>
+              <span class="stem"></span><span class="dot"></span>
+            </div>
+
+            <div class="meanline" style="--x:49.33%"><span class="tip"></span></div>
+            <span class="meantag" style="--x:49.33%">mean <b>16.573316</b></span>
+          </div>
+          <div class="axis">
+            <span class="t" style="--x:0%">16.45</span>
+            <span class="t" style="--x:20%">16.50</span>
+            <span class="t" style="--x:40%">16.55</span>
+            <span class="t" style="--x:60%">16.60</span>
+            <span class="t" style="--x:80%">16.65</span>
+            <span class="t" style="--x:100%">16.70</span>
+          </div>
+          <p class="scale-foot">
+            ZAR per USD. The mean is drawn quietly on purpose: it is the single number an
+            averaging API would have handed you instead of the two above it. Both quotes, the
+            mean and the standard deviation come back in the <code>corroboration</code> block
+            on every response — nothing on this scale is computed by this page.
+          </p>
+        </div>
+
+        <div class="cells">
+          <div>
+            <span class="ct">What 84.2 bps is worth</span>
+            <dl class="money">
+              <dt>coinbase</dt><dd>R16 503.83</dd>
+              <dt>sarb</dt><dd>R16 642.80</dd>
+              <dt class="big">on 1 000 USD</dt><dd class="big">R138.97</dd>
+            </dl>
+            <p style="margin-top:14px;font-size:12.5px;line-height:1.6;color:var(--text-4)">
+              Same pair, same second, two defensible sources. Which one you were handed is
+              worth about a tank of fuel.
+            </p>
+          </div>
+
+          <div>
+            <span class="ct">Against the bands it is graded on</span>
+            <div class="bands" role="img" aria-label="A linear scale from 0 to 100 basis points. A spread of 25 basis points or less multiplies confidence by 1.00; above that, up to 100, by 0.93.">
+              <span class="b1">≤25 ×1.00</span>
+              <span class="b2">≤100 ×0.93</span>
+            </div>
+            <div class="marks">
+              <span class="mark tight" style="--x:16.7%"><b>16.7</b>ZAR→EUR</span>
+              <span class="mark" style="--x:50%"><b>50</b>agree</span>
+              <span class="mark wide" style="--x:84.2%"><b>84.2</b>USD→ZAR</span>
+            </div>
+            <p style="margin-top:6px;font-size:12.5px;line-height:1.6;color:var(--text-4)">
+              Linear, 0–100 bps. 84.2 clears the 50 bps agreement tolerance, so
+              <code>agree</code> comes back <b>false</b>, and it falls in the ×0.93 band.
+              Past 100 bps the factor drops to ×0.85, and past 300 to ×0.72.
+            </p>
+          </div>
+
+          <div>
+            <span class="ct">What it costs the grade</span>
+            <div class="chain">
+              <span class="step"><i>·</i>freshness <b>×0.90</b> <span style="color:var(--text-4)">8m — current</span></span>
+              <span class="step"><i>·</i>directness <b>×1.00</b> <span style="color:var(--text-4)">direct</span></span>
+              <span class="step"><i>·</i>authority <b>×0.96</b> <span style="color:var(--text-4)">exchange</span></span>
+              <span class="step" style="color:var(--amber)"><i>·</i>corroboration <b style="color:var(--amber)">×0.93</b> <span style="color:var(--amber)">84.2 bps</span></span>
+              <span class="step"><i>·</i>caveats <b>×1.00</b> <span style="color:var(--text-4)">none</span></span>
+              <span class="out"><span class="n">0.80</span><span class="seal B" role="img" aria-label="Grade B">B</span></span>
+            </div>
+            <p style="margin-top:14px;font-size:12.5px;line-height:1.6;color:var(--text-4)">
+              Tighten the spread inside 25 bps and corroboration returns ×1.00 — 0.86, still
+              a B, because a venue is also weighted below a central bank. Both have to be
+              true to reach an A. Below is what that looks like.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="counter bleed rv">
+        <div>
+          <span class="pair">ZAR → EUR · the same figure, drawn on a pair that agrees</span>
+          <p>
+            <b>sarb 0.052461</b> and <b>ecb 0.052549</b>, both 25 hours old, both official
+            class — <b>16.7 bps</b> apart. Inside the tolerance, so corroboration returns
+            ×1.00 and nothing else is deducted. Two independent central banks, checked
+            against each other, in agreement. That is what an A looks like.
+          </p>
+        </div>
+        <span class="verdict"><span class="n">0.90</span><span class="seal lg A" role="img" aria-label="Grade A">A</span></span>
+      </div>
+
+      <p class="figcap rv" style="margin-top:16px">Two sources, 84 bps apart — shown, not smoothed over. Both quotes are legible in the captures in §01 and §05.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 04 · grades ═══════════════════════════════════════════════════════ -->
 <section class="sect sunk" id="grades">
-  <div class="wrap">
-    <div class="head rv">
-      <span class="eyebrow"><span class="lbl">Accuracy</span></span>
-      <h2>Graded, <em>and reproducible</em>.</h2>
-      <p class="lede">
-        Every price carries a letter grade and a 0–1 confidence. The confidence is a plain
-        product of five factors — freshness, directness, source authority, cross-source
-        agreement and currency caveats — and each factor is returned with the rate, so you
-        can re-derive the score instead of taking it on faith.
-      </p>
-    </div>
+  <div class="wrap rail">
+    <div class="sx">04</div>
+    <div class="rmain">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="lbl">Accuracy</span></span>
+        <h2>Graded, <em>and reproducible</em>.</h2>
+        <p class="lede">
+          Every price carries a letter grade and a 0–1 confidence. The confidence is a plain
+          product of five factors — freshness, directness, source authority, cross-source
+          agreement and currency caveats — and each factor is returned with the rate, so you
+          can re-derive the score instead of taking it on faith.
+        </p>
+      </div>
 
-    <div class="seals rv">
-      <div class="seal-card A">
-        <div class="row"><span class="seal">A</span><span class="band num">≥ 0.90</span></div>
-        <span class="lbl">Trust it</span>
-        <p>Fresh, directly quoted, and corroborated by independent sources that agree tightly.</p>
+      <div class="seals rv">
+        <div class="seal-card">
+          <div class="row"><span class="seal A">A</span><span class="band">≥ 0.90</span></div>
+          <span class="verdict">Trust it</span>
+          <p>Fresh, directly quoted, official class, and corroborated by independent sources that agree inside 25 bps.</p>
+        </div>
+        <div class="seal-card">
+          <div class="row"><span class="seal B">B</span><span class="band">≥ 0.78</span></div>
+          <span class="verdict">Good</span>
+          <p>One weak link — a venue rather than a central bank, one triangulation hop, or sources that disagree.</p>
+        </div>
+        <div class="seal-card">
+          <div class="row"><span class="seal C">C</span><span class="band">≥ 0.60</span></div>
+          <span class="verdict">Use with care</span>
+          <p>Stale, multi-hop, or a lone uncorroborated quote with nothing to check it against.</p>
+        </div>
+        <div class="seal-card">
+          <div class="row"><span class="seal D">D</span><span class="band">&lt; 0.60</span></div>
+          <span class="verdict">Flagged</span>
+          <p>Something is materially wrong with the provenance. Read the caveats before using it.</p>
+        </div>
       </div>
-      <div class="seal-card B">
-        <div class="row"><span class="seal">B</span><span class="band num">≥ 0.78</span></div>
-        <span class="lbl">Good</span>
-        <p>One weak link — usually a single source, or one triangulation hop.</p>
-      </div>
-      <div class="seal-card C">
-        <div class="row"><span class="seal">C</span><span class="band num">≥ 0.60</span></div>
-        <span class="lbl">Use with care</span>
-        <p>Stale, multi-hop, or a currency whose official rate is not the rate you would trade at.</p>
-      </div>
-      <div class="seal-card D">
-        <div class="row"><span class="seal">D</span><span class="band num">&lt; 0.60</span></div>
-        <span class="lbl">Flagged</span>
-        <p>Something is materially wrong with the provenance. Read the caveats before using it.</p>
-      </div>
-    </div>
 
-    <div class="illo rv" style="margin-top: clamp(40px, 5vw, 68px); max-width: 760px; margin-inline: auto; text-align: center">
-      <div class="conf-eq" role="img" aria-label="Confidence equals freshness 0.97, times directness 1.00, times source authority 0.95, times corroboration 0.97, times caveats 1.00, equals 0.89 — grade B.">
-        <div class="factor">
-          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="146.27 150.8"/></svg>
-          <b class="num">0.97</b><span class="lbl">Freshness</span>
+      <div class="rv" style="margin-top:clamp(44px,5.5vw,76px)">
+        <h3 style="margin-bottom:14px">The equation, run on two real quotes</h3>
+        <p class="lede" style="margin-bottom:26px">
+          Both of these are on this page already. They are one source class and one spread
+          apart, and that is the entire distance between a B and an A.
+        </p>
+        <div class="ledger-scroll">
+          <table class="ledger">
+            <thead>
+              <tr>
+                <th scope="col">Factor</th>
+                <th scope="col">USD → ZAR</th>
+                <th scope="col">ZAR → EUR</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Freshness</th><td class="same">×0.90 &nbsp;8m, current</td><td class="same">×0.90 &nbsp;25h, current</td></tr>
+              <tr><th scope="row">Directness</th><td class="same">×1.00 &nbsp;1 hop</td><td class="same">×1.00 &nbsp;1 hop</td></tr>
+              <tr><th scope="row">Source authority</th><td class="diff">×0.96 exchange</td><td>×1.00 official</td></tr>
+              <tr><th scope="row">Corroboration</th><td class="diff">×0.93 &nbsp;84.2 bps</td><td>×1.00 &nbsp;16.7 bps</td></tr>
+              <tr><th scope="row">Caveats</th><td class="same">×1.00</td><td class="same">×1.00</td></tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Confidence</th>
+                <td><span class="gcell">0.80 <span class="seal sm B" role="img" aria-label="Grade B">B</span></span></td>
+                <td><span class="gcell">0.90 <span class="seal sm A" role="img" aria-label="Grade A">A</span></span></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-        <span class="op">×</span>
-        <div class="factor">
-          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="150.04 150.8"/></svg>
-          <b class="num">1.00</b><span class="lbl">Directness</span>
-        </div>
-        <span class="op">×</span>
-        <div class="factor">
-          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="143.26 150.8"/></svg>
-          <b class="num">0.95</b><span class="lbl">Source authority</span>
-        </div>
-        <span class="op">×</span>
-        <div class="factor">
-          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="146.27 150.8"/></svg>
-          <b class="num">0.97</b><span class="lbl">Corroboration</span>
-        </div>
-        <span class="op">×</span>
-        <div class="factor">
-          <svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="24"/><circle class="val" cx="30" cy="30" r="24" stroke-dasharray="150.04 150.8"/></svg>
-          <b class="num">1.00</b><span class="lbl">Caveats</span>
-        </div>
-        <span class="op">=</span>
-        <div class="conf-result">
-          <b class="num big">0.89</b>
-          <span class="seal md B">B</span>
-        </div>
+        <p class="eqline">
+          USD&nbsp;→&nbsp;ZAR &nbsp; <b>0.90</b> × <b>1.00</b> × <b>0.96</b> × <b>0.93</b> × <b>1.00</b> = <span class="r">0.80</span> &nbsp;→&nbsp; B<br>
+          ZAR&nbsp;→&nbsp;EUR &nbsp; <b>0.90</b> × <b>1.00</b> × <b>1.00</b> × <b>1.00</b> × <b>1.00</b> = <span class="r">0.90</span> &nbsp;→&nbsp; A
+        </p>
+        <p style="margin-top:18px;font-size:13.5px;line-height:1.75;max-width:70ch">
+          <b>Confidence is a product, not an opinion.</b> Each factor comes from a fixed set —
+          freshness is one of <code>1.00 / 0.90 / 0.72 / 0.45</code>, corroboration one of
+          <code>1.00 / 0.93 / 0.85 / 0.72</code> for a corroborated pair and <code>0.88</code>
+          for a lone quote — so there is no dial to nudge, and the grade is struck from the
+          rounded value that gets published rather than the raw product behind it.
+        </p>
       </div>
-      <p class="conf-cap">
-        <b>Confidence is a product, not an opinion.</b> This is the same
-        <code>USD&nbsp;→&nbsp;ZAR</code> quote shown in the API example below — every factor
-        it was built from, multiplied out in the open.
-      </p>
-    </div>
 
-    <div class="split one-col rv" style="margin-top: clamp(40px, 5vw, 68px)">
-      <div class="copy">
-        <h3>Honest about its own limits</h3>
-        <p>
+      <div class="rv" style="margin-top:clamp(44px,5.5vw,76px);padding-top:clamp(44px,5.5vw,76px);border-top:1px solid var(--line)">
+        <h3 style="margin-bottom:14px">Honest about its own limits</h3>
+        <p style="font-size:15px;line-height:1.78;max-width:72ch">
           A lone quote, however fresh, is multiplied by 0.88 and can never reach an A — there
-          is nothing to check it against. <b>NGN</b> and <b>EGP</b> carry a parallel-market
-          caveat and <b>CNY</b> a managed-regime one, each capping confidence at 0.7, so those
-          pairs top out at C no matter how good the feed is. Currencies that no longer exist
-          are removed from the graph rather than graded down: <code>HRK</code> is not a bad
-          rate, it is not a rate.
+          is nothing to check it against, which is why <b>BTC</b> and <b>ETH</b> grade C on the
+          board in §05 while every fiat row around them grades B.
+          <b>NGN</b> and <b>EGP</b> carry a parallel-market caveat and <b>CNY</b> a
+          managed-regime one, each capping confidence at ×0.7, so those pairs sit at C or D no
+          matter how good the feed is. And a currency that no longer trades is not quietly
+          dropped — <code>HRK</code> is multiplied by <b>0.2</b>, which is a D floor no
+          arithmetic can climb out of. The number is still returned; it is just labelled for
+          what it is.
         </p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ══ board ═════════════════════════════════════════════════════════════ -->
-<section class="sect ruled">
-  <div class="wrap">
-    <div class="split rv">
-      <div class="copy">
+<!-- ══ 05 · the board ════════════════════════════════════════════════════ -->
+<section class="sect ruled" id="board">
+  <div class="wrap rail">
+    <div class="sx">05</div>
+    <div class="rmain">
+      <div class="shead rv">
         <span class="eyebrow"><span class="lbl">Live board</span></span>
         <h2>Sort by <em>what you can't trust</em>.</h2>
         <p class="lede">
           The whole board, every currency against the anchor, sortable by grade or by age —
           because the useful question is rarely "what is 1 ZAR in AED", it is "which of these
-          numbers should I not lean on". Hop pips show at a glance which rates are quoted and
-          which are derived. Any row opens into the full working in place.
+          numbers should I not lean on". Hop counts show at a glance which rates are quoted
+          and which are derived. Any row opens into the full working in place.
         </p>
-        <div class="cta">
-          <a class="btn btn-ghost sm" href="./docs.html#api">API reference</a>
-        </div>
       </div>
-      <figure>
-        <div class="plate shot">
-          <div class="shot-bar">
+      <figure class="rv">
+        <div class="shotframe">
+          <div class="shotbar">
             <span class="dots"><i></i><i></i><i></i></span>
-            <span class="path">openrate — Live rates</span>
+            <span class="u">localhost:8080 — openrate · Live rates</span>
           </div>
-          <div class="shot-box" style="--ar:1280/900">
-            <div class="shot-placeholder">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10.5" r="1.4"/><path d="M21 15.5l-5.2-5.2a1.5 1.5 0 0 0-2.1 0L4 19"/></svg>
-              <span class="tag">Capture pending</span>
-              <span class="file">assets/app/board-{theme}.webp</span>
-            </div>
-            <img class="themeshot" data-shot="board" width="1280" height="900" loading="lazy" decoding="async" hidden alt="The openrate rates board sorted by grade: currency, rate, an A–D grade badge, hop count and age for each row, with one row expanded to show its graph path and source table.">
-            <noscript><img src="./assets/app/board-dark.webp" width="1280" height="900" alt="The openrate rates board sorted by grade: currency, rate, an A–D grade badge, hop count and age for each row, with one row expanded to show its graph path and source table."></noscript>
+          <div class="shotbox" style="--ar:880/900">
+            <span class="fallback">Capture unavailable</span>
+            <img class="themeshot" data-shot="board" width="1280" height="900" loading="eager" decoding="async" hidden alt="The openrate rates board with ZAR as the base and 42 pairs listed: each row shows the currency, rate, an A–D grade badge, hop count, age and source class. The EUR row is expanded to show its directly-quoted path and the two sources behind it — sarb at 0.052461 and ecb at 0.052549, mean 0.052505, std dev 11.8 bps, spread 16.7 bps.">
+            <noscript><img src="./assets/app/board-dark.webp" width="1280" height="900" alt="The openrate rates board sorted by currency: rate, an A–D grade badge, hop count, age and source class for each row, with the EUR row expanded to show its graph path and source table."></noscript>
           </div>
         </div>
+        <figcaption class="figcap">42 pairs against the ZAR anchor. The expanded EUR row is the counterpoint quote from §03 — two central banks, 16.7 bps apart, graded A</figcaption>
       </figure>
     </div>
   </div>
 </section>
 
-<!-- ══ policy rates ══════════════════════════════════════════════════════ -->
+<!-- ══ 06 · policy rates ═════════════════════════════════════════════════ -->
 <section class="sect sunk" id="policy">
-  <div class="wrap">
-    <div class="head rv">
-      <span class="eyebrow"><span class="lbl">Central banks</span></span>
-      <h2>Policy rates, <em>same contract</em>.</h2>
-      <p class="lede">
-        The same binary carries a second engine for central-bank policy rates — 48 areas from
-        the BIS and SARB, with history. They are flat series rather than a currency graph, so
-        they get their own store and a slower refresh, but the identical A–D grading. That
-        grade earns its keep here: the BIS still publishes legacy pre-euro national series
-        whose last observation is from the 1990s, and the grade plus an explicit date is what
-        stops a 1998 number passing for today's.
-      </p>
-    </div>
-    <figure class="rv">
-      <div class="plate illo">
-        <div class="policy-cards" role="img" aria-label="Policy rate cards: South Africa 7.50 percent grade A, the United States 5.00 percent grade A, the euro area 3.50 percent grade B, Japan 0.25 percent grade B — each a stepped history sparkline.">
-          <div class="policy-card">
-            <div class="top"><span class="area">ZA · SARB</span><span class="seal sm A">A</span></div>
-            <div class="rate">7.50%</div>
-            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,8 L60,8 L60,20 L120,20"/></svg>
-            <div class="bottom"><span class="date">27 May 2026</span><span class="date">−25bp / 1y</span></div>
-          </div>
-          <div class="policy-card">
-            <div class="top"><span class="area">US · FED</span><span class="seal sm A">A</span></div>
-            <div class="rate">5.00%</div>
-            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,6 L50,6 L50,22 L120,22"/></svg>
-            <div class="bottom"><span class="date">18 Jun 2026</span><span class="date">−25bp / 1y</span></div>
-          </div>
-          <div class="policy-card">
-            <div class="top"><span class="area">EU · ECB</span><span class="seal sm B">B</span></div>
-            <div class="rate">3.50%</div>
-            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,10 L70,10 L70,24 L120,24"/></svg>
-            <div class="bottom"><span class="date">12 Jun 2026</span><span class="date">−25bp / 1y</span></div>
-          </div>
-          <div class="policy-card">
-            <div class="top"><span class="area">JP · BOJ</span><span class="seal sm B">B</span></div>
-            <div class="rate">0.25%</div>
-            <svg viewBox="0 0 120 34" preserveAspectRatio="none"><path d="M0,26 L40,26 L40,10 L120,10"/></svg>
-            <div class="bottom"><span class="date">19 Mar 2026</span><span class="date">+15bp / 1y</span></div>
-          </div>
-        </div>
+  <div class="wrap rail">
+    <div class="sx">06</div>
+    <div class="rmain">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="lbl">Central banks</span></span>
+        <h2>Policy rates, <em>same contract</em>.</h2>
+        <p class="lede">
+          The same binary carries a second engine for central-bank policy rates — 48 reference
+          areas pulled from the BIS in a single call, each with daily history, plus the South
+          African ZARONIA family. They are flat series rather than a currency graph, so they
+          get their own store and a slower refresh, but the identical A–D grading.
+        </p>
       </div>
-      <figcaption class="shot-cap"><span class="lbl">Stepped sparklines — policy rates hold flat and jump at a meeting, so interpolating between them would draw moves that never happened</span></figcaption>
-    </figure>
+      <figure class="rv">
+        <div class="plate pad">
+          <span class="lbl" style="display:block;margin-bottom:18px">Reference areas returned by one BIS call</span>
+          <p style="font-family:var(--mono);font-size:clamp(13px,1.9vw,17px);line-height:2.1;letter-spacing:.16em;color:var(--text-2);word-spacing:.3em">
+            AR <b style="color:var(--amber)">AT</b> AU <b style="color:var(--amber)">BE</b> BR CA CH CL CN CO CZ <b style="color:var(--amber)">DE</b> DK
+            <b style="color:var(--amber)">ES</b> <b style="color:var(--amber)">FR</b> GB
+            <b style="color:var(--amber)">GR</b> HK HR HU ID IL IN IS
+            <b style="color:var(--amber)">IT</b> JP KR KW MA MK MX MY
+            <b style="color:var(--amber)">NL</b> NO NZ PE PH PL <b style="color:var(--amber)">PT</b>
+            RO RS RU SA SE TH TR US <b style="color:var(--teal)">XM</b> ZA
+          </p>
+          <p style="margin-top:22px;font-size:13.5px;line-height:1.75;max-width:66ch">
+            The grade earns its keep here. <span style="color:var(--amber)">Amber</span> marks
+            pre-euro national areas that sit in the list alongside
+            <span style="color:var(--teal)">XM</span>, the euro area itself — a series can be
+            complete, correctly parsed and still be historic. An explicit observation date and
+            a letter grade on every series are what stop an old fix passing for today's.
+          </p>
+        </div>
+        <figcaption class="figcap">Flat series, not a graph — and stepped, because a policy rate holds and jumps at a meeting rather than drifting between them</figcaption>
+      </figure>
+    </div>
   </div>
 </section>
 
-<!-- ══ run it ════════════════════════════════════════════════════════════ -->
+<!-- ══ 07 · run it ═══════════════════════════════════════════════════════ -->
 <section class="sect ruled" id="run">
-  <div class="wrap">
-    <div class="head rv">
-      <span class="eyebrow"><span class="lbl">Self-host</span></span>
-      <h2>One binary. <em>No database</em>.</h2>
-      <p class="lede">
-        The engine, the JSON API and the web UI are one Go binary with the interface embedded.
-        Nothing to sign up for, no API key, no account — and no telemetry phoning home.
-      </p>
-    </div>
+  <div class="wrap rail">
+    <div class="sx">07</div>
+    <div class="rmain">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="lbl">Self-host</span></span>
+        <h2>One binary. <em>No database</em>.</h2>
+        <p class="lede">
+          The engine, the JSON API and the web UI are one Go binary with the interface
+          embedded, built on the standard library and nothing else. Nothing to sign up for,
+          no API key, no account — and no telemetry phoning home.
+        </p>
+      </div>
 
-    <div class="split rv">
-      <div class="code">
-        <div class="bar">
-          <span class="dots"><i></i><i></i><i></i></span>
-          <span class="ttl">terminal</span>
-        </div>
+      <div class="split wide-left rv">
+        <div class="code">
+          <div class="bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="ttl">terminal</span>
+          </div>
 <pre><code class="language-bash" data-prompt="1"># clone &amp; run — serves the API and the UI on :8080
 $ git clone https://github.com/vul-os/openrate
 $ cd openrate
@@ -526,70 +722,100 @@ $ go run ./cmd/openrate
 
 # or install the command directly
 $ go install github.com/vul-os/openrate/cmd/openrate@latest
-$ openrate -base ZAR -refresh 5m
+$ openrate -addr :8080 -base ZAR -refresh 5m
 
 # or in Docker
 $ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code></pre>
+        </div>
+        <ol class="steps">
+          <li><span class="n">01</span><div><b>Nothing to configure</b><span>The default source set — ECB, SARB, Coinbase, Luno — is free and needs no keys. It works on first run.</span></div></li>
+          <li><span class="n">02</span><div><b>Nothing to vendor</b><span>Zero third-party Go modules. The whole engine is the standard library, so <code>go build</code> is the entire supply chain.</span></div></li>
+          <li><span class="n">03</span><div><b>Bring your own feeds if you want</b><span>Drop an OXR, Twelve Data, Polygon or TraderMade key into the environment and that source auto-enables. More overlapping sources means better corroboration, which means better grades.</span></div></li>
+          <li><span class="n">04</span><div><b>Fails soft</b><span>A source that errors keeps its previous edges rather than blanking the graph, and its error is redacted before it is logged so a key embedded in a URL never leaks.</span></div></li>
+          <li><span class="n">05</span><div><b>Hardened by default</b><span>Per-IP rate limiting on <code>/api/</code>, a restrictive <code>robots.txt</code>, <code>no-store</code> on the API, and <code>X-Forwarded-For</code> trusted only for proxies you name.</span></div></li>
+        </ol>
       </div>
-      <ol class="steps">
-        <li><span class="n">01</span><div><b>Nothing to configure</b><span>The default source set — ECB, SARB, Coinbase, Luno — is free and needs no keys. It works on first run.</span></div></li>
-        <li><span class="n">02</span><div><b>Bring your own feeds if you want</b><span>Drop an OXR, Twelve Data, Polygon or TraderMade key into <code>.env</code> and that source auto-enables. More overlapping sources means better corroboration, which means better grades.</span></div></li>
-        <li><span class="n">03</span><div><b>Hardened by default</b><span>Per-IP rate limiting, a restrictive <code>robots.txt</code>, <code>no-store</code> on the API, and <code>X-Forwarded-For</code> trusted only for proxies you name.</span></div></li>
-        <li><span class="n">04</span><div><b>Use it as a Go library</b><span>The graph, the quality model and the source adapters are importable packages — the server is one consumer of them.</span></div></li>
-      </ol>
     </div>
   </div>
 </section>
 
-<!-- ══ api ═══════════════════════════════════════════════════════════════ -->
+<!-- ══ 08 · api ══════════════════════════════════════════════════════════ -->
 <section class="sect sunk" id="api">
-  <div class="wrap">
-    <div class="head rv">
-      <span class="eyebrow"><span class="lbl">The surface</span></span>
-      <h2>Seven endpoints. <em>All read-only</em>.</h2>
-      <p class="lede">All JSON, all CORS-enabled, all rate-limited per IP. The embedded UI is not.</p>
-    </div>
-    <div class="api-scroll rv">
-      <table class="api">
-        <thead><tr><th>Path</th><th>What it returns</th></tr></thead>
-        <tbody>
-          <tr><td>GET /api/v1/convert</td><td><code>?from=USD&amp;to=ZAR&amp;amount=100</code> — the converted amount plus the rate, its path, per-leg calculation, contributing source quotes and quality block</td></tr>
-          <tr><td>GET /api/v1/rates</td><td><code>?base=ZAR</code> — every reachable currency against a base, each carrying the same rate object</td></tr>
-          <tr><td>GET /api/v1/meta</td><td>Source status, per-source edge counts, and the currency list</td></tr>
-          <tr><td>GET /api/v1/interest/rates</td><td><code>?area=ZA&amp;type=policy</code> — latest policy rate per series, graded</td></tr>
-          <tr><td>GET /api/v1/interest/series</td><td><code>?id=za.policy</code> — the full observation history for one series</td></tr>
-          <tr><td>GET /api/v1/interest/meta</td><td>Areas, the series catalogue and interest-source status</td></tr>
-          <tr><td>GET /healthz</td><td>Liveness probe</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="code rv" style="margin-top: 22px">
-      <div class="bar">
-        <span class="dots"><i></i><i></i><i></i></span>
-        <span class="ttl">GET /api/v1/convert?from=USD&amp;to=ZAR&amp;amount=100</span>
+  <div class="wrap rail">
+    <div class="sx">08</div>
+    <div class="rmain">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="lbl">The surface</span></span>
+        <h2>Six endpoints. <em>All read-only</em>.</h2>
+        <p class="lede">
+          Six JSON endpoints, CORS-enabled and rate-limited per IP, plus a plain-text
+          liveness probe that is neither. The embedded UI is not rate-limited either.
+        </p>
       </div>
+      <div class="api-scroll rv">
+        <table class="api">
+          <thead><tr><th scope="col">Path</th><th scope="col">What it returns</th></tr></thead>
+          <tbody>
+            <tr><td>GET /api/v1/convert</td><td><code>?from=USD&amp;to=ZAR&amp;amount=100</code> — the converted amount plus the rate, its path, per-leg calculation, contributing source quotes and quality block</td></tr>
+            <tr><td>GET /api/v1/rates</td><td><code>?base=ZAR</code> — every reachable currency against a base, each carrying the same rate object</td></tr>
+            <tr><td>GET /api/v1/meta</td><td>Source status, per-source edge counts, and the currency list</td></tr>
+            <tr><td>GET /api/v1/interest/rates</td><td><code>?type=policy</code> — the latest observation per series, graded</td></tr>
+            <tr><td>GET /api/v1/interest/series</td><td><code>?id=za.policy</code> — the full observation history for one series</td></tr>
+            <tr><td>GET /api/v1/interest/meta</td><td>Areas, the series catalogue and interest-source status</td></tr>
+            <tr><td>GET /healthz</td><td>Liveness probe — plain text <code>ok</code>, outside <code>/api/</code> and outside the limiter</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code rv" style="margin-top:26px">
+        <div class="bar">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <span class="ttl">GET /api/v1/convert?from=USD&amp;to=ZAR&amp;amount=100</span>
+        </div>
 <pre><code class="language-json">{
-  "result": 1668.77,
+  "amount": 100,
+  "from": "USD",
   "rate": {
-    "rate": 16.687657,
+    "rate": 16.503832,
     "hops": 1,
+    "as_of": "2026-06-24T09:12:00Z",
+    "age_sec": 480,
     "path": ["USD", "ZAR"],
     "sources": ["coinbase"],
-    "quotes": [
-      { "source": "coinbase", "rate": 16.687657, "age_sec": 28 },
-      { "source": "sarb",     "rate": 16.777,    "age_sec": 67470 }
-    ],
     "quality": {
       "grade": "B",
-      "confidence": 0.89,
-      "freshness": "realtime",
+      "confidence": 0.8,
+      "freshness": "current",
       "directness": "direct",
       "source_class": "exchange",
-      "corroboration": { "sources": 2, "spread_bps": 53.54, "agree": false }
-    }
-  }
+      "corroboration": {
+        "sources": 2,
+        "spread_bps": 84.2,
+        "agree": false,
+        "mean": 16.573316,
+        "stdev": 0.098265,
+        "stdev_bps": 59.29,
+        "min": 16.503832,
+        "max": 16.6428
+      }
+    },
+    "legs": [
+      { "from": "USD", "to": "ZAR", "rate": 16.503832, "source": "coinbase", "age_sec": 480 }
+    ],
+    "quotes": [
+      { "source": "coinbase", "rate": 16.503832, "age_sec": 480 },
+      { "source": "sarb",     "rate": 16.6428,   "age_sec": 90000 }
+    ]
+  },
+  "result": 1650.3832,
+  "to": "ZAR"
 }</code></pre>
+      </div>
+      <p class="figcap rv" style="max-width:76ch">
+        Field names, their order and the nesting are exactly what the encoder emits — the top
+        level is a map, so Go sorts those five keys alphabetically. The values are the quote
+        captured in §01, with floats shown at the precision the UI displays them.
+      </p>
     </div>
   </div>
 </section>
@@ -611,18 +837,14 @@ $ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code><
           Open, ZAR-anchored exchange rates with an accuracy grade on every price.
           Central banks and live venues — never a resold paid API.
         </p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <a class="tag" href="https://vulos.org" target="_blank" rel="noopener">
-            <img src="./assets/vulos-logo.png" alt="">part of <b>Vulos</b>
-          </a>
-          <a class="tag" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener">Source</a>
-        </div>
+        <a class="tag" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener">Source</a>
       </div>
       <div class="ftr-col">
         <span class="lbl">Product</span>
         <ul>
           <li><a href="#product">The converter</a></li>
           <li><a href="#graph">The graph model</a></li>
+          <li><a href="#spread">Dispersion</a></li>
           <li><a href="#grades">Accuracy grades</a></li>
           <li><a href="#policy">Policy rates</a></li>
           <li><a href="#api">API surface</a></li>

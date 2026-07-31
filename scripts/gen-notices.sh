@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
 # Regenerate THIRD-PARTY-NOTICES.txt from the ACTUAL dependency graph.
 #
-# openrate redistributes third-party code three ways: Go modules compiled into
-# the binary, npm packages bundled into the embedded React app (including the
-# Geist Sans / Geist Mono webfonts, whose OFL-1.1 licence
-# must accompany every copy of the .woff2 files — the marketing site vendors the
-# same fonts under site/assets/fonts/), and the marked bundle vendored into the
-# marketing site. MIT, BSD, ISC, Apache-2.0 and OFL-1.1 all require the
-# copyright notice and licence text to travel with the copy.
+# openrate redistributes third-party code two ways: Go modules compiled into
+# the binary, and browser assets vendored (as committed files, not npm
+# packages) into the static marketing site under site/assets/ — the Geist
+# Sans / Geist Mono webfonts (site/assets/fonts/, SIL OFL-1.1) and the
+# highlight.js/marked bundles (site/assets/vendor/, each with its own
+# .LICENSE file next to it). The embedded UI (web/ui.html) is a single
+# hand-written HTML document with no npm dependency of any kind, so there is
+# no npm dependency graph to resolve here any more. MIT, BSD, ISC,
+# Apache-2.0 and OFL-1.1 all require the copyright notice and licence text to
+# travel with the copy.
 #
 #     ./scripts/gen-notices.sh
 #
-# The generated file is committed (go:embed needs it at build time), served by
-# the binary at /licenses.txt, and copied to site/licenses.txt for the static
-# marketing site. It is NOT hand-maintained.
+# The generated file is committed, and copied to two places that must stay
+# byte-identical to it: site/licenses.txt for the static marketing site, and
+# web/THIRD-PARTY-NOTICES.txt, a physical copy inside web/ (go:embed patterns
+# cannot contain "..", so the root file can't be embedded directly) that
+# web/embed.go embeds as web.Licenses and Handler() serves at /licenses.txt.
+# web/embed_test.go's TestLicensesInSyncWithRoot fails go test ./web if that
+# copy ever drifts from the root file — this script is what keeps them in
+# step. It is NOT hand-maintained.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,13 +47,6 @@ go list -m -json all | "$DETECTOR" \
   -noticeTemplate scripts/notices/go-modules.tmpl \
   -noticeOut "$TMP/go-notices.txt"
 
-# --- npm packages actually bundled into web/dist (production deps only).
-echo "==> resolving npm dependency graph (web/)"
-[[ -d web/node_modules ]] || (cd web && npm ci)
-(cd web && npx --yes license-checker-rseidelsohn \
-  --production --json --excludePrivatePackages --start .) \
-  | node scripts/notices/npm-notices.mjs > "$TMP/npm-notices.txt"
-
 echo "==> composing $OUT"
 {
   cat <<'HEADER'
@@ -59,21 +60,39 @@ graph. Do not edit it by hand.
 openrate is distributed under the MIT licence (see LICENSE). It bundles the
 third-party software listed below. Each entry gives the component name, its
 version, the licence it is distributed under, and the full text of that licence,
-as those licences require. The openrate binary serves this file at
-/licenses.txt; the marketing site serves it at /licenses.txt too.
+as those licences require. This file exists in three places, kept identical by
+scripts/gen-notices.sh: here at the repo root; as site/licenses.txt, served by
+the static marketing site at /licenses.txt; and as web/THIRD-PARTY-NOTICES.txt,
+embedded into the openrate binary (web.Licenses) and served by it at
+/licenses.txt too.
 
 HEADER
 
   echo "================================================================================"
-  echo "npm packages (bundled into the web UI served from the binary)"
+  echo "Vendored webfonts (marketing site, site/assets/fonts/)"
   echo "================================================================================"
   echo
-  echo "The Geist Sans and Geist Mono webfonts below are shipped as"
-  echo ".woff2 files in web/dist/assets/, and the same faces are vendored into the"
-  echo "marketing site under site/assets/fonts/. SIL Open Font License 1.1 requires this"
-  echo "notice and licence to accompany every redistribution of those font files."
+  echo "Geist Sans and Geist Mono are shipped as .woff2 files directly under"
+  echo "site/assets/fonts/ (committed files, no package manager involved) for the"
+  echo "marketing site. The SIL Open Font License 1.1 requires this notice and"
+  echo "licence text to accompany every redistribution of those font files. The"
+  echo "embedded UI (web/ui.html) ships no webfonts at all — system font stacks only."
   echo
-  cat "$TMP/npm-notices.txt"
+  for lic in site/assets/fonts/LICENSE-*.txt; do
+    [[ -e "$lic" ]] || continue
+    base="$(basename "$lic")"
+    family="${base#LICENSE-}"
+    family="${family%.txt}"
+    files="$(ls site/assets/fonts/"${family}"-*.woff2 2>/dev/null | xargs -n1 basename | paste -sd ', ' -)"
+    echo "--------------------------------------------------------------------------------"
+    echo "Component : ${family}"
+    echo "Licence   : SIL Open Font License 1.1"
+    echo "Files     : ${files:-none found}"
+    echo "--------------------------------------------------------------------------------"
+    echo
+    cat "$lic"
+    echo
+  done
 
   echo "================================================================================"
   echo "Vendored browser assets (marketing site, site/assets/vendor/)"
@@ -114,14 +133,14 @@ HEADER
   fi
 } > "$OUT"
 
-# Surface it. web/public/ is copied verbatim into web/dist/ by Vite, and
-# web/dist is embedded in the binary, so the notices end up served at
-# /licenses.txt by any running openrate. The static marketing site is deployed
-# separately, so it gets its own copy.
-cp "$OUT" web/public/licenses.txt
+# Surface it. The static marketing site is deployed separately from the
+# binary, so it gets its own copy at site/licenses.txt. web/THIRD-PARTY-NOTICES.txt
+# is a physical copy too (go:embed patterns cannot contain "..", so web/ can't
+# embed the root file directly) — web/embed.go embeds it as web.Licenses and
+# serves it from the running binary at /licenses.txt. Regenerating notices
+# without this copy would leave the embedded copy stale, which
+# web/embed_test.go's TestLicensesInSyncWithRoot would then (correctly) catch.
 cp "$OUT" site/licenses.txt
+cp "$OUT" web/THIRD-PARTY-NOTICES.txt
 
-echo "==> rebuilding web/dist so the committed bundle carries the notices"
-(cd web && npm run build >/dev/null)
-
-echo "==> wrote $OUT, web/public/licenses.txt, web/dist/licenses.txt, site/licenses.txt ($(wc -l < "$OUT" | tr -d ' ') lines)"
+echo "==> wrote $OUT, site/licenses.txt and web/THIRD-PARTY-NOTICES.txt ($(wc -l < "$OUT" | tr -d ' ') lines)"

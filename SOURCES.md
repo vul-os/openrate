@@ -107,7 +107,7 @@ depth, every series carries a confidence grade. Verified live June 2026.
 
 | Source | Default | Status | Format | Cadence | Coverage | Auth | Notes |
 |---|---|---|---|---|---|---|---|
-| **bis** | ✅ | live | CSV (SDMX) | ~weekly | **49 central banks' policy rates** + daily history, one call | none | BIS Stats `WS_CBPOL`, daily series, all reference areas. The open backbone for worldwide breadth. Missing days come back as literal `NaN` — skipped. |
+| **bis** | ✅ | live | CSV (SDMX) | ~weekly | **48 central banks' policy rates** + daily history, one call | none | BIS Stats `WS_CBPOL`, daily series, all reference areas. The area count is not hard-coded — it is whatever `WS_CBPOL` currently publishes, counted at ingest and returned by `/api/v1/interest/meta`; 48 is the figure that endpoint returns today. The open backbone for worldwide breadth. Missing days come back as literal `NaN` — skipped. |
 | **sarbrates** | ✅ | live¹ | JSON | daily | ZA ZARONIA overnight + 1W/1M/3M/6M/9M/12M compounded + index, deep history | none | Port of the standalone amortini scraper's ZARONIA path. `resbank.co.za/bin/sarb/ratereform`. **Slow/flaky host** — bounded dialer + 3 retries. |
 | **fred** | key | live | JSON | daily | US SOFR/EFFR/OBFR/prime/2Y/10Y Treasury, deep history | `OPENRATE_FRED_API_KEY` (free) | Auto-enables when the key is present. The "bring your own key for more datapoints" path; enriches the open BIS breadth with high-frequency US benchmarks. |
 
