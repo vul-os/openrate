@@ -56,7 +56,14 @@ document.documentElement.classList.add("js");
   <button class="icon-btn" data-theme-toggle type="button" aria-label="Toggle theme"></button>
 </header>
 
-<div class="docs">
+<!-- .no-rail is the DEFAULT, and the viewer removes it once it has an
+     on-this-page rail to put in the third track. That direction matters: the
+     rail is built from headings that only exist after the markdown has been
+     fetched and rendered, so a reader without JavaScript never gets one — and
+     shipping the three-track grid in the markup would hand exactly that
+     reader the empty right-hand column this layout was rebuilt to remove. Two
+     tracks until there is something to put in a third. -->
+<div class="docs no-rail">
   <!-- The documentation index. Above 980px this is the sticky left rail and
        .toc-btn is display:none. Below it, the rail would have had to become a
        row of nine pills 855px wide inside a 390px window, so the button
@@ -335,6 +342,129 @@ window.addEventListener("resize", applyStacking);
 // a decision that had already been made. Re-ask once the real faces land.
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyStacking);
 
+/* ── the on-this-page rail ────────────────────────────────────────────────
+ * Fills the grid track that used to be reserved and empty (see the .docs
+ * block in site.css for the geometry). Built here rather than written into
+ * the markup because the headings only exist once the markdown has been
+ * fetched and rendered.
+ *
+ * Two things worth knowing about how it navigates:
+ *
+ *   The ids are minted here. marked 16 emits bare <h2>/<h3> with no id — the
+ *   slugger was removed from core — so there is nothing to link to until we
+ *   make it. Slugs are de-duplicated per page, because a document is allowed
+ *   two sections with the same title and two elements are not allowed the
+ *   same id.
+ *
+ *   A rail link must NOT put its target in location.hash, which is why the
+ *   click is intercepted. This page routes the DOCUMENT on the hash — #api
+ *   means api.md — so letting `#deployment-modes` reach the address bar would
+ *   fire hashchange, fail to find a doc by that slug, and silently reload
+ *   Overview underneath the reader. The href is still a real fragment so the
+ *   link works as a link (middle-click, copy, keyboard); only the default
+ *   scroll is replaced, and focus is moved to the heading so a keyboard
+ *   reader lands where a mouse reader is looking. scrollIntoView with no
+ *   argument takes html's own scroll-behavior, so the reduced-motion override
+ *   in site.css turns the animation off without a second code path.
+ */
+const docsGrid = document.querySelector(".docs");
+const rail = document.createElement("nav");
+rail.className = "docs-rail";
+rail.setAttribute("aria-label", "On this page");
+docsGrid.appendChild(rail);
+
+/* One listener for the life of the page, calling whatever the current page's
+ * rail installed here. An IntersectionObserver was the first attempt and is
+ * the wrong instrument: it reports state CHANGES, so between two headings
+ * that both left the root in the same jump there is no callback, and the mark
+ * simply stopped on whichever one last fired (it sat on "Embed as a Go
+ * library" while "Deployment modes" was on screen). Scroll position is what
+ * the answer actually depends on, so that is what it is computed from —
+ * rAF-throttled, passive, and doing nothing at all on the pages and widths
+ * where no rail is drawn. */
+let railMark = null, railTick = false;
+function railSchedule() {
+  if (railTick || !railMark) return;
+  railTick = true;
+  requestAnimationFrame(() => { railTick = false; if (railMark) railMark(); });
+}
+window.addEventListener("scroll", railSchedule, { passive: true });
+window.addEventListener("resize", railSchedule);
+
+function slugify(s, taken) {
+  let base = s.toLowerCase().trim()
+    .replace(/[`*_~]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "section";
+  let slug = base, n = 2;
+  while (taken.has(slug)) slug = base + "-" + n++;
+  taken.add(slug);
+  return slug;
+}
+
+function buildRail() {
+  railMark = null;
+  rail.innerHTML = "";
+  const heads = [...content.querySelectorAll("h2, h3")];
+  const taken = new Set();
+  for (const h of heads) if (!h.id) h.id = slugify(h.textContent, taken);
+
+  // Below three entries a rail is more furniture than navigation, and an
+  // empty-looking third column is the exact thing this replaced. The grid
+  // drops back to two tracks instead.
+  docsGrid.classList.toggle("no-rail", heads.length < 3);
+  if (heads.length < 3) return;
+
+  const label = document.createElement("span");
+  label.className = "lbl";
+  label.textContent = "On this page";
+  const list = document.createElement("ol");
+  const links = new Map();
+
+  for (const h of heads) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = "#" + h.id;
+    a.textContent = h.textContent;
+    if (h.tagName === "H3") a.className = "sub";
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      h.scrollIntoView();
+      // -1 so it takes focus without joining the tab order permanently.
+      h.setAttribute("tabindex", "-1");
+      h.focus({ preventScroll: true });
+    });
+    li.appendChild(a);
+    list.appendChild(li);
+    links.set(h, a);
+  }
+  rail.append(label, list);
+
+  // Which heading you are "in" is the last one to have crossed the top of the
+  // viewport, not whichever happens to be intersecting — on a long section
+  // nothing is intersecting at all, and on a short one several are. Headings
+  // are in document order, so the scan stops at the first one still below the
+  // line, and every position it reads is read now rather than remembered.
+  railMark = () => {
+    let current = heads[0];
+    for (const h of heads) {
+      if (h.getBoundingClientRect().top <= 120) current = h;
+      else break;
+    }
+    for (const [h, a] of links) a.classList.toggle("here", h === current);
+    const on = links.get(current);
+    // Keep the marked entry in view when the rail is taller than its box,
+    // but never scroll the page itself doing it.
+    if (on && rail.scrollHeight > rail.clientHeight) {
+      const r = on.getBoundingClientRect(), b = rail.getBoundingClientRect();
+      if (r.top < b.top || r.bottom > b.bottom) {
+        rail.scrollTop += r.top - b.top - b.height / 2 + r.height / 2;
+      }
+    }
+  };
+  railMark();
+}
+
 async function load(slug) {
   const doc = bySlug[slug] || DOCS[0];
   setActive(doc.slug);
@@ -357,9 +487,12 @@ async function load(slug) {
     }
     dressCodeBlocks();
     dressTables();
+    buildRail();
     updateScrollHints();
     window.scrollTo({ top: 0 });
   } catch (err) {
+    docsGrid.classList.add("no-rail");
+    rail.innerHTML = "";
     content.innerHTML = '<div class="docs-err">Could not load <code>' + doc.slug +
       ".md</code> — " + err.message + "</div>";
   }

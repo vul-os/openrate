@@ -451,10 +451,65 @@ pre.cb-wrap { overflow-x: hidden; }
 @media (max-width: 480px) { .ftr-grid { grid-template-columns: 1fr; } }
 
 /* ═══ docs ═════════════════════════════════════════════════════════════ */
-.docs { display: grid; grid-template-columns: 256px minmax(0, 1fr); align-items: start; }
+/* ── the shell, and why every track is filled ─────────────────────────────
+   This grid used to be `256px minmax(0, 1fr)` with `.docs-main` capped at
+   `max-width: 920px`. At 1440 that resolved to tracks of 256px and 1184px
+   with the main column occupying 920 of the second one — leaving 264px of
+   reserved, permanently empty track down the right-hand side. It read as a
+   deliberate side panel that had failed to render, because that is exactly
+   what a column-shaped hole looks like.
+
+   The rule now is that the grid decides the widths and nothing inside it
+   holds back: there is no track that something does not fill.
+
+     ≥1380   three tracks — index, document, and the on-this-page rail that
+             now occupies what the hole used to be. The rail is bounded by a
+             clamp rather than a fraction, so it cannot itself become the
+             next too-wide-and-mostly-empty column on a very large display;
+             the document track takes every pixel the rail does not.
+     ≤1379   two tracks. The rail cannot earn its keep under ~230px, so it is
+             not drawn, and the document track takes the whole remainder
+             instead of leaving a smaller version of the same hole.
+     ≤980    one track, and the index becomes the disclosure bar (see below).
+
+   1380 is where the third track starts paying: 256 index + 920 document
+   (the width overview.md's repository map needs, see .docs-main) + 232 rail
+   at the clamp's floor. At 1440 the clamp lands on 259px and the document
+   track gets 925 — still wider than the 920 the map needs, so the one
+   listing on the site that scrolls still does not have to at desktop width.
+
+   .no-rail is the guard for a page too short to justify a rail: it drops the
+   grid back to two tracks rather than leaving an empty third. Every page in
+   the corpus carries at least four headings, so it does not fire today — but
+   an empty track is the exact defect this block exists to remove, and it
+   should not be able to come back by way of a new page. */
+.docs {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr) clamp(232px, 18vw, 300px);
+  align-items: start;
+}
+.docs.no-rail { grid-template-columns: 256px minmax(0, 1fr); }
+@media (max-width: 1379.98px) {
+  .docs { grid-template-columns: 256px minmax(0, 1fr); }
+  .docs-rail { display: none; }
+}
+/* Pinned to the far left of the viewport and fixed in place while the
+   document scrolls — the shared spec the sibling docs sites are being brought
+   onto. It is the first track of a grid that starts at the page edge, so its
+   left edge IS the viewport's; sticky under the 66px header holds it there.
+
+   `height`, not `max-height`, and that is the difference between a rail that
+   is pinned and one that merely starts at zero. Sized to its content, the
+   border-right stopped a few hundred pixels down — a stub of a rule beside a
+   document that then scrolled past it, which reads as a box that happens to
+   be at the top left rather than as an edge the page is anchored to. Given
+   the full height below the header the rule runs the whole viewport, the
+   separation is unambiguous, and the panel visibly stays while the text
+   moves. overflow-y still earns its keep: nine titles plus the search box
+   outgrow a short window. */
 .docs-side {
   position: sticky; top: 66px; align-self: start; z-index: 40;
-  max-height: calc(100dvh - 66px); overflow-y: auto;
+  height: calc(100dvh - 66px); overflow-y: auto;
   padding: 30px 20px 40px var(--gut);
   border-right: 1px solid var(--line);
 }
@@ -493,15 +548,64 @@ pre.cb-wrap { overflow-x: hidden; }
 .hit span { display: block; font-size: 12px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hits-none { padding: 10px 12px; font-size: 12.5px; color: var(--text-4); }
 
-/* 920, not 880: the widest thing the docs carry is overview.md's repository
-   map — an unfenced listing whose second column starts at a fixed offset on
-   every row, so it is one of the two blocks that must keep its lines intact
-   and scroll rather than wrap. At 880 it needed 26px more than the column
-   gave it and scrolled on a 1440px desktop, which is the one width where
-   there was room to simply not. Prose is unaffected: .md p and .md li cap
-   themselves at 72ch regardless. */
-.docs-main { max-width: 920px; padding: clamp(30px,4vw,48px) var(--gut) clamp(56px,8vw,96px); }
+/* No max-width, on purpose: this column IS its grid track, and the track is
+   sized by the rule at the top of this section. A cap here is what put the
+   264px hole down the right of the page — the track was 1184 and the column
+   politely took 920 of it, and the 264 it left behind belonged to nobody.
+
+   The number that used to be that cap has not gone away, it has moved into
+   the grid: the widest thing the docs carry is overview.md's repository map —
+   an unfenced listing whose second column starts at a fixed offset on every
+   row, so it keeps its lines intact and scrolls rather than wraps — and it
+   needs 840px of content box, i.e. 920 including this padding. That is now
+   the figure the 1380px breakpoint above is derived from, so the map still
+   fits without scrolling at 1440.
+
+   Prose does not stretch when the track is wider than that: .md p and .md li
+   cap themselves at 72ch regardless. */
+.docs-main { min-width: 0; padding: clamp(30px,4vw,48px) var(--gut) clamp(56px,8vw,96px); }
 .crumb { margin-bottom: 18px; }
+
+/* ── the on-this-page rail ────────────────────────────────────────────────
+   What now occupies the space the phantom column used to reserve. The docs
+   are long enough to want one — overview.md is sixteen headings and about
+   eleven screens at 1440 — and a reader who has scrolled into the middle of
+   it otherwise has no way to see where they are or what else is on the page
+   without going back to the top.
+
+   It is built by the viewer, not written in the markup, because the headings
+   come from markdown that is fetched and rendered client-side. A reader
+   without JavaScript therefore never sees it, which is correct: they never
+   see the document it indexes either, and the grid falls back to two tracks
+   because .no-rail is applied on the same code path.
+
+   Sticky rather than fixed, and offset by the header, so it holds its place
+   while the document scrolls and still scrolls internally when a page has
+   more headings than the viewport has room for. */
+.docs-rail {
+  position: sticky; top: 66px; align-self: start;
+  max-height: calc(100dvh - 66px); overflow-y: auto;
+  padding: 30px var(--gut) 40px 4px;
+}
+.docs-rail::-webkit-scrollbar { width: 7px; }
+.docs-rail::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 7px; }
+.docs-rail > .lbl { display: block; margin-bottom: 10px; }
+.docs-rail ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--line); }
+.docs-rail li { margin: 0; padding: 0; }
+/* A rail entry is a real navigation target, so it carries the same 44px floor
+   the index rail and the header nav do. Multi-line titles simply grow past
+   it — "Verify a release before you run it" is three lines at this width. */
+.docs-rail a {
+  display: flex; align-items: center; min-height: 44px;
+  padding: 7px 10px 7px 14px; margin-left: -1px;
+  border-left: 2px solid transparent;
+  font-size: 12.5px; line-height: 1.45; color: var(--text-4);
+  transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+.docs-rail a:hover { color: var(--text-2); }
+.docs-rail a.here { color: var(--teal); border-left-color: var(--teal); }
+/* An h3 is a step inside its h2, and reads as one. */
+.docs-rail a.sub { padding-left: 26px; font-size: 12px; }
 
 /* rendered markdown */
 .md { font-size: 15.5px; }
@@ -726,7 +830,9 @@ html:not(.js) #content { display: none; }
   .docs { grid-template-columns: minmax(0, 1fr); }
   .docs-side {
     position: sticky; top: 66px; z-index: 45;
-    max-height: none; overflow: visible;
+    /* height:auto undoes the desktop rail's full-viewport height — here the
+       element is a one-line bar and must be exactly as tall as that bar. */
+    height: auto; max-height: none; overflow: visible;
     padding: 0 var(--gut); border-right: none; border-bottom: 1px solid var(--line);
     background: color-mix(in srgb, var(--ink) 88%, transparent);
     backdrop-filter: blur(16px) saturate(150%);

@@ -253,6 +253,73 @@
   }
   window.orReline = relineCode;
 
+  /* ── the shell command line, which no highlighter models ──────────────────
+     The docs' most-read page is the Run/install section of overview.md, and
+     it was four code plates of flat grey. That was not a palette problem and
+     not a missing grammar: bash IS registered in the vendored bundle. It is
+     that hljs's bash grammar describes shell *syntax* — keywords, quoting,
+     expansion, builtins — and an install line contains none of it. Measured,
+     the four blocks on that page emitted exactly ONE token between them (the
+     `# serves :8080` comment on the first line); `go run ./cmd/openrate`,
+     `docker build -t openrate .` and the two curl/verify lines tokenised to
+     nothing at all and painted as --code-text from end to end.
+
+     So the two things a reader actually scans an install line for are the two
+     things nothing was marking: WHAT is being run, and WHICH options it is
+     being run with. Both are structural facts about a command line, so they
+     are taught to the grammar rather than paint-by-numbers on the output:
+
+       command position  the first word of a line or of a pipeline segment
+                         (also after ; && || and inside $( ) — ./relative and
+                         /absolute paths included) takes the function role,
+                         which is where hljs already puts a call.
+       option            a -x / --long-form argument takes `attr`, hljs's own
+                         scope for an option name.
+
+     Three guards, each for a case the naive version got wrong:
+
+       • the grammar's own keyword/builtin/literal table is read back out of
+         it and turned into a negative lookahead, so `if`, `then`, `fi`, `for`
+         and `echo`/`export` still reach hljs and still highlight as what they
+         are. Built from lang.keywords rather than a list copied here, so it
+         cannot drift from whatever bundle is vendored.
+       • a word followed by `=` is not a command — `OPENRATE_SOURCES=ecb,sarb
+         go run …` is an environment prefix, and `?from=USD&to=ZAR` is a query
+         string, neither of which is being invoked.
+       • [|;&]+ rather than [|;&], or the second `&` of `&&` is the one that
+         matches and `&& ./openrate` loses its command.
+
+     Both modes are relevance 0: they must never change which language hljs
+     auto-detects, only how a block already known to be shell is drawn. */
+  function teachCommandLine(hljs) {
+    if (!hljs || !hljs.getLanguage) return;
+    ["bash", "sh", "shell"].forEach(function (name) {
+      var lang = hljs.getLanguage(name);
+      if (!lang || !Array.isArray(lang.contains) || lang.orCommandMode) return;
+      var kw = lang.keywords || {};
+      var own = [].concat(kw.keyword || [], kw.built_in || [], kw.literal || [])
+        .map(String)
+        .sort(function (a, b) { return b.length - a.length; })   // longest first, so `return` wins over `re`
+        .map(function (w) { return w.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&"); });
+      var guard = own.length ? "(?!(?:" + own.join("|") + ")\\b)" : "";
+      lang.contains.unshift(
+        {
+          scope: { 2: "title.function_" },
+          match: [/(?:^|[|;&]+\s*|\$\(\s*)/,
+                  new RegExp(guard + "(?![\\w.\\/+-]*=)(?:\\.{0,2}\\/)?[\\w][\\w.\\/+-]*")],
+          relevance: 0,
+        },
+        {
+          scope: { 2: "attr" },
+          match: [/\s/, /--?[A-Za-z][\w-]*/],
+          relevance: 0,
+        }
+      );
+      lang.orCommandMode = true;
+    });
+  }
+  teachCommandLine(window.hljs);
+
   function highlightRoot(root) {
     if (!window.hljs) return;
     (root || document).querySelectorAll("pre code[data-prompt]").forEach(function (el) {
