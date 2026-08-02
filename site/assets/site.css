@@ -102,15 +102,29 @@
   --ease-out: cubic-bezier(.16,1,.3,1);
 
   /* ── code palette ─────────────────────────────────────────────────────
-     Shared with the sibling Vulos sites so the family reads as one system.
-     Deliberately OUTSIDE the [data-theme="light"] override below: a code
-     block is a lit instrument panel, not a page surface, so it stays on the
-     same dark glass whether the reader is on paper or on ink. Every colour
-     here clears 4.5:1 against --code-bg, comments included (see the note on
-     --code-comment below, which was the one value that used to fall short). */
+     Twelve roles, shared with the sibling Vulos sites so the family reads as
+     one system. Deliberately OUTSIDE the [data-theme="light"] override below:
+     a code block is a lit instrument panel, not a page surface, so it stays on
+     the same dark glass whether the reader is on paper or on ink.
+
+     Measured against --code-bg (#0C1116), sRGB relative luminance, WCAG 2.x:
+
+       text        #C8D4E3  12.63:1      function    #7DD3FC  11.37:1
+       comment     #6C7D94   4.51:1      property    #93C5FD  10.52:1
+       keyword     #C4B5FD  10.27:1      variable    #FDA4AF  10.03:1
+       string      #5EEAD4  12.82:1      meta        #FDBA74  11.24:1
+       number      #FBBF24  11.36:1      punctuation #8195AC   6.17:1
+       addition    #86EFAC  13.51:1      deletion    #F87171   6.86:1
+
+     Every one clears the 4.5:1 AA floor for body text. --code-comment is the
+     tight one at 4.51:1 — it is the family's value and it does pass, but it
+     has almost no headroom, so it is used ONLY on --code-bg itself. The one
+     place a comment-coloured token sits on a lighter surface (the .code bar's
+     title, on --code-bg lifted 4% toward white) uses --code-punct instead,
+     which measures 5.69:1 there where --code-comment would measure 4.17:1. */
   --code-bg: #0C1116;
   --code-text: #C8D4E3;
-  --code-comment: #78899F;  /* was #6B7C93 = 4.45:1 on --code-bg, a hair under AA; this measures 5.2:1 */
+  --code-comment: #6C7D94;
   --code-keyword: #C4B5FD;
   --code-string: #5EEAD4;
   --code-number: #FBBF24;
@@ -119,6 +133,8 @@
   --code-variable: #FDA4AF;
   --code-meta: #FDBA74;
   --code-punct: #8195AC;
+  --code-addition: #86EFAC;
+  --code-deletion: #F87171;
 }
 
 [data-theme="light"] {
@@ -212,7 +228,11 @@ p { color: var(--text-3); }
 .lede { font-size: 1.09rem; line-height: 1.75; max-width: 62ch; color: var(--text-3); }
 .lede b, p b { color: var(--text-2); font-weight: 600; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
+/* Relative sizing is right — inline code should track the text it sits in —
+   but .88em of an already-small parent goes under the page's 11px floor
+   (`corroboration` inside a 11.5px caption measured 10.1px). Same floor and
+   same reasoning as .md code, which already carries one. */
+code { font-family: var(--mono); font-size: max(11px, .88em); color: var(--teal); }
 
 /* ── guilloché ────────────────────────────────────────────────────────── */
 .guilloche { position: absolute; pointer-events: none; z-index: 0; color: var(--blue); }
@@ -273,7 +293,80 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .btn-solid:hover { box-shadow: 0 16px 34px -14px rgba(0,0,0,.9); }
 .btn-ghost { border-color: var(--line-2); color: var(--text-2); }
 .code pre { margin: 0; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--code-text); }
-.code .prompt { color: var(--code-string); user-select: none; }
+/* The shell prompt is chrome, not content — it used to take --code-string,
+   which is the colour of every quoted argument on the same line. */
+.code .prompt { color: var(--code-punct); user-select: none; }
+
+/* ── how code behaves when the column is narrower than the line ───────────
+   Two behaviours, chosen per block by what the block IS, rather than one
+   compromise for both:
+
+   • A block in a real language soft-wraps. site.js re-wraps every highlighted
+     block so each source line is its own <span class="cl"> block box, which is
+     what makes a HANGING INDENT possible: a continuation is set 2.6ch in from
+     its own line's start, so a wrap is never mistaken for a newline and the
+     leading whitespace that carries a JSON or Go block's structure still lines
+     up. (text-indent on the <pre> itself cannot do this — a <pre> is one block
+     box, so it would indent the first line of the whole listing and nothing
+     else.) Nothing scrolls; the reader reads it.
+
+   • A block whose columns ARE its meaning — the unfenced plaintext listings,
+     where the second column starts at a fixed offset on every row — keeps its
+     lines intact and scrolls horizontally on purpose, with the affordance
+     below so the scroll is visible rather than discovered.
+
+   The line boxes exist in both cases so a block can switch between them
+   without re-rendering, and so `.cl` numbering/striping stays available. */
+.cl { display: block; }
+pre { tab-size: 4; }   /* site.js counts a tab as four columns; keep them agreed */
+pre.cb-wrap code, .code pre code { white-space: pre-wrap; overflow-wrap: break-word; }
+/* --in is the line's own leading whitespace, published by site.js. The pair
+   cancels on the first line — which therefore starts exactly where its own
+   indentation puts it — and leaves every continuation 2.6ch inside that. */
+pre.cb-wrap .cl, .code pre .cl {
+  padding-left: calc(var(--in, 0ch) + 2.6ch);
+  text-indent: calc(-1 * (var(--in, 0ch) + 2.6ch));
+}
+/* A blank line is an empty block box, which would otherwise collapse to zero
+   height and close up the paragraphing the author put in the listing. 1lh is
+   exactly one line box; the em value is the fallback for engines without it. */
+.cl:empty { min-height: 1.8em; min-height: 1lh; }
+pre.cb-wrap { overflow-x: hidden; }
+
+/* Deliberate horizontal scroll, made visible. Two layers of background:
+   the `local` gradients scroll with the content and cover the ends, the
+   `scroll` shadows are pinned to the box — so a shadow only shows on a side
+   there is genuinely more content on. No JavaScript and no scroll listener.
+   Paired with a scrollbar that is always drawn, because the platform default
+   on macOS is an overlay bar that appears only once you are already
+   scrolling — which is exactly the reader who has not realised they can. */
+.or-scroll {
+  --edge-face: var(--code-bg);
+  --edge-mark: rgba(148,178,214,.34);
+  /* The stack is a custom property so a more specific rule elsewhere can
+     apply the same affordance without restating four gradients. */
+  --edge:
+    linear-gradient(90deg, var(--edge-face) 42%, transparent) 0 0 / 40px 100% no-repeat local,
+    linear-gradient(270deg, var(--edge-face) 42%, transparent) 100% 0 / 40px 100% no-repeat local,
+    linear-gradient(90deg, var(--edge-mark), transparent) 0 0 / 22px 100% no-repeat scroll,
+    linear-gradient(270deg, var(--edge-mark), transparent) 100% 0 / 22px 100% no-repeat scroll,
+    var(--edge-face);
+  overflow-x: auto;
+  background: var(--edge);
+}
+/* No scrollbar-width / scrollbar-color here on purpose. Setting either of the
+   standard properties makes Chromium ignore the ::-webkit-scrollbar rules
+   below and fall back to the platform's overlay scrollbar — which on macOS is
+   drawn only while you are already scrolling, i.e. never for the reader who
+   has not yet realised there is anything to scroll. Dropping them gets a real
+   9px bar that takes layout space and is always on screen. Firefox has no
+   overlay default on desktop and draws its own either way. */
+.or-scroll::-webkit-scrollbar { height: 10px; }
+.or-scroll::-webkit-scrollbar-track { background: color-mix(in srgb, var(--edge-face) 84%, #8FA3BC 16%); border-radius: 10px; }
+.or-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--edge-face) 30%, #8FA3BC 70%); border-radius: 10px; }
+.or-scroll::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--edge-face) 10%, #A9BCD3 90%); }
+/* The same affordance over a page surface rather than the code surface. */
+.or-scroll.on-page { --edge-face: var(--ink); --edge-mark: color-mix(in srgb, var(--line-3) 92%, transparent); }
 
 /* ── landing-page components ──────────────────────────────────────────────
    The hero, stat rail, screenshots, split rows, seals, code plates, steps,
@@ -288,22 +381,50 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 /* ── syntax highlighting (hljs) ───────────────────────────────────────────
    One mapping, shared by the landing's terminal/response plates (.code pre)
    and the docs viewer's rendered markdown (.md pre) — both sit on the same
-   fixed --code-bg. highlight.js emits a broader class vocabulary than the
-   three languages the docs fence (bash, json, go) strictly need; every class
-   it can emit for ANY of its bundled grammars is mapped here, not just the
-   ones exercised today, so a future fenced language never silently falls
-   through to unstyled default text. */
+   fixed --code-bg.
+
+   The vendored bundle (assets/vendor/highlight.min.js) registers exactly four
+   grammars — bash/shell/sh, json, go/golang, plaintext — and the classes it
+   can emit were dumped by highlighting every fenced block in every doc page
+   and both landing plates, plus synthetic snippets driving the grammar paths
+   the corpus does not reach. That vocabulary is:
+
+     punctuation attr string number keyword comment built_in literal
+     type variable function params meta title
+
+   `hljs-function` is the one that used to fall through: the bundled Go grammar
+   still wraps a whole `func Name(args) ret` construct in it (the pre-scope
+   className form), nothing in this file matched, and its own text — the
+   parens and separators between the highlighted children — painted as plain
+   --code-text. It is mapped with the other delimiters below.
+
+   Two more were collisions rather than gaps. `hljs-literal` shared amber with
+   `hljs-number`, so JSON's true/false/null and Go's nil/iota were indistinct
+   from numerals; they are language constants, so they now take the variable
+   role, which is where hljs's own `variable.constant_` lives. `hljs-type`
+   shared orange with `hljs-meta`, so Go's `string`/`int` read as preprocessor
+   directives; it now takes the property blue and --code-meta is left for real
+   meta (a shebang, a build tag).
+
+   Classes beyond that vocabulary are still mapped, so a grammar added to the
+   bundle later never silently falls through to unstyled default text. */
 .code pre, .md pre { background: var(--code-bg); }
 .code code, .md pre code { color: var(--code-text); }
 .hljs-comment, .hljs-quote { color: var(--code-comment); font-style: italic; }
 .hljs-keyword, .hljs-selector-tag, .hljs-subst, .hljs-doctag, .hljs-formula, .hljs-template-tag { color: var(--code-keyword); }
-.hljs-string, .hljs-regexp, .hljs-addition { color: var(--code-string); }
-.hljs-number, .hljs-literal, .hljs-symbol, .hljs-deletion { color: var(--code-number); }
+.hljs-string, .hljs-regexp, .hljs-char.escape_ { color: var(--code-string); }
+.hljs-number, .hljs-symbol { color: var(--code-number); }
 .hljs-title, .hljs-title.function_, .hljs-title.class_, .hljs-section, .hljs-name, .hljs-built_in { color: var(--code-function); }
-.hljs-attr, .hljs-attribute, .hljs-property, .hljs-selector-class, .hljs-selector-id { color: var(--code-property); }
-.hljs-variable, .hljs-template-variable, .hljs-params { color: var(--code-variable); }
-.hljs-meta, .hljs-meta .hljs-keyword, .hljs-tag, .hljs-type, .hljs-selector-pseudo, .hljs-bullet, .hljs-link { color: var(--code-meta); }
-.hljs-punctuation, .hljs-operator { color: var(--code-punct); }
+.hljs-attr, .hljs-attribute, .hljs-property, .hljs-type, .hljs-selector-class, .hljs-selector-id { color: var(--code-property); }
+.hljs-variable, .hljs-template-variable, .hljs-params, .hljs-literal, .hljs-variable.language_, .hljs-variable.constant_ { color: var(--code-variable); }
+.hljs-meta, .hljs-meta .hljs-keyword, .hljs-meta .hljs-string, .hljs-tag, .hljs-selector-pseudo, .hljs-bullet, .hljs-link { color: var(--code-meta); }
+.hljs-punctuation, .hljs-operator, .hljs-function { color: var(--code-punct); }
+/* Semantic by definition — a diff's two colours are the information. The
+   bundle ships no diff grammar, so nothing emits these today; they are the
+   last two of the family's twelve roles and are declared so the mapping is
+   complete rather than nearly complete. */
+.hljs-addition { color: var(--code-addition); }
+.hljs-deletion { color: var(--code-deletion); }
 .policy-card .bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .policy-card .date { font-size: 12px; color: var(--text-5); font-family: var(--mono); }
 
@@ -332,37 +453,54 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 /* ═══ docs ═════════════════════════════════════════════════════════════ */
 .docs { display: grid; grid-template-columns: 256px minmax(0, 1fr); align-items: start; }
 .docs-side {
-  position: sticky; top: 66px; align-self: start;
+  position: sticky; top: 66px; align-self: start; z-index: 40;
   max-height: calc(100dvh - 66px); overflow-y: auto;
   padding: 30px 20px 40px var(--gut);
   border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; gap: 6px;
 }
 .docs-side::-webkit-scrollbar { width: 7px; }
 .docs-side::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 7px; }
-.docs-side > .lbl { margin-bottom: 6px; }
-.docs-side a {
-  display: block; padding: 7px 12px; font-size: 13.5px; color: var(--text-3);
+.toc-panel { display: flex; flex-direction: column; gap: 4px; }
+.toc-panel > .lbl { margin-bottom: 8px; }
+/* The desktop rail's disclosure button. Hidden here, and the whole reason the
+   panel is a separate element: below 980px this button IS the navigation and
+   the panel drops out of flow behind it. */
+.toc-btn { display: none; }
+.docs-side nav { display: flex; flex-direction: column; gap: 2px; }
+/* `.docs-side nav a`, not `.docs-side a` — the search results are anchors in
+   the same aside, and a display:flex meant for a one-line nav row laid their
+   title and their excerpt side by side instead of stacked. */
+.docs-side nav a {
+  display: flex; align-items: center; min-height: 44px;  /* was 7px padding = 36.3px, under the tap-target floor */
+  padding: 7px 12px; font-size: 13.5px; color: var(--text-3);
   border-left: 2px solid transparent; border-radius: 0 var(--r-xs) var(--r-xs) 0;
   transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
 }
-.docs-side a:hover { color: var(--text); background: var(--paper-3); }
-.docs-side a.active { color: var(--teal); border-left-color: var(--teal); }
+.docs-side nav a:hover { color: var(--text); background: var(--paper-3); }
+.docs-side nav a.active { color: var(--teal); border-left-color: var(--teal); background: color-mix(in srgb, var(--teal) 7%, transparent); }
 
 .docs-search {
-  width: 100%; margin-bottom: 12px;
+  width: 100%; margin-bottom: 12px; min-height: 44px;  /* was 35px */
   background: var(--ink-2); border: 1px solid var(--line); border-radius: 100px;
-  padding: 8px 14px; color: var(--text); font-family: var(--mono); font-size: 12.5px;
+  padding: 8px 16px; color: var(--text); font-family: var(--mono); font-size: 13px;
 }
-.docs-search::placeholder { color: var(--text-5); }
+.docs-search::placeholder { color: var(--text-4); }
 .docs-search:focus { outline: none; border-color: color-mix(in srgb, var(--blue) 50%, transparent); }
 .hits { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
-.hit { display: block; padding: 8px 12px; border-radius: var(--r-sm); background: var(--paper-3); }
+.hit { display: block; min-height: 44px; padding: 9px 12px; border-radius: var(--r-sm); background: var(--paper-3); }
+.hit:hover { background: var(--paper-2); }
 .hit b { display: block; font-size: 12.5px; color: var(--text); font-weight: 600; }
 .hit span { display: block; font-size: 12px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hits-none { padding: 10px 12px; font-size: 12.5px; color: var(--text-5); }
+.hits-none { padding: 10px 12px; font-size: 12.5px; color: var(--text-4); }
 
-.docs-main { max-width: 880px; padding: clamp(30px,4vw,48px) var(--gut) clamp(56px,8vw,96px); }
+/* 920, not 880: the widest thing the docs carry is overview.md's repository
+   map — an unfenced listing whose second column starts at a fixed offset on
+   every row, so it is one of the two blocks that must keep its lines intact
+   and scroll rather than wrap. At 880 it needed 26px more than the column
+   gave it and scrolled on a 1440px desktop, which is the one width where
+   there was room to simply not. Prose is unaffected: .md p and .md li cap
+   themselves at 72ch regardless. */
+.docs-main { max-width: 920px; padding: clamp(30px,4vw,48px) var(--gut) clamp(56px,8vw,96px); }
 .crumb { margin-bottom: 18px; }
 
 /* rendered markdown */
@@ -388,6 +526,34 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .md hr + h2 { border-top: none; padding-top: 0; margin-top: 26px; }
 .md h2:first-child { border-top: none; padding-top: 0; margin-top: 0; }
 .md h4 { font-family: var(--ui); font-size: .96rem; font-weight: 650; color: var(--text); margin: 22px 0 8px; }
+/* A bare URL or a long `code` span is one unbreakable word to the line
+   breaker, and one of them is all it takes to push a 354px column to 365px.
+   Breaking inside a word is ugly; being unable to read the paragraph is
+   worse, and this only ever fires on a word that genuinely cannot fit. */
+.md p, .md li, .md blockquote, .md dd { overflow-wrap: break-word; }
+.md td, .md th { overflow-wrap: break-word; }
+/* `anywhere` rather than `break-word` inside a table that is still a table,
+   and the difference matters: only `anywhere` lowers a cell's min-content
+   width, and min-content is what decides how wide the table insists on being.
+   Two of sources.md's tables carry unbreakable tokens —
+   `SarbWebApi/WebIndicators/HomePageRates`, `api.frankfurter.dev/v1/latest` —
+   and those single words were holding an eight-column table at 1150px on a
+   1440px desktop that had 840px to give it.
+
+   Scoped twice over, because breaking words is a cost and not a default.
+   Scoped to inline code inside a cell rather than the cell's prose: the tokens
+   holding those tables open are `code` spans, while the text around them is
+   ordinary English that already has break opportunities. Applied to the whole
+   cell it read as a fix and looked like a bug — the same table then "fitted"
+   by breaking coinbas/e and autho/ritati/ve, and with the headings in too it
+   managed SOUR/CE and DEF/AUL/T.
+
+   And scoped to tables the viewer has measured and found too wide (.brk). A
+   table that fits should never break a word: lowering min-content also lowers
+   what the auto layout will hand a column, so switching this on unconditionally
+   made configuration.md — which fits at every width — split OPENRATE_ADD/R and
+   -/interest-/sources for nothing. See applyStacking() in docs.html. */
+.md table.brk td code { overflow-wrap: anywhere; }
 .md p { margin: 13px 0; line-height: 1.75; max-width: 72ch; }
 .md a { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--blue) 35%, transparent); }
 .md a:hover { text-decoration-color: currentColor; }
@@ -408,6 +574,49 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
      rather than pinning an absolute size. */
   font-size: max(12px, .86em);
 }
+/* ── code blocks in the docs ──────────────────────────────────────────────
+   Each <pre> is wrapped by the viewer in a .codeblock with a chrome bar, the
+   same object the landing's terminal and response plates already are. The bar
+   is not decoration: it is where the copy control goes. The control used to
+   float in the block's top-right corner at 48.8x31px — under the tap-target
+   floor, invisible until hover (so unusable by touch, which has no hover),
+   and sitting on top of the first line of code. In the bar it gets a real
+   44px box, it is always visible, and it covers nothing. The bar also names
+   the language, which the reader previously had to infer. */
+.codeblock {
+  margin: 18px 0; border: 1px solid var(--line-2); border-radius: var(--r);
+  background: var(--code-bg); box-shadow: var(--shadow-1); overflow: hidden;
+}
+.cb-bar {
+  display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px;
+  min-height: 40px; background: color-mix(in srgb, var(--code-bg) 100%, white 4%);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.cb-lang {
+  font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--code-punct); flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Named for what it is: this block keeps its lines and scrolls, and the
+   reader is told so rather than left to find out by dragging. The viewer adds
+   .on only when the block is genuinely wider than its column at the current
+   width — a listing that happens to fit should not advertise a scroll it does
+   not have. */
+.cb-hint {
+  display: none; flex: none; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--code-punct);
+}
+.cb-hint.on { display: inline-flex; }
+.md .codeblock pre {
+  position: static; margin: 0; padding: 14px 16px; border: none; border-radius: 0;
+  box-shadow: none;
+  /* var(--edge) is set by .or-scroll on the scrolling blocks and undefined on
+     the wrapping ones, so this one declaration carries the edge affordance
+     where there is one and lands on the plain code surface where there isn't
+     — without this rule having to lose a specificity fight with .or-scroll. */
+  background: var(--edge, var(--code-bg));
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--code-text);
+}
 .md pre {
   position: relative; margin: 18px 0; padding: 16px 18px; overflow-x: auto;
   background: var(--code-bg); border: 1px solid var(--line-2); border-radius: var(--r);
@@ -421,11 +630,34 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
   border-left: 2px solid color-mix(in srgb, var(--teal) 45%, transparent);
   color: var(--text-4);
 }
-.md table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px; display: block; overflow-x: auto; }
+/* ── tables ───────────────────────────────────────────────────────────────
+   The table itself is a table again. It used to carry `display: block;
+   overflow-x: auto` directly, which is the usual shorthand for "let it
+   scroll" and has a cost that is easy to miss: a <table> laid out as a block
+   sizes its anonymous inner table to max-content, so it took its preferred
+   width — 1150px for sources.md's eight-column feed matrix — and scrolled
+   even when the column was wide enough for it to fit. The scroll now lives on
+   a wrapper the viewer adds, and the table is free to lay out at 100% and
+   only overflow when its columns genuinely cannot compress further. */
+.md .table-scroll { margin: 18px 0; }
+.md table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px; }
+.md .table-scroll > table { margin: 0; }
 .md th, .md td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+/* A dense matrix earns tighter gutters. sources.md's eight-column table spends
+   224px — a quarter of the column it is in — on cell padding alone, and that
+   was the whole of the 7px it overflowed a 1440px desktop by. */
+.md table[data-cols="6"] :is(th, td),
+.md table[data-cols="7"] :is(th, td),
+.md table[data-cols="8"] :is(th, td),
+.md table[data-cols="9"] :is(th, td) { padding-left: 10px; padding-right: 10px; }
+/* The first column hangs on the text column's own left edge, the way the
+   landing's ledger does — but only while the table is a table. In a stacked
+   card the first cell is inside the card, and pulling it out left it as the
+   one row not lining up with the rest. */
+.md table[data-cols]:not(.stack) :is(th, td):first-child { padding-left: 0; }
 .md th {
   font-family: var(--mono); font-size: 12px; font-weight: 500;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); white-space: nowrap;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text-4);
 }
 .md td { color: var(--text-3); }
 .md tbody tr:last-child td { border-bottom: none; }
@@ -433,15 +665,20 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
 .md img { display: inline-block; margin: 4px 0; }
 .md p[align="center"], .md div[align="center"] { text-align: center; }
 
+/* Always visible, never on top of the code, and a real target. Opacity-0-
+   until-hover is a desktop idiom; a touch reader has no hover and so simply
+   never had a copy button at all. */
 .copy-btn {
-  position: absolute; top: 8px; right: 8px;
-  background: var(--paper-2); border: 1px solid var(--line-2); border-radius: var(--r-xs);
-  color: var(--text-4); font-family: var(--mono); font-size: 12px; padding: 4px 9px;
-  cursor: pointer; opacity: 0;
-  transition: opacity .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  flex: none; min-width: 44px; min-height: 44px; padding: 0 12px;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-sm);
+  color: var(--code-punct); font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em;
+  cursor: pointer;
+  transition: color .16s var(--ease), border-color .16s var(--ease), background .16s var(--ease);
 }
-.md pre:hover .copy-btn, .copy-btn:focus-visible { opacity: 1; }
-.copy-btn:hover { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 45%, transparent); }
+.copy-btn svg { width: 13px; height: 13px; flex: none; }
+.copy-btn:hover { color: var(--code-string); border-color: color-mix(in srgb, var(--code-string) 40%, transparent); background: rgba(255,255,255,.04); }
+.copy-btn.done { color: var(--code-string); }
 
 .docs-err {
   border: 1px solid color-mix(in srgb, var(--red) 32%, transparent);
@@ -459,35 +696,125 @@ code { font-family: var(--mono); font-size: .88em; color: var(--teal); }
    replace it. */
 html:not(.js) #content { display: none; }
 
+/* ── the documentation index below 980px ──────────────────────────────────
+   What this replaced: the desktop rail was laid on its side into a single
+   non-wrapping row of nine pills with overflow-x: auto. On a 390px phone that
+   made ASIDE.docs-side an 855px-wide box inside a 390px window — the reader
+   had to drag the navigation sideways to discover that six of the nine pages
+   existed, with nothing on screen to say they were there, and the search box
+   was hidden outright because it had nowhere to go.
+
+   It is now a disclosure. The bar shows one line — the page you are on —
+   which is the single fact a reader in a document most needs, and opening it
+   drops the whole index over the page: all nine titles at once, laid out in a
+   grid that fits the width instead of running past it, with the search box
+   back. Nothing is off-screen and nothing is dragged. The bar is sticky under
+   the header, so the index is one tap away from anywhere in a long document
+   rather than a scroll back to the top.
+
+   The panel is a plain element toggled by a button rather than <details>: the
+   rail has to be permanently open above 980px, and forcing a <details> open
+   from CSS is not reliably possible now that engines render its contents
+   through ::details-content. html:not(.js) keeps the whole index visible for
+   a reader without scripting, the same gate #content and .rv already use. */
 @media (max-width: 980px) {
-  /* minmax(0, 1fr), not a bare 1fr — the desktop rule above uses
-     minmax(0, 1fr) specifically so the horizontally-scrolling nav pill bar
-     (#nav, non-wrapping) can never force the track wider than the viewport;
-     a bare 1fr's automatic minimum is its content's min-content size, and a
-     9-item nowrap nav is ~820px of that, so the single column blew out to
-     ~887px on a 768px viewport and dragged the whole page into horizontal
-     scroll — .docs-side's own overflow-x: auto never got a chance to do its
-     job because the track never shrank enough to need it. */
+  /* minmax(0, 1fr), not a bare 1fr: a bare 1fr's automatic minimum is its
+     content's min-content size, so any non-wrapping child raises the track
+     above the viewport width and takes the whole page into horizontal scroll
+     with it. That is how the old pill bar blew the page out to 887px on a
+     768px viewport. */
   .docs { grid-template-columns: minmax(0, 1fr); }
   .docs-side {
-    position: static; max-height: none; overflow-y: visible; overflow-x: auto;
-    flex-direction: row; align-items: center; gap: 4px;
-    padding: 12px var(--gut); border-right: none; border-bottom: 1px solid var(--line);
+    position: sticky; top: 66px; z-index: 45;
+    max-height: none; overflow: visible;
+    padding: 0 var(--gut); border-right: none; border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--ink) 88%, transparent);
+    backdrop-filter: blur(16px) saturate(150%);
   }
-  .docs-side > .lbl, .docs-side .docs-search, .docs-side .hits, .docs-side .hits-none { display: none; }
-  /* #nav is itself a single flex item of .docs-side above — flex-direction:
-     row on the parent lays out ITS direct children in a row, but says
-     nothing about #nav's own children. Without this, the <a> tags (block-
-     level per the base rule above) stack vertically inside that one item,
-     turning the "collapse to a horizontal pill bar" into an unbounded
-     vertical list the full width of the viewport. flex on #nav itself
-     makes the anchors flex items in turn, so they sit side by side and
-     scroll horizontally with the bar (.docs-side keeps overflow-x: auto). */
-  .docs-side nav { display: flex; align-items: center; gap: 4px; flex: none; }
-  .docs-side a { border-left: none; padding: 7px 10px; white-space: nowrap; flex: none; }
-  .docs-side a.active { border-left: none; border-bottom: 2px solid var(--teal); border-radius: 0; }
+  .toc-btn {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    min-height: 54px; padding: 0; background: none; border: none; cursor: pointer;
+    text-align: left; color: var(--text-3);
+  }
+  .toc-btn .toc-k {
+    flex: none; font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--text-4);
+  }
+  .toc-btn .toc-here {
+    flex: 1 1 auto; min-width: 0; font-size: 14.5px; font-weight: 600; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .toc-btn .toc-chev { flex: none; width: 16px; height: 16px; color: var(--text-4); transition: transform .22s var(--ease); }
+  .toc-btn[aria-expanded="true"] .toc-chev { transform: rotate(180deg); }
+  .toc-btn:hover .toc-here { color: var(--teal); }
+
+  .toc-panel {
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 46;
+    display: none; gap: 0;
+    max-height: calc(100dvh - 122px); overflow-y: auto;
+    padding: 16px var(--gut) 22px;
+    background: var(--ink-2); border-bottom: 1px solid var(--line-2);
+    box-shadow: 0 28px 64px -28px rgba(0,0,0,.85);
+  }
+  .docs-side.open .toc-panel, html:not(.js) .toc-panel { display: flex; }
+  html:not(.js) .toc-panel { position: static; max-height: none; box-shadow: none; padding: 16px 0 22px; }
+  .toc-panel > .lbl { display: none; }
+  /* Two columns wherever two columns fit, so nine titles are one glance
+     rather than one scroll. auto-fit + a 150px floor means it is one column
+     on the narrowest phones without a second breakpoint to keep in step. */
+  .docs-side nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 2px; }
+  .docs-side nav a { border-left: none; border-radius: var(--r-sm); padding: 8px 12px; }
+  .docs-side nav a.active {
+    border-left: none; color: var(--teal);
+    background: color-mix(in srgb, var(--teal) 10%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal) 32%, transparent);
+  }
   .docs-main { max-width: none; }
 }
+
+/* ── wide tables on a phone ───────────────────────────────────────────────
+   sources.md's feed matrix is eight columns of prose. At 354px there is no
+   column width that makes it a table a person can read: laid out to fit, each
+   column is 44px; laid out to be legible, it is a 1150px box dragged past the
+   window three times over. So past a point a table stops being a grid and
+   becomes one card per row, each cell labelled with its own column heading —
+   the heading row is carried onto every cell as data-th by the viewer, so
+   nothing is lost and nothing has to be remembered from a header that
+   scrolled away.
+
+   Where that point is depends on the column count, which is why the switch is
+   a matchMedia pair in docs.html rather than a media query here: five columns
+   or more give up at 900px, three or four at 620px, and a two-column
+   key/value table never does because it already reads correctly at any width.
+
+   Tables that stay tabular keep the .or-scroll affordance on their wrapper. */
+.md .table-scroll.stacked { overflow-x: visible; background: none; }
+.md table.stack { display: block; font-size: 14px; }
+.md table.stack thead { display: none; }
+.md table.stack tbody, .md table.stack tr, .md table.stack td, .md table.stack th { display: block; }
+.md table.stack tbody tr {
+  padding: 4px 0 10px; margin: 0 0 12px;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper);
+}
+.md table.stack tbody tr:last-child { margin-bottom: 0; }
+/* The label sits above its value rather than beside it. Beside it would be a
+   two-track grid, and a grid blockifies every direct child — which turns an
+   inline <code> chip into a full-width bar and splits `127.0.0.1 port` across
+   two rows. A cell has to stay a normal inline formatting context; only the
+   label is a block. */
+.md table.stack td, .md table.stack tbody th {
+  display: block; border-bottom: none; padding: 8px 14px 0;
+  font-weight: inherit; color: var(--text-3);
+}
+.md table.stack td::before, .md table.stack tbody th::before {
+  content: attr(data-th); display: block; margin-bottom: 2px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-4);
+}
+/* An empty cell in a stacked row is a row of nothing but its own label. */
+.md table.stack td:empty { display: none; }
+.md table.stack tbody tr > *:first-child { padding-top: 11px; color: var(--text); }
+.md table.stack tbody tr > *:first-child::before { color: var(--teal); }
 
 /* ── reveal ───────────────────────────────────────────────────────────────
    Progressive enhancement, not a requirement: .rv only starts hidden once
@@ -513,9 +840,13 @@ html.js .rv.in { opacity: 1; transform: none; }
    Two elements, and only two: a logo-only home button in the top bar, and
    one line in the footer. Deliberately free of repo variables so the block
    is byte-identical across the suite and can be diffed as one thing. */
-.vulos-home { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; opacity: .72; transition: opacity .15s ease, transform .15s ease; }
+/* 44px, not 34: both of these are standalone controls — a link to another
+   site, in the header and again in the footer — and both measured under the
+   tap-target floor at every width. The mark itself is unchanged at 22px and
+   18px; only the box around it grew. */
+.vulos-home { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto; opacity: .72; transition: opacity .15s ease, transform .15s ease; }
 .vulos-home:hover, .vulos-home:focus-visible { opacity: 1; transform: translateY(-1px); }
 .vulos-home img { display: block; width: 22px; height: 22px; border-radius: 6px; }
-.vulos-foot { display: inline-flex; align-items: center; gap: 9px; font-size: 13.5px; line-height: 1.45; text-decoration: none; color: inherit; opacity: .85; transition: opacity .15s ease; }
+.vulos-foot { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; font-size: 13.5px; line-height: 1.45; text-decoration: none; color: inherit; opacity: .85; transition: opacity .15s ease; }
 .vulos-foot:hover { opacity: 1; text-decoration: none; }
 .vulos-foot img { display: block; width: 18px; height: 18px; border-radius: 5px; flex: 0 0 auto; }

@@ -177,6 +177,82 @@
      split into its own <span class="prompt"> before the rest of the line is
      handed to hljs — the highlighter doesn't model shell prompts (none do),
      so this stays a structural split, not a hand-picked token colour. */
+  /* ── one block box per source line ───────────────────────────────────────
+     Re-wraps an already-highlighted <code> so that every source line becomes
+     its own <span class="cl">. That is what buys the hanging indent in
+     site.css: a soft-wrapped continuation is set 2.6ch in from where its line
+     began, so a wrap is visibly a wrap and not a newline, and a JSON or Go
+     block's leading indentation still reads as structure after it wraps.
+     There is no CSS-only way to get there — a <pre> is a single block box, so
+     text-indent would move the first line of the whole listing and nothing
+     else.
+
+     The split happens on the highlighted DOM rather than by highlighting line
+     by line, which would have been three lines of code instead of thirty. The
+     difference is state: a highlighter carries context across lines, and a Go
+     raw-string literal or a bash heredoc spanning several lines is one token.
+     Fed a line at a time it stops being one token, and the highlighting goes
+     quietly wrong for exactly the constructs that are hardest to read. Today's
+     corpus happens to contain none of them; the docs are generated from the
+     canonical docs and the next edit is not this file's to predict.
+
+     Ancestor spans are rebuilt inside each line (a token interrupted by a
+     newline reopens on the next line), so the class structure hljs produced
+     survives intact. */
+  function relineCode(code) {
+    var lines = [], cur = null;
+    function newLine() {
+      var el = document.createElement("span");
+      el.className = "cl";
+      cur = { el: el, chain: [] };
+      lines.push(cur);
+    }
+    function put(ancestors, text) {
+      var chain = cur.chain, i = 0;
+      while (i < chain.length && i < ancestors.length && chain[i].src === ancestors[i]) i++;
+      chain.length = i;
+      for (var j = i; j < ancestors.length; j++) {
+        var clone = ancestors[j].cloneNode(false);
+        (chain.length ? chain[chain.length - 1].node : cur.el).appendChild(clone);
+        chain.push({ src: ancestors[j], node: clone });
+      }
+      (chain.length ? chain[chain.length - 1].node : cur.el).appendChild(document.createTextNode(text));
+    }
+    newLine();
+    (function walk(node, ancestors) {
+      for (var i = 0; i < node.childNodes.length; i++) {
+        var c = node.childNodes[i];
+        if (c.nodeType === 3) {
+          var parts = c.nodeValue.split("\n");
+          for (var p = 0; p < parts.length; p++) {
+            if (p > 0) newLine();
+            if (parts[p] !== "") put(ancestors, parts[p]);
+          }
+        } else if (c.nodeType === 1) {
+          walk(c, ancestors.concat([c]));
+        }
+      }
+    })(code, []);
+    // A listing normally ends with a newline, which leaves one empty line
+    // behind it. Dropping it stops every block growing a blank last row.
+    while (lines.length > 1 && lines[lines.length - 1].el.childNodes.length === 0) lines.pop();
+    code.textContent = "";
+    for (var k = 0; k < lines.length; k++) {
+      // The hanging indent has to hang from the line's OWN indentation, not
+      // from the block's left edge. A flat 2.6ch would put the continuation of
+      // a four-space-indented JSON line further LEFT than the line it belongs
+      // to, which reads as a step back out to the outer level — the opposite
+      // of what a wrap means. Publishing each line's leading whitespace lets
+      // site.css offset from it, so a continuation always sits inside its own
+      // line and a wrap can never be mistaken for structure.
+      var lead = (lines[k].el.textContent.match(/^[ \t]*/) || [""])[0];
+      var cols = lead.replace(/\t/g, "    ").length;   // tab-size: 4, set in site.css
+      if (cols) lines[k].el.style.setProperty("--in", cols + "ch");
+      code.appendChild(lines[k].el);
+    }
+  }
+  window.orReline = relineCode;
+
   function highlightRoot(root) {
     if (!window.hljs) return;
     (root || document).querySelectorAll("pre code[data-prompt]").forEach(function (el) {
@@ -191,11 +267,13 @@
       }).join("\n");
       el.classList.add("hljs");
       el.dataset.hlDone = "1";
+      relineCode(el);
     });
     (root || document).querySelectorAll('pre code[class*="language-"]:not([data-prompt])').forEach(function (el) {
       if (el.dataset.hlDone) return;
       hljs.highlightElement(el);
       el.dataset.hlDone = "1";
+      relineCode(el);
     });
   }
   highlightRoot(document);

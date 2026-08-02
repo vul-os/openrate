@@ -209,8 +209,15 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
   /* minmax(0,1fr), never a bare 1fr: a bare 1fr is minmax(auto,1fr), so one
      white-space:nowrap label inside the track raises the track's min-content
      and the whole grid grows wider than the viewport. That is exactly how
-     this page picked up 22px of body scroll at 390. */
-  .split { grid-template-columns: minmax(0, 1fr); }
+     this page picked up 22px of body scroll at 390.
+
+     .split.wide-left is named explicitly because it has to be. It sets its
+     own two-track template at (0,2,0) specificity, and a bare `.split` inside
+     a media query is still only (0,1,0) — media queries do not add any. So
+     §07 never collapsed: on a 390px phone the terminal plate was still being
+     laid into 57% of the column, an 187px box holding a 458px line, and it
+     was the widest thing a reader had to drag on the page. */
+  .split, .split.wide-left { grid-template-columns: minmax(0, 1fr); }
   .split.flip > .copy { order: 0; }
 }
 
@@ -420,7 +427,7 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    bands past 100 bps are named in the caption rather than drawn compressed,
    which would have made the scale lie. */
 .bands { display: flex; height: 34px; border: 1px solid var(--line-2); border-radius: var(--r-xs); overflow: hidden; }
-.bands span { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; border-right: 1px solid var(--line-2); min-width: 0; overflow: hidden; }
+.bands span { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; border-right: 1px solid var(--line-2); min-width: 0; overflow: hidden; }
 .bands span:last-child { border-right: none; }
 .bands span { font-weight: 600; }
 .bands .b1 { flex: 25 1 0; background: color-mix(in srgb, var(--teal) 9%, transparent); color: var(--teal); }
@@ -430,8 +437,8 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    darkened here. Ink has headroom and is left alone. */
 [data-theme="light"] .bands .b1 { color: color-mix(in srgb, var(--teal) 84%, #000); }
 [data-theme="light"] .bands .b2 { color: color-mix(in srgb, var(--amber) 84%, #000); }
-.marks { position: relative; height: 66px; margin-top: 8px; }
-.mark { position: absolute; left: var(--x); top: 0; transform: translateX(-50%); white-space: nowrap; text-align: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--text-4); padding-top: 12px; }
+.marks { position: relative; height: 90px; margin-top: 8px; }
+.mark { position: absolute; left: var(--x); top: 0; transform: translateX(-50%); white-space: nowrap; text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--text-4); padding-top: 12px; }
 .mark::before { content: ""; position: absolute; left: 50%; top: 0; width: 1px; height: 8px; background: currentColor; }
 .mark b { display: block; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mark.tight { color: var(--teal); } .mark.wide { color: var(--amber); }
@@ -439,9 +446,14 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    strip on a wide screen — and each label is a good deal wider than that. The
    tighter of the two drops to a second row on a longer tick instead of being
    nudged sideways off its own value: the x stays honest, and the only thing
-   that moves is the label's height, which carries no information. */
-.mark.tight { padding-top: 36px; transform: translateX(-26%); }
-.mark.tight::before { height: 32px; }
+   that moves is the label's height, which carries no information.
+
+   The drop has to clear BOTH lines of the mark it is avoiding, not just the
+   first: each mark is a figure over a pair name, so 36px put "9.6" level with
+   "USD→ZAR" and the two ran into each other once the type came up to the
+   page's 11px floor. */
+.mark.tight { padding-top: 50px; transform: translateX(-26%); }
+.mark.tight::before { height: 46px; }
 
 /* consequence chain */
 .chain { display: flex; flex-direction: column; gap: 9px; font-family: var(--mono); font-size: 12px; }
@@ -478,7 +490,7 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .walk-leg .ln::after { content: ""; position: absolute; right: 0; top: -3px; border-left: 5px solid var(--teal); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
 .walk-leg .m { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
 .walk-leg .r { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(12px, 1.5vw, 14.5px); font-weight: 600; color: var(--text); }
-.walk-leg .s { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-4); white-space: nowrap; }
+.walk-leg .s { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-4); white-space: nowrap; }
 /* The reconciliation rows under the walk. Two rows rather than one line of
    arithmetic, because the honest statement needs three numbers — the product of
    the legs as printed, the rate as printed, and the difference — and the third
@@ -487,8 +499,8 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    that scrolls sideways inside the page is a figure a reader never finishes. */
 .recon { margin-top: clamp(20px, 3vw, 30px); padding-top: 18px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; }
 .recon-row { display: flex; flex-direction: column; gap: 5px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.recon-row .rk { font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-4); }
-.recon-row .rk small { display: block; font-size: 10.5px; letter-spacing: .05em; text-transform: none; color: var(--text-5); }
+.recon-row .rk { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-4); }
+.recon-row .rk small { display: block; font-size: 11px; letter-spacing: .05em; text-transform: none; color: var(--text-5); }
 .recon-row .rv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; font-size: clamp(12.5px, 1.4vw, 15px); color: var(--text-3); overflow-wrap: anywhere; }
 .recon-row .rv .leg { font-weight: 600; color: var(--text); }
 .recon-row .rv .prod { font-weight: 600; color: var(--teal); }
@@ -532,15 +544,31 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .ledger th, .ledger td { padding: 13px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .ledger th:first-child, .ledger td:first-child { text-align: left; padding-left: 0; white-space: normal; }
 .ledger td:last-child, .ledger th:last-child { padding-right: 0; }
-.ledger thead th { font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); border-bottom-color: var(--line-2); }
+.ledger thead th { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-4); border-bottom-color: var(--line-2); }
 .ledger tbody td { font-size: 13.5px; color: var(--text-3); }
 .ledger tbody th { font-size: 12px; font-weight: 500; color: var(--text-4); letter-spacing: .04em; }
 .ledger td.diff { color: var(--amber); font-weight: 600; }
 .ledger td.same { color: var(--text-4); }  /* --text-5 is a rule colour, not a text colour: it measured 2.0-2.3:1 here */
 .ledger tfoot td, .ledger tfoot th { border-bottom: none; padding-top: 18px; font-size: 15px; color: var(--text); font-weight: 600; }
 .ledger .gcell { display: inline-flex; align-items: center; gap: 10px; justify-content: flex-end; }
+/* Each data cell is a factor and the reading behind it — ×0.96, exchange —
+   and they were one nowrap string, which is what made the table 440px wide in
+   a 354px column. The reading is a separate span so it can drop to its own
+   line at narrow. Nothing is elided: the two-row cell says the same thing the
+   one-row cell did, and this table stays a table, because its whole point is
+   two columns you read across. */
+.ledger td .rd { color: var(--text-4); }
+.ledger td.diff .rd { color: inherit; }
 .ledger-scroll { overflow-x: auto; }
+@media (max-width: 560px) {
+  .ledger th, .ledger td { padding: 11px 7px; white-space: normal; }
+  .ledger td .rd { display: block; font-size: 12px; margin-top: 2px; }
+  .ledger tbody td { font-size: 13px; }
+  .ledger tbody th { font-size: 11.5px; }
+  .ledger thead th { font-size: 11px; white-space: normal; }
+}
 .eqline { margin-top: 20px; font-family: var(--mono); font-size: clamp(12px, 1.5vw, 14px); line-height: 2; color: var(--text-4); overflow-x: auto; }
+@media (max-width: 560px) { .eqline { overflow-x: visible; overflow-wrap: anywhere; } }
 .eqline b { color: var(--text-2); font-weight: 600; }
 .eqline .r { color: var(--teal); font-weight: 600; }
 
@@ -552,7 +580,7 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .pcard .rate { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(22px, 2.8vw, 30px); font-weight: 600; letter-spacing: -.035em; color: var(--text); line-height: 1; }
 .pcard svg { width: 100%; height: 32px; }
 .pcard svg path { fill: none; stroke: var(--teal); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.pcard .btm { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--text-5); }
+.pcard .btm { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--text-4); }
 @media (max-width: 820px) { .policy { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 440px) { .policy { grid-template-columns: minmax(0, 1fr); } }
 
@@ -564,9 +592,26 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .code .dots i:nth-child(1) { background: color-mix(in srgb, #F2665C 62%, transparent); }
 .code .dots i:nth-child(2) { background: color-mix(in srgb, var(--code-meta) 62%, transparent); }
 .code .dots i:nth-child(3) { background: color-mix(in srgb, var(--code-string) 62%, transparent); }
-.code .ttl { font-family: var(--mono); font-size: 12px; color: var(--code-comment); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* --code-punct, not --code-comment: this sits on the bar, which is --code-bg
+   lifted 4% toward white, and the comment token measures 4.17:1 there against
+   5.69:1 for this one. At narrow the title wraps instead of being clipped —
+   it is the request the JSON below it answers, and half a URL is not it. */
+.code .ttl { font-family: var(--mono); font-size: 12px; color: var(--code-punct); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 620px) {
+  .code .bar { align-items: flex-start; padding: 9px 12px; }
+  .code .dots { margin-top: 4px; }
+  .code .ttl { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.5; }
+}
 .code pre { margin: 0; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: var(--code-text); }
-.code .prompt { color: var(--code-string); user-select: none; }
+/* The shared `code` rule sizes inline code at .88em of its context, which is
+   right for a code span inside a sentence and wrong inside a <pre> that has
+   already chosen its size — it was quietly rendering both of this page's
+   plates at 11px rather than the 12.5px set above. .md pre code already
+   carried this correction for the docs; the landing's plates never did. */
+.code pre code { font-size: inherit; }
+/* Not --code-string: the prompt is chrome, and --code-string is the colour of
+   every quoted argument sitting on the same line as it. */
+.code .prompt { color: var(--code-punct); user-select: none; }
 
 .steps { list-style: none; display: flex; flex-direction: column; }
 .steps li { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 16px; padding: 19px 0; border-bottom: 1px solid var(--line); }
@@ -575,13 +620,30 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .steps b { display: block; font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
 .steps span { font-size: 13.5px; color: var(--text-4); line-height: 1.65; }
 
-.api-scroll { overflow-x: auto; border-top: 1px solid var(--line-2); }
+.api-scroll { border-top: 1px solid var(--line-2); }
 .api { width: 100%; border-collapse: collapse; min-width: 560px; }
 .api th, .api td { text-align: left; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-.api th { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-4); }
+.api th { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-4); }
 .api td { font-size: 13.5px; color: var(--text-4); line-height: 1.6; }
 .api td:first-child { font-family: var(--mono); font-size: 12.5px; color: var(--teal); white-space: nowrap; padding-right: 26px; }
 .api tbody tr:last-child td { border-bottom: none; }
+/* Below 620px the endpoint table stops being two columns and becomes seven
+   entries. The min-width of 560px is what a legible path column plus a
+   readable description column actually costs, and it is 200px more than a
+   phone has: keeping the table meant dragging every row sideways to find out
+   what the endpoint returns. Stacked, the path is a heading and the sentence
+   under it is the answer — which is how the two columns were being read
+   anyway. The header row goes because "Path" and "What it returns" describe
+   something self-evident once they are one above the other. */
+@media (max-width: 620px) {
+  .api, .api tbody, .api tr, .api td { display: block; }
+  .api { min-width: 0; }
+  .api thead { display: none; }
+  .api tbody tr { padding: 15px 0; border-bottom: 1px solid var(--line); }
+  .api tbody tr:last-child { border-bottom: none; }
+  .api td { border-bottom: none; padding: 0; }
+  .api td:first-child { white-space: normal; overflow-wrap: anywhere; padding: 0 0 6px; font-size: 13px; }
+}
 
 /* ── graph illustration ───────────────────────────────────────────────── */
 .graph-illo { position: relative; }
@@ -591,11 +653,22 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .graph-illo .node circle { fill: var(--paper-2); stroke: var(--line-3); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .graph-illo .node.on circle { stroke: var(--teal); }
 .graph-illo .nl, .graph-illo .el { position: absolute; transform: translate(-50%, -50%); font-family: var(--mono); white-space: nowrap; pointer-events: none; }
-.graph-illo .nl { font-size: clamp(10px, 1.25vw, 12.5px); font-weight: 600; letter-spacing: .04em; color: var(--text-2); }
+/* 11px is the floor everywhere on this page, and these two were the worst
+   offenders: at 390px the clamps bottomed out at 10px for a currency code and
+   8.5px for a source name — the source names being, on a page whose argument
+   is that you can see which feed quoted which edge, the labels that carry the
+   argument. They are absolutely positioned by percentage over the SVG, so
+   holding them at a fixed size costs layout rather than legibility; the
+   letter-spacing and the chip padding come down at narrow instead, which is
+   what buys the room back. */
+.graph-illo .nl { font-size: clamp(11px, 1.25vw, 12.5px); font-weight: 600; letter-spacing: .04em; color: var(--text-2); }
 .graph-illo .nl.on { color: var(--teal); }
 .graph-illo .el {
-  font-size: clamp(8.5px, 1vw, 10.5px); letter-spacing: .11em; text-transform: uppercase;
+  font-size: 11px; letter-spacing: .11em; text-transform: uppercase;
   color: var(--text-4); background: var(--paper); padding: 2px 6px; border-radius: var(--r-xs);
+}
+@media (max-width: 620px) {
+  .graph-illo .el { letter-spacing: .02em; padding: 1px 4px; }
 }
 .graph-illo .el.on { color: var(--teal); }
 
@@ -608,9 +681,13 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    Two elements, and only two: a logo-only home button in the top bar, and
    one line in the footer. Deliberately free of repo variables so the block
    is byte-identical across the suite and can be diffed as one thing. */
-.vulos-home { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; opacity: .72; transition: opacity .15s ease, transform .15s ease; }
+/* 44px, not 34: both of these are standalone controls — a link to another
+   site, in the header and again in the footer — and both measured under the
+   tap-target floor at every width. The mark itself is unchanged at 22px and
+   18px; only the box around it grew. */
+.vulos-home { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto; opacity: .72; transition: opacity .15s ease, transform .15s ease; }
 .vulos-home:hover, .vulos-home:focus-visible { opacity: 1; transform: translateY(-1px); }
 .vulos-home img { display: block; width: 22px; height: 22px; border-radius: 6px; }
-.vulos-foot { display: inline-flex; align-items: center; gap: 9px; font-size: 13.5px; line-height: 1.45; text-decoration: none; color: inherit; opacity: .85; transition: opacity .15s ease; }
+.vulos-foot { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; font-size: 13.5px; line-height: 1.45; text-decoration: none; color: inherit; opacity: .85; transition: opacity .15s ease; }
 .vulos-foot:hover { opacity: 1; text-decoration: none; }
 .vulos-foot img { display: block; width: 18px; height: 18px; border-radius: 5px; flex: 0 0 auto; }

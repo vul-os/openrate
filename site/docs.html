@@ -57,21 +57,38 @@ document.documentElement.classList.add("js");
 </header>
 
 <div class="docs">
-  <aside class="docs-side">
-    <span class="lbl">Documentation</span>
-    <input class="docs-search" id="q" type="search" placeholder="Search the docs…" aria-label="Search the documentation" autocomplete="off">
-    <div class="hits" id="hits" hidden></div>
-    <nav id="nav">
-      <a data-slug="overview" href="#overview">Overview</a>
-      <a data-slug="api" href="#api">API reference</a>
-      <a data-slug="configuration" href="#configuration">Configuration</a>
-      <a data-slug="library" href="#library">Go library</a>
-      <a data-slug="graph-model" href="#graph-model">Graph model</a>
-      <a data-slug="interest-rates" href="#interest-rates">Interest rates</a>
-      <a data-slug="web-ui" href="#web-ui">Web UI</a>
-      <a data-slug="accuracy" href="#accuracy">Accuracy</a>
-      <a data-slug="sources" href="#sources">Sources</a>
-    </nav>
+  <!-- The documentation index. Above 980px this is the sticky left rail and
+       .toc-btn is display:none. Below it, the rail would have had to become a
+       row of nine pills 855px wide inside a 390px window, so the button
+       becomes the navigation instead: it names the page you are on, and
+       opening it drops the whole index — all nine titles and the search box —
+       over the page. See the note beside the 980px block in site.css.
+
+       A reader without JavaScript never gets html.js, and site.css keeps
+       .toc-panel open for them, so the index is a plain list of links whether
+       the toggle below ever runs or not. -->
+  <aside class="docs-side" id="side">
+    <button class="toc-btn" id="tocbtn" type="button" aria-expanded="false" aria-controls="tocpanel">
+      <span class="toc-k">Docs</span>
+      <span class="toc-here" id="tochere">Overview</span>
+      <svg class="toc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="toc-panel" id="tocpanel">
+      <span class="lbl">Documentation</span>
+      <input class="docs-search" id="q" type="search" placeholder="Search the docs…" aria-label="Search the documentation" autocomplete="off">
+      <div class="hits" id="hits" hidden></div>
+      <nav id="nav">
+        <a data-slug="overview" href="#overview">Overview</a>
+        <a data-slug="api" href="#api">API reference</a>
+        <a data-slug="configuration" href="#configuration">Configuration</a>
+        <a data-slug="library" href="#library">Go library</a>
+        <a data-slug="graph-model" href="#graph-model">Graph model</a>
+        <a data-slug="interest-rates" href="#interest-rates">Interest rates</a>
+        <a data-slug="web-ui" href="#web-ui">Web UI</a>
+        <a data-slug="accuracy" href="#accuracy">Accuracy</a>
+        <a data-slug="sources" href="#sources">Sources</a>
+      </nav>
+    </div>
   </aside>
 
   <main class="docs-main">
@@ -121,6 +138,29 @@ function setActive(slug) {
   document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("active", a.dataset.slug === slug));
 }
 
+/* ── the index disclosure ─────────────────────────────────────────────────
+ * Only does anything below 980px, where site.css turns the rail into a bar
+ * with the panel out of flow behind it. Above that the button is display:none
+ * and the panel is permanently laid out, so the class this toggles is inert. */
+const side = document.getElementById("side");
+const tocBtn = document.getElementById("tocbtn");
+const tocHere = document.getElementById("tochere");
+
+function setToc(open) {
+  side.classList.toggle("open", open);
+  tocBtn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+tocBtn.addEventListener("click", () => setToc(!side.classList.contains("open")));
+// Closing on the choice, on Escape, and on a tap outside — the three ways a
+// reader signals they are done with a panel that covers what they were reading.
+side.addEventListener("click", e => { if (e.target.closest("#nav a, .hit")) setToc(false); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && side.classList.contains("open")) { setToc(false); tocBtn.focus(); }
+});
+document.addEventListener("click", e => {
+  if (side.classList.contains("open") && !e.target.closest(".docs-side")) setToc(false);
+});
+
 async function fetchDoc(slug) {
   if (cache[slug] !== undefined) return cache[slug];
   const res = await fetch("./docs/" + slug + ".md", { cache: "no-cache" });
@@ -129,36 +169,195 @@ async function fetchDoc(slug) {
   return cache[slug];
 }
 
-// A copy button per code block. Placed after render because the markdown is
-// injected wholesale; navigator.clipboard is undefined on insecure origins, so
-// a failure is swallowed rather than thrown into the console.
-function addCopyButtons() {
+/* ── code blocks ──────────────────────────────────────────────────────────
+ * Every fenced block is given the same chrome the landing's terminal and
+ * response plates have: a bar naming the language, with the copy control in
+ * it. The control used to float over the block's first line at 48.8x31px and
+ * appear only on hover — under the tap-target floor, and on a touch screen,
+ * which has no hover, it did not exist at all.
+ *
+ * The bar is also where the block declares how it behaves when the column is
+ * narrower than its longest line, and that is decided by what the block IS:
+ *
+ *   a block in a real language  soft-wraps, with the hanging indent site.js
+ *                               and site.css build between them, so a
+ *                               continuation is never read as a new line
+ *   an unfenced plaintext block keeps its lines and scrolls, because these
+ *                               are the listings whose columns are their
+ *                               meaning — overview.md's repository map puts
+ *                               its description column at a fixed offset on
+ *                               every row, and wrapping it destroys the only
+ *                               structure it has
+ *
+ * Two blocks in the whole corpus take the second path, and both say so in the
+ * bar rather than leaving the reader to find the scroll by dragging.
+ */
+const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+const DONE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 7"/></svg>';
+
+// Whether a scrolling block is currently scrolling is a measurement, not a
+// property of the block: interest-rates.md's series-ID grammar is 23 columns
+// wide and keeps its lines like every other unfenced listing, but it fits in
+// any column this site has and must not claim otherwise.
+let scrollers = [];
+function updateScrollHints() {
+  for (const s of scrollers) s.hint.classList.toggle("on", s.pre.scrollWidth - s.pre.clientWidth > 2);
+}
+window.addEventListener("resize", updateScrollHints);
+
+function dressCodeBlocks() {
+  scrollers = [];
   content.querySelectorAll("pre").forEach(pre => {
+    const code = pre.querySelector("code");
+    const cls = code ? code.className : "";
+    const lang = (cls.match(/language-([\w-]+)/) || [])[1] || "";
+    // No language on the fence means no grammar to wrap along; those blocks
+    // are the aligned listings, so they keep their lines and scroll.
+    const wraps = !!lang;
+    pre.classList.add(wraps ? "cb-wrap" : "cb-scroll");
+    if (!wraps) pre.classList.add("or-scroll");
+
+    const box = document.createElement("div");
+    box.className = "codeblock";
+    pre.parentNode.insertBefore(box, pre);
+
+    const bar = document.createElement("div");
+    bar.className = "cb-bar";
+    const name = document.createElement("span");
+    name.className = "cb-lang";
+    name.textContent = lang || "text";
+    const hint = document.createElement("span");
+    hint.className = "cb-hint";
+    hint.textContent = "scrolls →";
     const btn = document.createElement("button");
     btn.className = "copy-btn";
     btn.type = "button";
-    btn.textContent = "copy";
+    btn.setAttribute("aria-label", "Copy this " + (lang || "text") + " block");
+    btn.innerHTML = COPY_ICON + "<span>copy</span>";
+    bar.append(name, hint, btn);
+    box.append(bar, pre);
+    if (!wraps) scrollers.push({ pre, hint });
+
+    // The lines are block boxes now, so textContent runs them together —
+    // rebuild the source from them. navigator.clipboard is undefined on an
+    // insecure origin, so a failure is swallowed rather than thrown into the
+    // console.
     btn.addEventListener("click", () => {
-      navigator.clipboard?.writeText(pre.querySelector("code")?.textContent ?? pre.textContent).then(
-        () => { btn.textContent = "copied"; setTimeout(() => { btn.textContent = "copy"; }, 1400); },
-        () => {}
-      );
+      const lines = code ? code.querySelectorAll(".cl") : [];
+      const text = lines.length
+        ? [...lines].map(l => l.textContent).join("\n")
+        : (code ? code.textContent : pre.textContent);
+      navigator.clipboard?.writeText(text).then(() => {
+        btn.classList.add("done");
+        btn.innerHTML = DONE_ICON + "<span>copied</span>";
+        setTimeout(() => { btn.classList.remove("done"); btn.innerHTML = COPY_ICON + "<span>copy</span>"; }, 1400);
+      }, () => {});
     });
-    pre.appendChild(btn);
   });
 }
+
+/* ── tables ───────────────────────────────────────────────────────────────
+ * Two changes, both about what a table can do that a phone cannot.
+ *
+ * The scroll moves off the <table> and onto a wrapper. A <table> carrying
+ * `display: block; overflow-x: auto` sizes its anonymous inner table to
+ * max-content, so it takes its preferred width and scrolls even when the
+ * column is wide enough for it — which is why sources.md's eight-column feed
+ * matrix was 1150px on a 1440px desktop that had room for it.
+ *
+ * And every cell is labelled with its column heading, so that below 620px a
+ * table of three or more columns can stop being a grid and become one card
+ * per row (see site.css). Eight columns of prose at 354px is not a table
+ * anybody can read at any column width; labelled rows are.
+ */
+function dressTables() {
+  content.querySelectorAll("table").forEach(table => {
+    const heads = [...table.querySelectorAll("thead th")].map(th => th.textContent.trim());
+    if (heads.length) {
+      table.dataset.cols = heads.length;
+      table.querySelectorAll("tbody tr").forEach(tr => {
+        [...tr.children].forEach((cell, i) => {
+          if (heads[i]) cell.setAttribute("data-th", heads[i]);
+        });
+      });
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "table-scroll or-scroll on-page";
+    table.parentNode.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
+  applyStacking();
+}
+
+/* How a table copes with a narrow column is measured, not guessed at with a
+ * breakpoint. The width at which one gives up depends entirely on what is in
+ * it: a two-column key/value list reads correctly at 320px, while sources.md's
+ * eight-column feed matrix needs about 845px and therefore gives up on most
+ * laptops. Any single media query is wrong for one of them, and a
+ * per-column-count guess was wrong in a subtler way — it stacked tables that
+ * would have fitted, and left tables tabular that then "fitted" only by
+ * breaking every heading down its own column, SOUR/CE and DEF/AUL/T.
+ *
+ * So each table is laid out, asked whether it overflowed, and given the least
+ * disruptive answer that works:
+ *
+ *   1. fits            leave it alone
+ *   2. .brk            let the long `code` tokens inside cells break, which is
+ *                      usually enough for a table held open by one identifier
+ *   3. .stack          give up on columns: one card per row, cells labelled
+ *
+ * Each step is only taken because the one before it was measured and failed,
+ * so a table never pays for a problem it does not have — which matters,
+ * because step 2 lowers a column's min-content and the auto layout will then
+ * hand it less space even where it was fitting comfortably.
+ *
+ * Every step un-does the later ones before measuring: a stacked table never
+ * overflows, so without that it would stay stacked forever once the window
+ * grew back.
+ */
+function applyStacking() {
+  const tables = [...content.querySelectorAll("table[data-cols]")];
+  const overflows = t => t.parentElement && t.parentElement.scrollWidth - t.parentElement.clientWidth > 2;
+  const stacked = (t, on) => {
+    t.classList.toggle("stack", on);
+    if (t.parentElement) t.parentElement.classList.toggle("stacked", on);
+  };
+  // Batched write-then-read per step, rather than thrashing layout per table.
+  for (const t of tables) { t.classList.remove("brk"); stacked(t, false); }
+  const wide = tables.filter(overflows);
+  for (const t of wide) t.classList.add("brk");
+  const stillWide = wide.filter(overflows);
+  for (const t of stillWide) stacked(t, true);
+}
+window.addEventListener("resize", applyStacking);
+// A table measured before the mono/sans faces have swapped in is measured
+// against the fallback's metrics, which is how one of them came back 5px over
+// a decision that had already been made. Re-ask once the real faces land.
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyStacking);
 
 async function load(slug) {
   const doc = bySlug[slug] || DOCS[0];
   setActive(doc.slug);
   crumb.textContent = doc.title;
+  tocHere.textContent = doc.title;
   document.title = "openrate — " + doc.title;
   content.innerHTML = "Loading…";
   try {
     content.innerHTML = marked.parse(await fetchDoc(doc.slug));
     content.querySelectorAll('a[href^="http"]').forEach(a => { a.target = "_blank"; a.rel = "noopener"; });
     if (window.orHighlight) window.orHighlight(content);
-    addCopyButtons();
+    // Not highlighted, so not re-lined by site.js — but a plaintext block
+    // still needs its line boxes, both for the empty-line height and so the
+    // copy control has the same thing to read back everywhere.
+    if (window.orReline) {
+      content.querySelectorAll("pre > code:not([data-hl-done])").forEach(el => {
+        window.orReline(el);
+        el.dataset.hlDone = "1";
+      });
+    }
+    dressCodeBlocks();
+    dressTables();
+    updateScrollHints();
     window.scrollTo({ top: 0 });
   } catch (err) {
     content.innerHTML = '<div class="docs-err">Could not load <code>' + doc.slug +
