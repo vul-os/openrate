@@ -30,6 +30,34 @@ compile: cloning the repo gets you the exact bytes a browser loads.
 No webfonts ship with the UI — it uses system font stacks
 (`ui-sans-serif`/`ui-monospace` and friends) only.
 
+## Why hand-written HTML instead of the fleet's React+Vite
+
+**This is not a ratified architecture decision.** The migration from a
+Vite/React app to this single `web/ui.html` landed in commit `95a706c`, whose
+own message says it was "recovered from an uncommitted working tree — made in
+another session and left unstaged... described here from the diff rather than
+from intent, since the work is not mine," and that "the served UI was NOT
+exercised." `CHANGELOG.md`'s entry for the same change (`web/ui.html`, 590
+lines at the time) documents *what* changed — the file, the removed
+`web/dist`/npm toolchain, the reimplemented converter and rates board — but,
+like the commit, carries no stated reason for choosing a hand-written,
+buildless file over the fleet-standard React+Vite stack. No other commit,
+issue, or doc in this repo records one either.
+
+So: the current state is real and in production (`go:embed`, no npm, no
+`node_modules`, pinned by `web/embed_test.go`), but the choice to get there
+was never made by a reviewing human — it was recovered, not decided. Plausible
+reasons exist (no build step for a single-page interface with two views;
+nothing to keep in sync with a separate frontend toolchain; smaller attack
+surface with no third-party JS dependencies to audit or update) but they are
+this document's speculation, not the original author's stated intent, and are
+deliberately not presented as settled rationale.
+
+**This entry exists to flag that gap, not close it.** Reverting to a built
+frontend, or affirmatively ratifying the hand-written approach, are both still
+open — a human should make that call and replace this section with the real
+reasoning once they do.
+
 **Not in it, on purpose:** no in-binary docs viewer, no accuracy-methodology
 page, no marketing footer, and no interest-rate/"Policy" UI.
 `/api/v1/interest/*` is unaffected and still serves data — it currently just
