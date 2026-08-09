@@ -1,0 +1,3 @@
+# openrate's root .gitignore only covers web/node_modules, so this package
+# ignores its own install tree rather than editing a shared file.
+node_modules/
