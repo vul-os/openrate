@@ -66,13 +66,17 @@ go build -o sdks/elixir/priv/bin/openrate ./cmd/openrate
 
 `Openrate.start/1` takes `:port`, `:base` (default presentation currency),
 `:sources` (comma-separated: `ecb`, `coinbase`, `luno`, `sarb`, …), `:refresh`
-(a Go duration, e.g. `"1h"`), `:ui` (default `false`), `:env`, `:timeout`.
+(a Go duration, e.g. `"1h"`), `:ui` (default `false`), `:ratelimit`, `:env`,
+`:timeout`.
 
-Worth knowing: the HTTP shell **rate-limits per IP**, 120 requests a minute by
-default. `examples/sidecar_rates.exs` sends a hundred at once and passes
-`env: [{"OPENRATE_RATELIMIT", "0"}]`; without that it reports about 58/100 and
-the rest are HTTP 429. That limit is a property of `openrate serve`, not of the
-library — an in-process engine has no equivalent, in either direction.
+`:ratelimit` **defaults to 0 here, and the binary's own default is 120** API
+requests a minute per IP. That limit is anti-scraping for a public deployment
+and wrong for a loopback sidecar with exactly one client: it is small enough
+that the SDK's own startup health polling could exhaust it and hand your first
+real call an HTTP 429, which is how this was found. Pass `ratelimit: 120` to put
+it back — `examples/sidecar_rates.exs` then reports about 58/100 on its
+hundred-request fan-out. Either way it is a property of `openrate serve`, not of
+the library; an in-process engine has no equivalent, in either direction.
 
 ---
 

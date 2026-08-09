@@ -52,6 +52,13 @@ A sidecar always has a refresher — `openrate serve` is the program whose job i
 to fetch. `Openrate.start(sources: "ecb")` narrows which sources it uses; it
 cannot make it fetch nothing.
 
+One default worth knowing about: the binary rate-limits the JSON API to **120
+requests a minute per IP**, which is anti-scraping for a public deployment and
+wrong for a loopback sidecar with exactly one client. It is small enough that
+the SDK's own startup health polling could exhaust it and hand your first real
+call an HTTP 429 — which is how this was found. `Openrate.start` therefore
+passes `OPENRATE_RATELIMIT=0`; pass `ratelimit: 120` to put it back.
+
 ### Binary resolution
 
 1. `OPENRATE_BINARY` env var

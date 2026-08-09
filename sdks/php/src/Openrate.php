@@ -290,7 +290,9 @@ final class Openrate
                 }
                 $last = "status {$status}";
             }
-            usleep(50_000);
+            // 200 ms, not 50 ms: /healthz goes through the same per-IP limiter
+            // as the API, so a tight poll spends a budget the caller wanted.
+            usleep(200_000);
         }
         throw new OpenrateException("openrate did not become healthy within {$timeout}s: {$last}");
     }

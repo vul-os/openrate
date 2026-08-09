@@ -32,14 +32,25 @@ module Openrate
     # Start the sidecar (idempotent). Returns the base URL (http://host:port).
     #
     # Options mirror the binary's flags: :port, :base, :sources, :refresh, :ui,
-    # :env, :timeout (seconds, default 15).
-    def start(port: nil, base: nil, sources: nil, refresh: nil, ui: false, env: nil, timeout: 15.0)
+    # :ratelimit, :env, :timeout (seconds, default 15).
+    def start(port: nil, base: nil, sources: nil, refresh: nil, ui: false, ratelimit: 0,
+              env: nil, timeout: 15.0)
       @mutex.synchronize do
         return @base if running?
 
         port ||= free_port
         addr = "127.0.0.1:#{port}"
-        child_env = { "OPENRATE_ADDR" => addr, "OPENRATE_UI" => ui ? "true" : "false" }
+        # OPENRATE_RATELIMIT: the binary defaults to 120 API requests/minute
+        # per IP, which is anti-scraping for a PUBLIC deployment. This sidecar
+        # is on loopback and serves exactly one client — us — and that budget is
+        # small enough that the SDK's own startup health polling can exhaust it
+        # and hand the first real call an HTTP 429. Default it off; pass
+        # ratelimit: 120 to put it back.
+        child_env = {
+          "OPENRATE_ADDR" => addr,
+          "OPENRATE_UI" => ui ? "true" : "false",
+          "OPENRATE_RATELIMIT" => ratelimit.to_s
+        }
         child_env["OPENRATE_BASE"] = base if base
         child_env["OPENRATE_SOURCES"] = sources if sources
         child_env["OPENRATE_REFRESH"] = refresh if refresh
@@ -195,7 +206,9 @@ module Openrate
         rescue StandardError => e
           last = e
         end
-        sleep 0.05
+        # 200 ms, not 50 ms: /healthz goes through the same per-IP limiter as
+        # the API, so a tight poll spends a budget the caller wanted.
+        sleep 0.2
       end
       raise Error, "openrate did not become healthy within #{timeout}s: #{last}"
     end

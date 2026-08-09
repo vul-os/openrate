@@ -12,14 +12,13 @@
 
 sources = System.get_env("OPENRATE_SOURCES", "ecb")
 
-# OPENRATE_RATELIMIT=0 because the sidecar rate-limits per IP (120 req/min by
-# default, an anti-scraping measure for a public deployment) and step 2 below
-# sends a hundred requests at once. Without this the fan-out reports about 58/100
-# and the rest are HTTP 429 — which is worth knowing: the HTTP shell enforces
-# limits the in-process library has no equivalent for.
-{:ok, base} =
-  Openrate.start(sources: sources, ui: false, env: [{"OPENRATE_RATELIMIT", "0"}])
-
+# The binary rate-limits per IP — 120 requests a minute, anti-scraping for a
+# public deployment — and step 2 below sends a hundred at once. Openrate.start/1
+# defaults `ratelimit: 0` for exactly this reason, since a loopback sidecar has
+# one client. Ask for the default back and the fan-out reports about 58/100 with
+# the rest HTTP 429; the HTTP shell enforces limits the in-process library has no
+# equivalent for, in either direction.
+{:ok, base} = Openrate.start(sources: sources, ui: false)
 IO.puts("sidecar : #{base}")
 
 try do

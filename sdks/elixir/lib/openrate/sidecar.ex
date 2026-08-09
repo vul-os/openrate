@@ -125,9 +125,17 @@ defmodule Openrate.Sidecar do
   defp build_env(addr, opts) do
     ui = if Keyword.get(opts, :ui, false), do: "true", else: "false"
 
+    # OPENRATE_RATELIMIT: the binary defaults to 120 API requests/minute per IP,
+    # which is anti-scraping for a PUBLIC deployment. This sidecar is on loopback
+    # and serves exactly one client — us — and that budget is small enough that
+    # the SDK's own startup health polling can exhaust it and hand the first real
+    # call an HTTP 429. Default it off; pass `ratelimit: 120` to put it back.
+    ratelimit = opts |> Keyword.get(:ratelimit, 0) |> to_string()
+
     base = [
       {~c"OPENRATE_ADDR", String.to_charlist(addr)},
-      {~c"OPENRATE_UI", String.to_charlist(ui)}
+      {~c"OPENRATE_UI", String.to_charlist(ui)},
+      {~c"OPENRATE_RATELIMIT", String.to_charlist(ratelimit)}
     ]
 
     optional =
@@ -204,7 +212,9 @@ defmodule Openrate.Sidecar do
           :ok
 
         _ ->
-          Process.sleep(50)
+          # 200 ms, not 50: /healthz goes through the same per-IP limiter as the
+          # API, so a tight poll spends a budget the caller wanted.
+          Process.sleep(200)
           do_wait_healthy(base, deadline)
       end
     end

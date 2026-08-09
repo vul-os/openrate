@@ -32,7 +32,8 @@ defmodule Openrate do
 
   Options: `:port`, `:base` (default presentation currency), `:sources`
   (comma-separated), `:refresh` (a Go duration such as `"1h"`), `:ui`
-  (default `false`), `:env`, `:timeout` (ms, default 60_000).
+  (default `false`), `:ratelimit` (API requests/minute per IP, default `0` —
+  off; see `Openrate.Sidecar`), `:env`, `:timeout` (ms, default 60_000).
   """
   @spec start(keyword()) :: {:ok, String.t()} | {:error, term()}
   def start(opts \\ []) do
