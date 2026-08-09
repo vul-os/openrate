@@ -148,13 +148,19 @@ workaround this endpoint replaces — could and did.
 In-process there is a direct equivalent and no polling: `Refresher.Ready(ctx)`
 blocks until the first non-empty snapshot. See [library.md](#library).
 
-**All fifteen [language packages](https://github.com/vul-os/openrate/blob/main/sdks/README.md) wait on this endpoint**,
-and none of them makes you call it: whichever function starts or attaches to a
-managed sidecar returns only once `/readyz` has answered `200`, and on timeout
-raises the sources' `last_error` text rather than a bare deadline. If you are
-writing your own client, that is the behaviour to copy — a start that returns
-before readiness is the single most common way to get a green run that
-converted nothing.
+**All fifteen [language packages](https://github.com/vul-os/openrate/blob/main/sdks/README.md) ship a wait on this
+endpoint**, and on timeout every one of them raises the sources' `last_error`
+text rather than a bare deadline. They differ on whether you have to ask:
+
+- **Automatic** — python, php, ruby, elixir, java, kotlin, dotnet. The function
+  that starts the managed sidecar does not return until `/readyz` answers `200`.
+- **An explicit call** — node, deno and bun (`await waitForRates()`), rust
+  (`Sidecar::wait_ready`), swift (`waitReady(timeout:)`). `start()` waits for
+  the listener only.
+
+If you are writing your own client, copy the wait — a start that returns before
+readiness is the single most common way to get a green run that converted
+nothing.
 
 ### Two things that bite HTTP clients on loopback
 
