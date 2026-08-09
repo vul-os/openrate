@@ -1,0 +1,198 @@
+# Proving it sends nothing
+
+This is openrate's least obvious property and its most useful one:
+
+> **Constructing an `Engine` with the feature switched off sends zero packets.**
+> Not "sends none in practice", not "sends none unless configured" — zero,
+> counted, with a control proving the counter works.
+
+That claim is why beepbite was able to delete its HTTP client and its sidecar
+wiring and link openrate in directly. It had
+currency conversion behind a per-tenant flag that most tenants leave off, and
+the question that had blocked embedding for a year was not "is the maths
+right?" but "what does my process start doing the moment I import this?"
+
+The answer is: nothing.
+
+---
+
+## The split that makes it true
+
+openrate has two types where most libraries have one.
+
+| | `Engine` | `Refresher` |
+|---|---|---|
+| What it is | the thing that **computes** | the thing that **fetches** |
+| Goroutines | none | one, and only after you call `Run` |
+| Sockets | none, ever | yes, when you call `Refresh` or `Run` |
+| Environment | reads none | reads none itself; `fxsource.FromEnv` is a separate, explicit call |
+| Constructed by | `NewEngine` | `NewRefresher(engine, …)` |
+
+An `Engine` **has no code path to the network**. It holds no sources, no
+client, no address — not "a nil client it checks before using", but no field to
+put one in. That is a structural property, not a runtime one, and it is the
+reason the guarantee holds under every configuration rather than under a
+default.
+
+```go
+e := openrate.NewEngine(openrate.EngineOptions{Base: "ZAR"})
+
+_, err := e.Convert("USD", "ZAR", 100)
+// err is ErrUnknownPair. Nothing started, nothing opened, nothing sent —
+// not in NewEngine, and not in Convert, which only reads the snapshot it
+// already holds.
+```
+
+There is deliberately **no constructor that starts everything**. openrate used
+to have one — see [`Start` in the library guide](library.md) — and removing it
+is what the current shape is for. The same decision is carried into the
+[C ABI](c-abi.md): `openrate_new` builds an engine, `openrate_refresher_new` is
+a second, explicit construction, and no entry point does both.
+
+## An engine that is never fed says so
+
+`NewEngine` materializes an *empty* snapshot rather than a nil one, so every
+read method works immediately and answers honestly:
+
+| Call | On a never-fed engine |
+|---|---|
+| `Convert(a, b, n)` | `ErrUnknownPair` |
+| `Rates(base)` | an empty map and **no error** — "nothing yet" is a readiness question, not a bad request |
+| `Snapshot()` | a real, empty `*fx.Snapshot`; never nil |
+| `DefaultBase()` | whatever you configured |
+
+Nothing returns a zero rate, and nothing panics. A host can construct one
+unconditionally at startup, gate the rest of the feature behind a flag, and
+know that the flag being off means the engine never does anything but exist.
+
+## How it is held
+
+Four tests, from four different directions. None of them infers "no traffic"
+from the absence of an error; each counts something, and each carries a
+**control** that deliberately makes the number move — because a counter wired
+to nothing reports zero forever, and zero-from-a-broken-counter is
+indistinguishable from a pass.
+
+| What is counted | Where | The control |
+|---|---|---|
+| HTTP round trips during construction of an `Engine` **and** a `Refresher` over all thirteen adapters | `embedtest/g2_cold_test.go` · `TestG2ColdConstructionMakesZeroRoundTrips` | a deliberate fetch at the end; the count must move |
+| Goroutines before and after `NewEngine` | same file · `TestG2ColdConstructionStartsNoGoroutines` | `Run` is then started and the count must rise |
+| Paid-provider keys in the environment being silently adopted | same file · `TestG2ColdConstructionAdoptsNoEnvironmentKey` | `FromEnv` is then called and must pick them up |
+| Round trips through the **C ABI**, across the whole engine sequence | `ffi/abi/zero_packets_test.go` · `TestZeroPacketsThroughTheABI` | a deliberate fetch through a refresher handle |
+| Socket file descriptors in a really-`dlopen`'d shared library | `ffi/test/smoke.c` | a real `socket()` call, censused the same way |
+
+The first three run from **`embedtest/`, a separate Go module**. That matters
+more than it sounds: inside openrate's own module, `internal/` is reachable and
+nothing distinguishes a package an embedder may import from one it may not.
+`embedtest` sees exactly what you see.
+
+`TestG2ColdConstructionMakesZeroRoundTrips` is worth one more sentence, because
+it is the one with a coverage trap designed into it. It reaches into every
+adapter with reflection to replace its `*http.Client`, and **fails the test for
+any source it cannot reach inside**. Without that, a new adapter holding its
+client somewhere unusual would simply travel outside the guard and the test
+would keep passing while covering less.
+
+Run them yourself:
+
+```bash
+cd embedtest && go test -run TestG2 -v ./...
+```
+
+## What "off" costs in bytes
+
+Zero packets is one half. The other half is size, and here the honest answer
+has three parts, because two of them are commonly assumed and wrong.
+
+**1. `serve.Options{UI: false}` does not shrink anything.** It decides what
+gets *mounted*, at runtime. `serve/web/ui.html` is still compiled into the
+binary, because `//go:embed` is resolved at build time and a boolean field
+cannot un-embed it. Setting it false is a serving decision, not a size one.
+
+**2. `-tags noui` does shrink it — by 66,256 bytes.** Measured on the default
+`cmd/openrate` build in this checkout:
+
+| Build | Size |
+|---|---|
+| default | 10,035,714 bytes |
+| `-tags noui` | 9,969,458 bytes |
+| **saving** | **66,256 bytes (≈ 65 KiB)** |
+
+That is `serve/web/ui.html` (40,287 bytes) plus the copy of
+`THIRD-PARTY-NOTICES.txt` bundled alongside it (25,298 bytes), and nothing
+else. It is a real saving and a small one; if you have seen a figure in the
+hundreds of kilobytes attached to this tag, it was wrong.
+
+**3. A host that never imports `serve` pays nothing at all** — no tag needed.
+
+| Host program | Size |
+|---|---|
+| empty `main`, no openrate import | 2,371,362 bytes |
+| imports `fx` only | 2,476,034 bytes |
+| imports `fxsource` (adapters, so `net/http` + TLS) | 6,740,770 bytes |
+| imports `openrate`, calls only `NewEngine` | 7,115,330 bytes |
+| also imports `serve` and calls `.Handler()` with `UI: true` | 7,644,786 bytes |
+
+The engine-only host contains **zero** bytes of the console. That is not an
+inference from the size difference — `scripts/check-embed-linkage.sh` greps
+both binaries for a CSS class string that exists only in `ui.html`, requires
+zero matches in the library-only host, and requires a **non-zero** count in a
+second host that does build the handler. The second host is the control:
+without it, "absent" would be true of every binary ever produced, including one
+where the grep simply cannot find strings.
+
+Note what makes this work. The root `openrate` package still imports `serve`,
+for the deprecated `Start`, and `serve` imports `serve/web` — so `ui.html` is
+reachable through the *import graph* of a program that only calls `Convert`. It
+stays out of the binary because Go's linker drops data nothing reachable from
+`main` can touch. Nothing in the source says so, which is exactly why it is a
+gate and not a comment.
+
+## Feeding it without ever touching the network
+
+The zero-network path is not a degraded mode. `Load` installs a snapshot you
+built any way you like:
+
+```go
+e := openrate.NewEngine(openrate.EngineOptions{})
+
+g := fx.NewGraph()
+g.Replace("treasury", []fx.Edge{
+	{From: "USD", To: "ZAR", Rate: 18.50, Source: "treasury", Time: rateTime},
+})
+e.Load(g.Materialize(time.Now().UTC()))
+
+c, _ := e.Convert("USD", "ZAR", 100) // 1850, with full provenance
+```
+
+Everything downstream of `Load` behaves identically whether the edges came from
+your treasury system, a nightly CSV, a cache, another process, or a
+`Refresher`. `Load` **is** what a `Refresher` calls; there is nothing it can do
+to an `Engine` that your own code cannot do the same way. The C ABI exposes the
+same path as `openrate_call(engine, "load", …)`, which has no HTTP counterpart
+precisely because the server is read-only.
+
+The grading model still applies to rates you supply — freshness is measured
+against the `Time` you put on each edge, and a rate you loaded from a
+day-old file will be graded as a day old. See
+[Accuracy & quality](../ACCURACY.md).
+
+## What this does not claim
+
+- **`fxsource` adapters do reach the network** — that is their job. Building a
+  source is still free; `Source.Fetch` is what sends.
+- **`serve` opens no outbound connection**, but it does answer inbound ones
+  once *you* bind a listener to its handler. `serve.New` binds nothing.
+- **The interest-rate stack is not covered by any of this.** `rates`,
+  `ratesources`, `ratestore` and `ratequality` are `internal/` and serve-only;
+  there is no importable `Engine`/`Refresher` pair for interest rates, and the
+  only in-process path is the deprecated `Start`, which fetches. See
+  [Interest rates](interest-rates.md).
+- **The deprecated `Start` fetches, binds and serves before it returns.** It is
+  the API this page exists to explain the replacement of.
+
+## Related
+
+- [Embed as a Go library](library.md) — the full `Engine`/`Refresher` reference
+- [Which mode should I choose](deployment-modes.md) — library, sidecar, C ABI or CLI
+- [Use it from another language](c-abi.md) — the same guarantee across the C ABI

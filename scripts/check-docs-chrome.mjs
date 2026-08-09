@@ -1,24 +1,41 @@
 #!/usr/bin/env node
 /* scripts/check-docs-chrome.mjs — the suite chrome rules, checked here.
  *
- * WHY THIS EXISTS
- * ───────────────
- * The Vulos suite has two shared gates — vulos-static/scripts/check-suite-chrome.mjs
- * and check-site.mjs — and neither is available from inside this repository:
- * vulos-static is a sibling checkout that is not a dependency of openrate and
- * is frequently absent. Every previous pass over this markup therefore fell
- * back to reading it, and the rules below are exactly the ones that have
- * regressed in this suite while somebody was reading:
+ * WHY THIS EXISTS, AND WHAT IT IS NOT
+ * ───────────────────────────────────
+ * The suite's canonical chrome gate is
+ * `vulos-cloud/scripts/check-suite-chrome.mjs`. It is the authority on the four
+ * ratified Vulos-chrome rules (one logo-only Vulos element in the top bar, one
+ * .vulos-foot line in the landing footer, "Vulos" nowhere else in the visible
+ * body, no licence text in the footer) plus 2b, no <footer> on a docs page. Run
+ * it, do not reimplement it:
  *
- *   • docs.html grew a <footer>. The ruling is that docs pages carry no footer
- *     — the chrome belongs on the landing — and it was removed here in f4871c6
- *     after being added by a well-meaning consistency pass.
+ *     cd ../vulos-cloud && node scripts/check-suite-chrome.mjs
+ *
+ * This file exists for the part that gate does not cover, and for one part it
+ * does — because it lives in another repository and therefore never runs in
+ * THIS repository's CI. That gap is not hypothetical: slipscan's docs footer
+ * was correctly removed, silently reinstated by a later redesign, and stayed
+ * broken for weeks because the only check that would have caught it ran
+ * somewhere else.
+ *
+ * So, deliberately overlapping by exactly one rule:
+ *
+ *   • docs.html has no <footer> — the one ratified rule mirrored here, so it
+ *     is checked on every push rather than whenever somebody remembers to run
+ *     the suite gate. It was removed from this repo in f4871c6 after a
+ *     well-meaning consistency pass added it.
+ *
+ * And, not covered anywhere else:
+ *
  *   • A sibling product shipped an external Spline <iframe>, which silently
  *     broke its "makes no outbound calls" claim. openrate makes that claim on
  *     its own landing, in the docs, and in serve/web/embed_test.go. A page
  *     that quietly fetches a font or a script from a CDN makes it false.
  *   • The docs sidebar stopped being pinned when the layout was reworked, and
  *     the shell drifted away from the left edge.
+ *   • The sidebar's five groups and the DOCS array's `group` fields are the
+ *     same fact written twice.
  *
  * This is deliberately a STATIC check. It parses the shipped bytes; it does not
  * launch a browser (scripts/check-shots.mjs does that, and needs Playwright,
@@ -28,7 +45,7 @@
  * is missing is the failure mode this file is written against.
  *
  *   node scripts/check-docs-chrome.mjs            # check what ships
- *   node scripts/check-docs-chrome.mjs --selftest # break it eight ways, require eight failures
+ *   node scripts/check-docs-chrome.mjs --selftest # break it fourteen ways, require fourteen failures
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -44,7 +61,8 @@ const SITE = join(ROOT, "site");
 const FLOOR = {
   scannedFiles: 8,      // text files under site/ that the outbound scan reads
   scannedBytes: 100000, // …and their combined size
-  navLinks: 9,          // sidebar entries in docs.html
+  navLinks: 13,         // sidebar entries in docs.html
+  navGroups: 4,         // sidebar sections
 };
 
 /* The only origins site/ is allowed to name. Every one is a link a reader
@@ -216,6 +234,26 @@ export function check(files) {
       for (const s of navSlugs) {
         if (!parsed.some((d) => d.slug === s)) fail(`site/docs.html: a sidebar link has data-slug="${s}", which DOCS does not list — clicking it loads the overview instead`);
       }
+
+      /* 4b ── the grouping is stated twice and must agree. The sidebar's
+       * <section data-group> markup is what a reader without JavaScript sees;
+       * DOCS[].group is what the search results are labelled with. Drift shows
+       * up as a result card filed under a heading the page is not under. */
+      const sections = [...docs.matchAll(/<section class="nav-group" data-group="([^"]+)">([\s\S]*?)<\/section>/g)];
+      if (sections.length < FLOOR.navGroups) {
+        fail(`site/docs.html has ${sections.length} <section class="nav-group"> blocks (floor ${FLOOR.navGroups}) — the group scan is broken, or the index has been flattened`);
+      }
+      const groupOf = {};
+      for (const [, name, body] of sections) {
+        for (const m of body.matchAll(/data-slug="([\w-]+)"/g)) groupOf[m[1]] = name;
+      }
+      for (const d of parsed) {
+        if (!d.group) { fail(`site/docs.html: DOCS entry "${d.slug}" has no \`group\` — the sidebar files it somewhere, and the search results would label it with nothing`); continue; }
+        if (groupOf[d.slug] === undefined) { fail(`site/docs.html: "${d.slug}" is not inside any <section class="nav-group"> — it would render outside every group`); continue; }
+        if (groupOf[d.slug] !== d.group) {
+          fail(`site/docs.html: DOCS says "${d.slug}" is in group "${d.group}", but its sidebar link sits under "${groupOf[d.slug]}"`);
+        }
+      }
     }
   }
 
@@ -259,6 +297,8 @@ function selftest() {
     ["a remote stylesheet is linked from the docs page", edit("docs.html", (t) => t.replace("</head>", '<link rel="stylesheet" href="https://fonts.googleapis.com/x"></head>')), /<link rel="stylesheet".*outbound fetch/],
     ["a Spline iframe is embedded in the landing", edit("index.html", (t) => t.replace("</body>", '<iframe src="./local.html"></iframe></body>')), /<iframe>/],
     ["a sidebar link points at a slug DOCS does not serve", edit("docs.html", (t) => t.replace('data-slug="api"', 'data-slug="apu"')), /DOCS does not list/],
+    ["a page is filed under a different group in the markup than in DOCS", edit("docs.html", (t) => t.replace('{"slug":"c-abi","title":"Other languages","group":"Embedding"}', '{"slug":"c-abi","title":"Other languages","group":"Help"}')), /sidebar link sits under "Embedding"/],
+    ["the groups are flattened away", edit("docs.html", (t) => t.replace(/<section class="nav-group" data-group="[^"]+">/g, "<div>").replace(/<\/section>/g, "</div>")), /group scan is broken|has been flattened/],
     ["the reduced-motion block is dropped", edit("assets/site.css", (t) => t.replace("@media (prefers-reduced-motion: reduce)", "@media (min-width: 1px)")), /prefers-reduced-motion/],
     ["the site walker stops finding files", [base[0]], /verified almost nothing/],
   ];

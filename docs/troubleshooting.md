@@ -1,0 +1,289 @@
+# Troubleshooting
+
+Symptoms, in the order they actually happen. Each entry says what the message
+means, why openrate behaves that way, and what to change.
+
+---
+
+## Conversions
+
+### `ErrUnknownPair` / an empty result, on everything
+
+**The engine holds no rates.** This is the correct answer, not a failure, and
+it is what a never-fed engine says about every pair.
+
+| If you are | Then |
+|---|---|
+| using the library | you have an `Engine` and no `Refresher`, or the `Refresher` has not run yet. Call `r.Refresh(ctx)`, or `go r.Run(ctx)` and then `r.Ready(ctx)`. |
+| running the binary | the first refresh has not landed. It happens at startup and takes a few seconds; `GET /api/v1/meta` shows per-source status. |
+| loading your own rates | check that `Load` received a snapshot with currencies in it. `Load(nil)` is silently ignored, by design. |
+
+`NewEngine` is inert on purpose — nothing about it is a misconfiguration to
+find. See [Proving it sends nothing](zero-network.md).
+
+### `ErrUnknownPair` on one specific pair
+
+The two currencies are not **connected** in the current snapshot. openrate does
+not invent a rate from a base; it walks a graph, and if no path of quotes joins
+the two currencies there is no answer to give.
+
+- `GET /api/v1/meta` lists every currency the snapshot knows.
+- Adding a source that quotes either currency against something already in the
+  graph is usually enough to connect it — see [the graph
+  model](graph-model.md) for why one extra edge can unlock many pairs.
+- Exotic and thinly-traded currencies are the usual case. `fawazahmed0` covers
+  roughly 400 of them.
+
+### `ErrUnknownBase` from `Rates(base)`
+
+The snapshot knows *some* currencies but not that one. Note the deliberate
+asymmetry: an engine holding **no** rates at all returns an empty map and **no
+error** — "nothing yet" is a readiness question, not a bad request — while an
+engine that does hold rates and is asked for an unknown base gets an error.
+
+`GET /api/v1/rates` differs here: it answers `200` with an empty book rather
+than erroring. The C ABI follows `Engine.Rates`, not the HTTP endpoint, on the
+grounds that a caller who asked for rates against `ZZZ` and got `{}` has been
+told nothing. This is [documented as the one intentional
+divergence](c-abi.md).
+
+### `ErrInvalidAmount` / `ErrAmountOutOfRange`
+
+`ErrInvalidAmount` is a non-finite amount (`Inf`, `NaN`). Over HTTP these are
+rejected with `400`; an *unparseable* amount falls back to `1` instead, which
+is a deliberate difference — a typo should not 400 a dashboard.
+
+`ErrAmountOutOfRange` means `amount × rate` has no representable float64.
+
+### The number is slightly different from another provider's
+
+Expected, and openrate tries to make it inspectable rather than argue about it.
+Every conversion carries `legs` (each hop's actual rate and source) and
+`quotes` (the per-source direct quotes behind the number), so the difference
+can be located rather than guessed at. Two common causes:
+
+- **A cross rate, not a direct quote.** `hops > 1` means the answer is a
+  product along a path. Check `path` and `directness`.
+- **Rounding at the display, not in the engine.** The engine multiplies at full
+  precision and rounds once. Reconstructing the product from printed
+  six-decimal legs will not always reproduce the printed rate; the residual is
+  the cost of printing, not of computing.
+
+See [The graph model](graph-model.md) and [Accuracy & quality](../ACCURACY.md).
+
+---
+
+## Sources and refreshing
+
+### `ErrNoSources` from `Refresh`
+
+`RefreshOptions.Sources` was empty. There is no default, on purpose: a
+`Refresher` exists to fetch, and *what* it fetches has to be the caller's
+decision rather than an environment variable's.
+
+```go
+Sources: fxsource.Build("ecb,coinbase")   // pure: same spec, same set, everywhere
+Sources: fxsource.FromEnv()               // reads OPENRATE_SOURCES + paid keys
+```
+
+### The binary exits at startup with "no valid sources configured"
+
+`-sources` / `OPENRATE_SOURCES` resolved to nothing. **Unknown names are
+silently skipped**, so a single typo in a one-item spec produces an empty set.
+Valid keys are listed in [Configuration](configuration.md#the-source-spec).
+
+### One source keeps failing and the grades dropped
+
+That is the designed behaviour, twice over:
+
+- **A source that fails keeps its previous edges.** The rest of the snapshot is
+  unaffected, and `Refresh` returns an error only when *nothing* could be
+  fetched. Failing soft beats blanking the graph.
+- **Grades fall because corroboration fell.** Fewer independent sources quoting
+  a pair means a lower confidence, which is the honest result. It is not a bug
+  to fix by raising the grade.
+
+`GET /api/v1/meta` (or `Refresher.Status()`) reports per-source `last_ok` and
+`last_error`. Errors are redacted before they are logged, so an API key
+embedded in a source URL never reaches the log.
+
+### A paid source is being called that I never configured
+
+Only `fxsource.FromEnv` and `FromEnvSpec` read the environment; `Build` never
+does. If a paid provider is being called, either the binary is running (it uses
+`FromEnvSpec`) or your code called `FromEnv`. Switch to
+`fxsource.Build("…")` and the environment cannot widen what you fetch —
+`TestG2ColdConstructionAdoptsNoEnvironmentKey` exists for exactly this
+regression.
+
+### SARB is slow
+
+Known and accommodated: `DefaultFetchTimeout` is 50 seconds, which is generous
+precisely because the SARB host can take tens of seconds just to connect. If
+you tighten `FetchTimeout`, expect SARB to be the first source to drop out.
+
+---
+
+## Running the server
+
+### The process is up and `/healthz` says `ok`, but nothing converts
+
+`/healthz` proves the listener is accepting connections. It has never proved a
+rate exists, and it cannot. Use `Refresher.Ready(ctx)` in-process, or poll
+`GET /api/v1/meta` and wait for a non-empty currency list.
+
+`Ready` does **not** fetch. Something must be refreshing, or it waits for a
+snapshot that will never arrive.
+
+### `429` from the API
+
+The per-IP rate limiter, default 120 requests/minute on `/api/` paths. Set
+`-ratelimit 0` to disable it, or raise it. The console and its assets are never
+rate-limited, and neither is `/healthz`.
+
+### Everything is rate-limited into one bucket behind my proxy
+
+The limiter buckets by client IP, and by default the client IP is the
+connection's `RemoteAddr` — `X-Forwarded-For` is **not** trusted, because a
+directly exposed client could otherwise rotate it to mint a fresh bucket per
+request. List your proxy in `-trusted-proxies` (IPs or CIDRs) and the left-most
+XFF hop is honoured, but only for requests whose direct peer is one of those
+proxies.
+
+### A browser call is blocked by CORS
+
+The API answers `Access-Control-Allow-Origin: *` by default. If you set
+`-cors-origin`, it takes exactly one origin. Non-browser clients are
+unaffected; CORS is a browser policy.
+
+### The console does not load
+
+- Built with `-tags noui`? Then it is not in the binary at all — a JSON stub
+  answers the same paths. That is the tag's whole purpose.
+- Embedding via `serve`? The console is off by default; set
+  `serve.Options{UI: true}`.
+- Note that `UI: false` does not make the binary smaller. It decides what is
+  *mounted*; `//go:embed` has already happened.
+
+---
+
+## Embedding
+
+### My binary got bigger than I expected
+
+Check what you actually import. Measured in this checkout:
+
+| Host program | Size |
+|---|---|
+| empty `main` | 2,371,362 bytes |
+| `fx` only | 2,476,034 bytes |
+| `fxsource` (adapters, so `net/http` + TLS) | 6,740,770 bytes |
+| `openrate`, `NewEngine` only | 7,115,330 bytes |
+| also `serve`, calling `.Handler()` | 7,644,786 bytes |
+
+Most of the weight is the jump to `fxsource`, and it is `net/http` and
+`crypto/tls`, not the adapters — near-zero marginal cost inside a host that
+already speaks HTTP. If you feed the engine yourself, import `fx` and never
+`fxsource`.
+
+### I want to be sure the console is not in my binary
+
+It is not, if you never import `serve` — and you do not need `-tags noui` to
+achieve that. `scripts/check-embed-linkage.sh` proves it by grepping for a CSS
+class that exists only in `ui.html`, with a second host that *does* build the
+handler as the control. Run it:
+
+```bash
+bash scripts/check-embed-linkage.sh
+```
+
+### `import "github.com/vul-os/openrate/internal/…"` will not compile
+
+Correct, and deliberate. Everything under `internal/` — including the whole
+interest-rate stack — is unreachable from outside the module. The public
+surface is `openrate`, `fx`, `fxsource` and `serve`.
+`TestG1InternalPackagesStayUnreachable` fails if the compiler ever *stops*
+refusing it.
+
+### I need interest rates in-process
+
+There is no importable path today. `rates`, `ratesources`, `ratestore` and
+`ratequality` are `internal/` and are wired up only by `serve/interest`. The
+one in-process option is the deprecated `Start`, which binds a listener and
+fetches:
+
+```go
+local, _ := openrate.Start(openrate.Options{Interest: true})
+defer local.Close()
+// GET local.APIBaseURL() + "/interest/rates"
+```
+
+That is a real gap, not an oversight to be worked around. See [Interest
+rates](interest-rates.md).
+
+---
+
+## The C ABI
+
+### The child process hangs after `fork()`
+
+The Go runtime is not fork-safe: after `fork()` without `exec()`, its threads
+did not come across. **Load the library after the fork, never before.**
+
+| Host | Fix |
+|---|---|
+| Python `multiprocessing` | `multiprocessing.set_start_method("spawn")` |
+| uWSGI `--processes` | add `--lazy-apps` |
+| Unicorn / Puma clustered | load in the worker, after forking |
+| Gunicorn with preload | drop `--preload`, or load lazily per worker |
+
+If you cannot control load order, use the sidecar. See [Use it from another
+language](c-abi.md).
+
+### A signal handler stopped working after loading the library
+
+Loading it starts Go's runtime in your address space, and Go installs handlers
+for `SIGSEGV`, `SIGBUS`, `SIGFPE` and `SIGPROF`, chaining to a
+previously-installed handler where it can. The JVM is the classic conflict, and
+so is any `SIGPROF`-based profiler.
+
+### `handle 7 is not open`
+
+A closed or never-valid handle. Handles are **retired, never recycled**, which
+is why this message is possible at all — a stale handle can never silently
+reach whatever object was created next. Double closes and calls on closed
+handles are clean errors, because a host language's GC will free things in an
+order nobody planned.
+
+Remember that closing an engine also closes every refresher built over it.
+
+### A crash or leak around returned strings
+
+Everything the library returns — results **and** error strings — is freed with
+`openrate_free()` and nothing else. It came from Go's C allocator, not yours.
+`openrate_free(NULL)` is safe. Error strings are plain UTF-8, not JSON; do not
+parse them.
+
+### The version does not match
+
+```c
+if (strcmp(openrate_abi_version(), OPENRATE_ABI_VERSION) != 0) { /* mismatch */ }
+```
+
+The library on your load path is not the one you compiled against. The version
+lives in `/VERSION`, `ffi/abi/version.go` and the header, and tests tie all
+three together, so this can only mean two different builds.
+
+---
+
+## Still stuck
+
+- `GET /api/v1/meta` is the first thing to look at: it names every source, its
+  last success, its last error and how many edges it contributed.
+- Every guard in this repository is runnable, and most have a `--selftest` that
+  breaks them deliberately and requires the break to be caught:
+  `scripts/check-ffi.sh --selftest`, `scripts/verify.sh --selftest`,
+  `node scripts/check-contrast.mjs --selftest`,
+  `node scripts/check-docs-chrome.mjs --selftest`.
+- Security issues go through [SECURITY.md](../SECURITY.md), not the issue
+  tracker.

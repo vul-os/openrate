@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="docs/">Docs</a> ·
+  <a href="docs/quickstart.md">Quickstart</a> ·
   <a href="docs/api.md">API</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
   <a href="docs/library.md">Go library</a> ·
@@ -110,6 +111,8 @@ c, err = e.Convert("USD", "ZAR", 100) // now answers from what r fetched
 ever. A host can construct one behind a feature flag that is off and be
 certain the process is unchanged — see
 [the Engine-without-a-Refresher example](docs/library.md#the-headline-case-an-engine-with-no-refresher).
+That is not a claim, it is a counted number with a control — see
+[docs/zero-network.md](docs/zero-network.md).
 Add a `Refresher` only when — and exactly when — the process should fetch, and
 `serve.New` (below) only when it should also answer HTTP. Full guide:
 [docs/library.md](docs/library.md).
@@ -141,6 +144,9 @@ is the question, and **[`ffi/README.md`](ffi/README.md)** leads with the reasons
 it might not: the Go runtime and its signal handlers move into your process, the
 library is not fork-safe (Python `multiprocessing`, uWSGI, Unicorn), building it
 needs cgo and a per-target C toolchain, and the artifact is 6–8 MB.
+[docs/c-abi.md](docs/c-abi.md) is the shorter version of that decision, and
+[docs/deployment-modes.md](docs/deployment-modes.md) puts it beside the other
+three ways to run openrate.
 
 ## Run it as a server instead
 
@@ -358,14 +364,32 @@ build:
 
 Full documentation lives in **[`docs/`](docs/)**.
 
+**Start here**
+
+| Guide | What's inside |
+|---|---|
+| [Quickstart](docs/quickstart.md) | Five starting points: see it work, run it as a service, embed it in Go, call it from another language, or bring your own rates |
+| [Which mode should I choose](docs/deployment-modes.md) | Library, CLI, sidecar or C ABI — the decision, with measured cost and size for each |
+| [Troubleshooting](docs/troubleshooting.md) | Symptoms in the order they happen, and what each one actually means |
+
+**Embedding**
+
+| Guide | What's inside |
+|---|---|
+| [Go library](docs/library.md) | Import `Engine`/`Refresher` directly — compute, fetch and serve as separate, opt-in steps |
+| [Proving it sends nothing](docs/zero-network.md) | An `Engine` constructed with the feature off sends zero packets — counted, with a control |
+| [Use it from another language](docs/c-abi.md) | The C ABI, its honest costs, and why the sidecar is usually the better answer |
+
+**Everything else**
+
 | Guide | What's inside |
 |---|---|
 | [API reference](docs/api.md) | Every endpoint, params, and full response shapes |
 | [Configuration](docs/configuration.md) | Flags, env vars, and the source spec |
-| [Go library](docs/library.md) | Import `Engine`/`Refresher` directly — compute, fetch and serve as separate, opt-in steps |
 | [Graph model](docs/graph-model.md) | Why currencies are a graph, not a base |
 | [Accuracy & quality](ACCURACY.md) | The grade/confidence model behind every rate |
 | [Sources](SOURCES.md) | Full source catalog, cadence, and provenance |
+| [Interest rates](docs/interest-rates.md) | The optional policy/reference-rate engine — `internal/` and serve-only |
 | [Web UI](docs/web-ui.md) | The embedded, dependency-free HTML UI (converter + rates board) |
 
 ## Brand

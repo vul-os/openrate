@@ -120,6 +120,12 @@ jobs:
           node scripts/check-contrast.mjs --selftest
           node scripts/check-contrast.mjs --report
 
+      # The suite's canonical chrome gate is vulos-cloud's
+      # check-suite-chrome.mjs; it is not runnable from here because that
+      # repository is not a dependency of this one. This mirrors ONE of its
+      # rules — no <footer> on a docs page — for the reason slipscan's footer
+      # regression survived for weeks: a gate that only runs in another repo
+      # does not run. The rest of what this checks is not covered anywhere.
       - name: Site — docs chrome, and no outbound origin anywhere in site/
         run: |
           node scripts/check-docs-chrome.mjs --selftest

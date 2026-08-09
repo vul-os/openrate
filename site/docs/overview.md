@@ -9,6 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/vul-os/openrate/blob/main/docs">Docs</a> ·
+  <a href="#quickstart">Quickstart</a> ·
   <a href="#api">API</a> ·
   <a href="#configuration">Configuration</a> ·
   <a href="#library">Go library</a> ·
@@ -111,6 +112,8 @@ c, err = e.Convert("USD", "ZAR", 100) // now answers from what r fetched
 ever. A host can construct one behind a feature flag that is off and be
 certain the process is unchanged — see
 [the Engine-without-a-Refresher example](#library).
+That is not a claim, it is a counted number with a control — see
+[docs/zero-network.md](#zero-network).
 Add a `Refresher` only when — and exactly when — the process should fetch, and
 `serve.New` (below) only when it should also answer HTTP. Full guide:
 [docs/library.md](#library).
@@ -142,6 +145,9 @@ is the question, and **[`ffi/README.md`](https://github.com/vul-os/openrate/blob
 it might not: the Go runtime and its signal handlers move into your process, the
 library is not fork-safe (Python `multiprocessing`, uWSGI, Unicorn), building it
 needs cgo and a per-target C toolchain, and the artifact is 6–8 MB.
+[docs/c-abi.md](#c-abi) is the shorter version of that decision, and
+[docs/deployment-modes.md](#deployment-modes) puts it beside the other
+three ways to run openrate.
 
 ## Run it as a server instead
 
@@ -359,14 +365,32 @@ build:
 
 Full documentation lives in **[`docs/`](https://github.com/vul-os/openrate/blob/main/docs)**.
 
+**Start here**
+
+| Guide | What's inside |
+|---|---|
+| [Quickstart](#quickstart) | Five starting points: see it work, run it as a service, embed it in Go, call it from another language, or bring your own rates |
+| [Which mode should I choose](#deployment-modes) | Library, CLI, sidecar or C ABI — the decision, with measured cost and size for each |
+| [Troubleshooting](#troubleshooting) | Symptoms in the order they happen, and what each one actually means |
+
+**Embedding**
+
+| Guide | What's inside |
+|---|---|
+| [Go library](#library) | Import `Engine`/`Refresher` directly — compute, fetch and serve as separate, opt-in steps |
+| [Proving it sends nothing](#zero-network) | An `Engine` constructed with the feature off sends zero packets — counted, with a control |
+| [Use it from another language](#c-abi) | The C ABI, its honest costs, and why the sidecar is usually the better answer |
+
+**Everything else**
+
 | Guide | What's inside |
 |---|---|
 | [API reference](#api) | Every endpoint, params, and full response shapes |
 | [Configuration](#configuration) | Flags, env vars, and the source spec |
-| [Go library](#library) | Import `Engine`/`Refresher` directly — compute, fetch and serve as separate, opt-in steps |
 | [Graph model](#graph-model) | Why currencies are a graph, not a base |
 | [Accuracy & quality](#accuracy) | The grade/confidence model behind every rate |
 | [Sources](#sources) | Full source catalog, cadence, and provenance |
+| [Interest rates](#interest-rates) | The optional policy/reference-rate engine — `internal/` and serve-only |
 | [Web UI](#web-ui) | The embedded, dependency-free HTML UI (converter + rates board) |
 
 ## Brand

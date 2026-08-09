@@ -82,18 +82,56 @@ document.documentElement.classList.add("js");
     </button>
     <div class="toc-panel" id="tocpanel">
       <span class="lbl">Documentation</span>
-      <input class="docs-search" id="q" type="search" placeholder="Search the docs…" aria-label="Search the documentation" autocomplete="off">
-      <div class="hits" id="hits" hidden></div>
-      <nav id="nav">
-        <a data-slug="overview" href="#overview">Overview</a>
-        <a data-slug="api" href="#api">API reference</a>
-        <a data-slug="configuration" href="#configuration">Configuration</a>
-        <a data-slug="library" href="#library">Go library</a>
-        <a data-slug="graph-model" href="#graph-model">Graph model</a>
-        <a data-slug="interest-rates" href="#interest-rates">Interest rates</a>
-        <a data-slug="web-ui" href="#web-ui">Web UI</a>
-        <a data-slug="accuracy" href="#accuracy">Accuracy</a>
-        <a data-slug="sources" href="#sources">Sources</a>
+      <input class="docs-search" id="q" type="search" placeholder="Search the docs…  /" aria-label="Search the documentation" role="combobox" aria-expanded="false" aria-controls="hits" aria-autocomplete="list" autocomplete="off">
+      <div class="hits" id="hits" role="listbox" aria-label="Search results" hidden></div>
+      <!-- Fourteen pages in five groups. Every group is a real <section> with a
+           real <button>, so the structure is there for a reader without
+           JavaScript and for a screen reader, and the script below only adds
+           collapsing on top of it. The groups, their order, and which page sits
+           in which are asserted three ways: `pages` in site/gen/main.go is the
+           order, the DOCS array at the bottom of this file carries each page's
+           group, and scripts/check-docs-chrome.mjs fails if this markup and
+           that array disagree. -->
+      <nav id="nav" aria-label="Documentation">
+        <section class="nav-group" data-group="Start here">
+          <button class="nav-grp" type="button" aria-expanded="true"><span>Start here</span><svg class="gc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="nav-items">
+            <a data-slug="overview" href="#overview">Overview</a>
+            <a data-slug="quickstart" href="#quickstart">Quickstart</a>
+            <a data-slug="deployment-modes" href="#deployment-modes">Choosing a mode</a>
+          </div>
+        </section>
+        <section class="nav-group" data-group="Embedding">
+          <button class="nav-grp" type="button" aria-expanded="true"><span>Embedding</span><svg class="gc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="nav-items">
+            <a data-slug="library" href="#library">Go library</a>
+            <a data-slug="zero-network" href="#zero-network">Zero network</a>
+            <a data-slug="c-abi" href="#c-abi">Other languages</a>
+          </div>
+        </section>
+        <section class="nav-group" data-group="Run the server">
+          <button class="nav-grp" type="button" aria-expanded="true"><span>Run the server</span><svg class="gc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="nav-items">
+            <a data-slug="configuration" href="#configuration">Configuration</a>
+            <a data-slug="api" href="#api">API reference</a>
+            <a data-slug="web-ui" href="#web-ui">Web console</a>
+          </div>
+        </section>
+        <section class="nav-group" data-group="The numbers">
+          <button class="nav-grp" type="button" aria-expanded="true"><span>The numbers</span><svg class="gc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="nav-items">
+            <a data-slug="graph-model" href="#graph-model">Graph model</a>
+            <a data-slug="accuracy" href="#accuracy">Accuracy</a>
+            <a data-slug="sources" href="#sources">Sources</a>
+            <a data-slug="interest-rates" href="#interest-rates">Interest rates</a>
+          </div>
+        </section>
+        <section class="nav-group" data-group="Help">
+          <button class="nav-grp" type="button" aria-expanded="true"><span>Help</span><svg class="gc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="nav-items">
+            <a data-slug="troubleshooting" href="#troubleshooting">Troubleshooting</a>
+          </div>
+        </section>
       </nav>
     </div>
   </aside>
@@ -122,12 +160,15 @@ document.documentElement.classList.add("js");
 /* openrate docs viewer.
  *
  * site/docs/*.md is GENERATED from the canonical docs by `go run ./site/gen` —
- * never hand-edit those files. The DOCS array below is the nav contract: the
- * generator's test (site/gen/gen_test.go) parses it out of this file and fails
- * if it drifts from the pages actually generated, so keep it JSON-parseable and
- * keep every slug mirrored by a data-slug link in the sidebar above.
+ * never hand-edit those files. The DOCS array below is the nav contract, and
+ * two separate gates hold it to the rest of the site: site/gen/gen_test.go
+ * parses it out of this file and fails if the slugs drift from the pages the
+ * generator actually produces, and scripts/check-docs-chrome.mjs fails if a
+ * page's `group` here disagrees with the group its link sits in above. Keep it
+ * JSON-parseable, on one line, and keep every slug mirrored by a data-slug
+ * link in the sidebar.
  */
-const DOCS = [{"slug":"overview","title":"Overview"},{"slug":"api","title":"API reference"},{"slug":"configuration","title":"Configuration"},{"slug":"library","title":"Go library"},{"slug":"graph-model","title":"Graph model"},{"slug":"interest-rates","title":"Interest rates"},{"slug":"web-ui","title":"Web UI"},{"slug":"accuracy","title":"Accuracy"},{"slug":"sources","title":"Sources"}];
+const DOCS = [{"slug":"overview","title":"Overview","group":"Start here"},{"slug":"quickstart","title":"Quickstart","group":"Start here"},{"slug":"deployment-modes","title":"Choosing a mode","group":"Start here"},{"slug":"library","title":"Go library","group":"Embedding"},{"slug":"zero-network","title":"Zero network","group":"Embedding"},{"slug":"c-abi","title":"Other languages","group":"Embedding"},{"slug":"configuration","title":"Configuration","group":"Run the server"},{"slug":"api","title":"API reference","group":"Run the server"},{"slug":"web-ui","title":"Web console","group":"Run the server"},{"slug":"graph-model","title":"Graph model","group":"The numbers"},{"slug":"accuracy","title":"Accuracy","group":"The numbers"},{"slug":"sources","title":"Sources","group":"The numbers"},{"slug":"interest-rates","title":"Interest rates","group":"The numbers"},{"slug":"troubleshooting","title":"Troubleshooting","group":"Help"}];
 
 const bySlug = Object.fromEntries(DOCS.map(d => [d.slug, d]));
 const content = document.getElementById("content");
@@ -137,7 +178,68 @@ const cache = {};
 if (window.marked && marked.setOptions) marked.setOptions({ gfm: true, breaks: false });
 
 function setActive(slug) {
-  document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("active", a.dataset.slug === slug));
+  document.querySelectorAll("#nav a[data-slug]").forEach(a => {
+    const on = a.dataset.slug === slug;
+    a.classList.toggle("active", on);
+    if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+}
+
+/* ── collapsible groups ───────────────────────────────────────────────────
+ * Fourteen pages is where a flat list stops being an index and starts being a
+ * wall, so the pages are grouped — and a group you can't close is only a
+ * heading. State lives in localStorage rather than the URL because it is a
+ * preference about the furniture, not about what you are reading.
+ *
+ * Two rules keep it from ever hiding the thing you want:
+ *
+ *   the group holding the page you are ON is forced open, whatever was stored.
+ *   Otherwise a reader who collapsed "Embedding", then followed a link into
+ *   the C ABI page, would be looking at a sidebar that does not contain the
+ *   page they are reading.
+ *
+ *   a group with no stored entry is open. Absence means "not decided", never
+ *   "closed" — a fresh reader sees everything.
+ *
+ * The buttons and sections are in the MARKUP, not built here, so the grouping
+ * survives with scripting off; this only adds the toggle. */
+const GRP_KEY = "or-docs-groups";
+const groups = [...document.querySelectorAll(".nav-group")];
+
+function readClosed() {
+  try {
+    const v = JSON.parse(localStorage.getItem(GRP_KEY) || "[]");
+    return new Set(Array.isArray(v) ? v : []);
+  } catch (e) { return new Set(); }
+}
+function writeClosed(set) {
+  try { localStorage.setItem(GRP_KEY, JSON.stringify([...set])); } catch (e) { /* private mode */ }
+}
+function setGroup(sec, open) {
+  sec.classList.toggle("collapsed", !open);
+  sec.querySelector(".nav-grp").setAttribute("aria-expanded", open ? "true" : "false");
+}
+for (const sec of groups) {
+  const btn = sec.querySelector(".nav-grp");
+  const items = sec.querySelector(".nav-items");
+  // The button controls the item list; give the list an id so it can say so.
+  const id = "grp-" + sec.dataset.group.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  items.id = id;
+  btn.setAttribute("aria-controls", id);
+  btn.addEventListener("click", () => {
+    const open = sec.classList.contains("collapsed");
+    setGroup(sec, open);
+    const closed = readClosed();
+    if (open) closed.delete(sec.dataset.group); else closed.add(sec.dataset.group);
+    writeClosed(closed);
+  });
+}
+function applyGroups(activeSlug) {
+  const closed = readClosed();
+  for (const sec of groups) {
+    const holdsActive = !!sec.querySelector(`a[data-slug="${activeSlug}"]`);
+    setGroup(sec, holdsActive || !closed.has(sec.dataset.group));
+  }
 }
 
 /* ── the index disclosure ─────────────────────────────────────────────────
@@ -151,6 +253,11 @@ const tocHere = document.getElementById("tochere");
 function setToc(open) {
   side.classList.toggle("open", open);
   tocBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  // Opening a panel and leaving focus on the button behind it means a keyboard
+  // reader has to tab past the button to reach what just appeared. Send focus
+  // into the panel, at the one control that can reach any of the fourteen
+  // pages in one step.
+  if (open) q.focus();
 }
 tocBtn.addEventListener("click", () => setToc(!side.classList.contains("open")));
 // Closing on the choice, on Escape, and on a tap outside — the three ways a
@@ -162,6 +269,31 @@ document.addEventListener("keydown", e => {
 document.addEventListener("click", e => {
   if (side.classList.contains("open") && !e.target.closest(".docs-side")) setToc(false);
 });
+
+/* ── the sidebar's own scroll position ────────────────────────────────────
+ * The index is taller than a short window, and every navigation used to send
+ * it back to the top — so a reader working through "The numbers" was scrolling
+ * the sidebar back down after every click. sessionStorage, not localStorage:
+ * where you were in the index is a fact about this visit, not a preference.
+ *
+ * Written on a rAF-throttled scroll listener rather than on navigation,
+ * because the panel can also be scrolled and then left alone. */
+const SCROLL_KEY = "or-docs-side-scroll";
+let sideTick = false;
+side.addEventListener("scroll", () => {
+  if (sideTick) return;
+  sideTick = true;
+  requestAnimationFrame(() => {
+    sideTick = false;
+    try { sessionStorage.setItem(SCROLL_KEY, String(side.scrollTop)); } catch (e) {}
+  });
+}, { passive: true });
+function restoreSideScroll() {
+  try {
+    const v = parseFloat(sessionStorage.getItem(SCROLL_KEY) || "0");
+    if (v > 0) side.scrollTop = v;
+  } catch (e) {}
+}
 
 async function fetchDoc(slug) {
   if (cache[slug] !== undefined) return cache[slug];
@@ -397,6 +529,65 @@ function slugify(s, taken) {
   return slug;
 }
 
+/* Jumping to a heading is the same act from the rail and from the sidebar, and
+ * it is not a plain anchor in either: this page routes the DOCUMENT on
+ * location.hash, so letting `#deployment-modes` reach the address bar would
+ * fire hashchange, fail to find a doc by that slug, and reload Overview
+ * underneath the reader. See the long note above. */
+function jumpTo(h) {
+  h.scrollIntoView();
+  h.setAttribute("tabindex", "-1");   // -1 so it takes focus without joining the tab order
+  h.focus({ preventScroll: true });
+}
+
+/* ── in-page headings, in the sidebar ─────────────────────────────────────
+ * The rail is the on-this-page navigation, and above 1380px it is the right
+ * answer: its own column, out of the way. Below that width there is no third
+ * track and the rail is not drawn at all — which used to mean that a phone,
+ * a tablet and most laptop windows had NO way to see the shape of a document
+ * or jump within it. Fourteen pages made that worse, not better.
+ *
+ * So the sidebar grows the same list, nested under the page it belongs to, and
+ * CSS shows it exactly where the rail is absent (see the .nav-heads block in
+ * site.css). Two lists, never both on screen, one scroll-spy driving both.
+ *
+ * H2 only. The rail carries H3s indented under their H2; repeating that depth
+ * inside a nested list inside a nav is a fourth level of indentation on a
+ * 256px column, and the sidebar's job here is the shape of the page rather
+ * than every subsection of it. */
+function buildNavHeads(slug, heads) {
+  const old = document.querySelector(".nav-heads");
+  if (old) old.remove();
+  const link = document.querySelector(`#nav a[data-slug="${slug}"]`);
+  if (!link) return new Map();
+
+  const h2s = heads.filter(h => h.tagName === "H2");
+  if (h2s.length < 2) return new Map();
+
+  const list = document.createElement("ol");
+  list.className = "nav-heads";
+  list.setAttribute("aria-label", "On this page");
+  const links = new Map();
+  for (const h of h2s) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = "#" + h.id;
+    a.textContent = h.textContent;
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      jumpTo(h);
+      // On a phone the index is a panel covering the document; choosing a
+      // heading in it means "take me there", so it has to close.
+      setToc(false);
+    });
+    li.appendChild(a);
+    list.appendChild(li);
+    links.set(h, a);
+  }
+  link.after(list);
+  return links;
+}
+
 function buildRail() {
   railMark = null;
   rail.innerHTML = "";
@@ -404,11 +595,18 @@ function buildRail() {
   const taken = new Set();
   for (const h of heads) if (!h.id) h.id = slugify(h.textContent, taken);
 
+  const navLinks = buildNavHeads(currentSlug, heads);
+
   // Below three entries a rail is more furniture than navigation, and an
   // empty-looking third column is the exact thing this replaced. The grid
-  // drops back to two tracks instead.
+  // drops back to two tracks instead. The sidebar's copy is built either way:
+  // it costs no column, and its own floor (two headings) is decided above.
   docsGrid.classList.toggle("no-rail", heads.length < 3);
-  if (heads.length < 3) return;
+  if (heads.length < 3) {
+    if (navLinks.size) railMark = () => markHeadings(heads, navLinks);
+    railMark?.();
+    return;
+  }
 
   const label = document.createElement("span");
   label.className = "lbl";
@@ -422,47 +620,65 @@ function buildRail() {
     a.href = "#" + h.id;
     a.textContent = h.textContent;
     if (h.tagName === "H3") a.className = "sub";
-    a.addEventListener("click", e => {
-      e.preventDefault();
-      h.scrollIntoView();
-      // -1 so it takes focus without joining the tab order permanently.
-      h.setAttribute("tabindex", "-1");
-      h.focus({ preventScroll: true });
-    });
+    a.addEventListener("click", e => { e.preventDefault(); jumpTo(h); });
     li.appendChild(a);
     list.appendChild(li);
     links.set(h, a);
   }
   rail.append(label, list);
 
-  // Which heading you are "in" is the last one to have crossed the top of the
-  // viewport, not whichever happens to be intersecting — on a long section
-  // nothing is intersecting at all, and on a short one several are. Headings
-  // are in document order, so the scan stops at the first one still below the
-  // line, and every position it reads is read now rather than remembered.
-  railMark = () => {
-    let current = heads[0];
-    for (const h of heads) {
-      if (h.getBoundingClientRect().top <= 120) current = h;
-      else break;
-    }
-    for (const [h, a] of links) a.classList.toggle("here", h === current);
-    const on = links.get(current);
-    // Keep the marked entry in view when the rail is taller than its box,
-    // but never scroll the page itself doing it.
-    if (on && rail.scrollHeight > rail.clientHeight) {
-      const r = on.getBoundingClientRect(), b = rail.getBoundingClientRect();
-      if (r.top < b.top || r.bottom > b.bottom) {
-        rail.scrollTop += r.top - b.top - b.height / 2 + r.height / 2;
-      }
-    }
-  };
+  railMark = () => markHeadings(heads, links, navLinks);
   railMark();
 }
 
+/* Which heading you are "in" is the last one to have crossed the top of the
+ * viewport, not whichever happens to be intersecting — on a long section
+ * nothing is intersecting at all, and on a short one several are. Headings are
+ * in document order, so the scan stops at the first one still below the line,
+ * and every position it reads is read now rather than remembered.
+ *
+ * (An IntersectionObserver was the first attempt and is the wrong instrument
+ * here for the reason given above railSchedule. It is worth repeating that the
+ * same property makes an IO hard to TEST: a fast programmatic scroll does not
+ * fire one at all, so a blank result from an automated scroll can be a capture
+ * artifact rather than a bug. This reads positions synchronously and has
+ * neither problem.)
+ *
+ * The rail and the sidebar's nested list are the same navigation drawn twice,
+ * never both visible, so one pass marks both from one measurement. */
+function markHeadings(heads, ...maps) {
+  let current = heads[0];
+  for (const h of heads) {
+    if (h.getBoundingClientRect().top <= 120) current = h;
+    else break;
+  }
+  for (const links of maps) {
+    if (!links || !links.size) continue;
+    for (const [h, a] of links) a.classList.toggle("here", h === current);
+    const on = links.get(current);
+    // Keep the marked entry in view when the rail is taller than its box, but
+    // never scroll the page itself doing it. The RAIL only: the sidebar is the
+    // whole index and the reader controls where it sits — moving it under them
+    // as they scroll the document would undo the position this page now
+    // deliberately remembers.
+    if (!on) continue;
+    const box = on.closest(".docs-rail");
+    if (box && box.scrollHeight > box.clientHeight) {
+      const r = on.getBoundingClientRect(), b = box.getBoundingClientRect();
+      if (r.top < b.top || r.bottom > b.bottom) {
+        box.scrollTop += r.top - b.top - b.height / 2 + r.height / 2;
+      }
+    }
+  }
+}
+
+let currentSlug = DOCS[0].slug;
+
 async function load(slug) {
   const doc = bySlug[slug] || DOCS[0];
+  currentSlug = doc.slug;
   setActive(doc.slug);
+  applyGroups(doc.slug);
   crumb.textContent = doc.title;
   tocHere.textContent = doc.title;
   document.title = "openrate — " + doc.title;
@@ -488,15 +704,34 @@ async function load(slug) {
   } catch (err) {
     docsGrid.classList.add("no-rail");
     rail.innerHTML = "";
+    railMark = null;
+    document.querySelector(".nav-heads")?.remove();
     content.innerHTML = '<div class="docs-err">Could not load <code>' + doc.slug +
       ".md</code> — " + err.message + "</div>";
   }
 }
 
 /* ── search ───────────────────────────────────────────────────────────────
- * Nine documents is small enough to search by fetching all of them once, on
- * the first keystroke, and scanning line by line. No index to build, nothing
- * to keep in sync with the generator, and it stays correct automatically. */
+ * Fourteen documents is still small enough to search by fetching all of them
+ * once, on the first keystroke, and scanning line by line. No index to build,
+ * nothing to keep in sync with the generator, and it stays correct
+ * automatically as pages are added.
+ *
+ * What did have to change with fourteen pages is ORDER. A line scan returns
+ * whatever it meets first, in page order, and "engine" matched forty lines of
+ * prose before it matched the section actually called "The split that makes it
+ * true". So matches are ranked, best first:
+ *
+ *   0  a page TITLE matches            — you are looking for the page
+ *   1  a HEADING matches               — you are looking for a section, and a
+ *                                        heading hit navigates INTO the page,
+ *                                        not just to the top of it
+ *   2  a line of prose matches
+ *
+ * A heading hit carries the heading's own slug, computed with the same
+ * slugify() the rail and the sidebar use, so clicking it lands on the section
+ * rather than the document. It has to route in two steps — load the document,
+ * then jump — because the hash is the document route. */
 const q = document.getElementById("q");
 const hits = document.getElementById("hits");
 let corpus = null;
@@ -504,44 +739,166 @@ let corpus = null;
 async function ensureCorpus() {
   if (corpus) return corpus;
   const bodies = await Promise.all(DOCS.map(d => fetchDoc(d.slug).catch(() => "")));
-  corpus = DOCS.map((d, i) => ({ doc: d, lines: bodies[i].split("\n") }));
+  corpus = DOCS.map((d, i) => {
+    const lines = bodies[i].split("\n");
+    // Headings, with the id the viewer will mint for them. slugify de-dupes
+    // per page, so the sequence here has to match the sequence there: same
+    // order, same Set, one pass.
+    const taken = new Set();
+    const heads = [];
+    let inFence = false;
+    for (const line of lines) {
+      if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; continue; }
+      if (inFence) continue;
+      const m = /^(#{2,3})\s+(.*)$/.exec(line);
+      if (!m) continue;
+      const text = m[2].replace(/[`*_~]/g, "").trim();
+      heads.push({ text, id: slugify(text, taken) });
+    }
+    return { doc: DOCS[i], lines, heads };
+  });
   return corpus;
+}
+
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* A prose hit is one raw markdown line, and the reader is being shown it as a
+ * sentence. Unwrap links to their label first — otherwise a match inside one
+ * renders as `[the Engine-without-a-Refresher example](library)`, which reads
+ * as a bug in the search rather than as source text — then drop the emphasis,
+ * fence and table punctuation and any leading list marker. */
+function excerpt(s) {
+  return s
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^[-*+]\s+|^\d+\.\s+|^>\s*/, "")
+    .replace(/[*`>|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 90);
 }
 
 function search(term) {
   const t = term.trim().toLowerCase();
-  if (t.length < 2) { hits.hidden = true; hits.innerHTML = ""; return; }
+  if (t.length < 2) { closeHits(); return; }
   ensureCorpus().then(rows => {
     // Re-check: an await means the box may have changed since this ran.
     if (q.value.trim().toLowerCase() !== t) return;
     const out = [];
-    for (const { doc, lines } of rows) {
+    for (const { doc, lines, heads } of rows) {
+      if (doc.title.toLowerCase().includes(t)) {
+        out.push({ rank: 0, doc, label: doc.title, sub: doc.group, id: "" });
+      }
+      for (const h of heads) {
+        if (h.text.toLowerCase().includes(t)) out.push({ rank: 1, doc, label: h.text, sub: doc.title, id: h.id });
+      }
       let n = 0;
       for (const line of lines) {
         if (n >= 3) break;
         const s = line.trim();
-        if (s.length < 3 || s.startsWith("<!--") || !s.toLowerCase().includes(t)) continue;
-        out.push({ doc, line: s.replace(/[#*`>|]/g, "").trim().slice(0, 90) });
+        if (s.length < 3 || s.startsWith("<!--") || s.startsWith("#") || !s.toLowerCase().includes(t)) continue;
+        out.push({ rank: 2, doc, label: excerpt(s), sub: doc.title, id: "" });
         n++;
       }
     }
+    out.sort((a, b) => a.rank - b.rank);
+    const shown = out.slice(0, 12);
     hits.hidden = false;
-    hits.innerHTML = out.length
-      ? out.slice(0, 12).map(h =>
-          '<a class="hit" href="#' + h.doc.slug + '"><b>' + h.doc.title + "</b><span>" +
-          h.line.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])) + "</span></a>"
+    q.setAttribute("aria-expanded", "true");
+    hits.innerHTML = shown.length
+      ? shown.map((h, i) =>
+          '<a class="hit" role="option" id="hit-' + i + '" aria-selected="false" href="#' + h.doc.slug +
+          '" data-slug="' + h.doc.slug + '" data-id="' + esc(h.id) + '"><b>' + esc(h.label) +
+          "</b><span>" + esc(h.sub || "") + "</span></a>"
         ).join("")
-      : '<div class="hits-none">Nothing matches “' +
-        t.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])) + "”.</div>";
+      : '<div class="hits-none">Nothing matches “' + esc(t) + "”.</div>";
+    cursor = -1;
   });
 }
 
+/* ── keyboard, over the results and over the page ─────────────────────────
+ * The results are a listbox the search box owns (role=combobox +
+ * aria-activedescendant), so a keyboard reader hears the highlighted result
+ * change without focus ever leaving the input. Down/Up move, Enter opens,
+ * Escape clears — and Escape on an empty box gives up focus rather than doing
+ * nothing, which is what a reader who wanted out of the search expects. */
+let cursor = -1;
+
+function closeHits() {
+  hits.hidden = true;
+  hits.innerHTML = "";
+  cursor = -1;
+  q.setAttribute("aria-expanded", "false");
+  q.removeAttribute("aria-activedescendant");
+}
+
+function moveCursor(delta) {
+  const opts = [...hits.querySelectorAll(".hit")];
+  if (!opts.length) return;
+  cursor += delta;
+  if (cursor < 0) cursor = opts.length - 1;
+  if (cursor >= opts.length) cursor = 0;
+  opts.forEach((o, i) => {
+    const on = i === cursor;
+    o.classList.toggle("on", on);
+    o.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const on = opts[cursor];
+  q.setAttribute("aria-activedescendant", on.id);
+  on.scrollIntoView({ block: "nearest" });
+}
+
+function openHit(a) {
+  const slug = a.dataset.slug, id = a.dataset.id;
+  q.value = "";
+  closeHits();
+  setToc(false);
+  const go = () => { if (id) { const h = document.getElementById(id); if (h) jumpTo(h); } };
+  if (slug === currentSlug) { go(); return; }
+  // The hash is the document route; the heading is a second step, once the
+  // document it lives in has actually been rendered.
+  if (location.hash.replace("#", "") === slug) load(slug).then(go);
+  else { pendingJump = id; location.hash = "#" + slug; }
+}
+let pendingJump = "";
+
 q.addEventListener("input", () => search(q.value));
-hits.addEventListener("click", () => { q.value = ""; hits.hidden = true; hits.innerHTML = ""; });
+q.addEventListener("keydown", e => {
+  if (e.key === "ArrowDown") { e.preventDefault(); moveCursor(1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); moveCursor(-1); }
+  else if (e.key === "Enter") {
+    const on = hits.querySelectorAll(".hit")[cursor];
+    if (on) { e.preventDefault(); openHit(on); }
+  } else if (e.key === "Escape") {
+    if (q.value) { q.value = ""; closeHits(); }
+    else { closeHits(); q.blur(); }
+  }
+});
+hits.addEventListener("click", e => {
+  const a = e.target.closest(".hit");
+  if (!a) return;
+  e.preventDefault();
+  openHit(a);
+});
+// "/" focuses the search from anywhere on the page — the one shortcut every
+// docs site has — but never while the reader is already typing somewhere.
+document.addEventListener("keydown", e => {
+  if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+  const el = document.activeElement;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+  e.preventDefault();
+  if (window.matchMedia("(max-width: 980px)").matches) setToc(true);
+  q.focus();
+  q.select();
+});
 
 const current = () => (location.hash || "").replace("#", "") || DOCS[0].slug;
-window.addEventListener("hashchange", () => load(current()));
-load(current());
+window.addEventListener("hashchange", () => load(current()).then(() => {
+  if (!pendingJump) return;
+  const h = document.getElementById(pendingJump);
+  pendingJump = "";
+  if (h) jumpTo(h);
+}));
+load(current()).then(restoreSideScroll);
 </script>
 </body>
 </html>

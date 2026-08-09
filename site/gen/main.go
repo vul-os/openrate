@@ -66,17 +66,29 @@ type page struct {
 	slug string
 }
 
-// pages is what the site bundle ships, in nav order.
+// pages is what the site bundle ships, in nav order. The order here is the
+// order of the DOCS array in site/docs.html and of the sidebar's groups, and
+// site/docs.html's own comment explains why those three have to agree.
 var pages = []page{
+	// Start here
 	{"README.md", "overview"},
-	{"docs/api.md", "api"},
-	{"docs/configuration.md", "configuration"},
+	{"docs/quickstart.md", "quickstart"},
+	{"docs/deployment-modes.md", "deployment-modes"},
+	// Embedding
 	{"docs/library.md", "library"},
-	{"docs/graph-model.md", "graph-model"},
-	{"docs/interest-rates.md", "interest-rates"},
+	{"docs/zero-network.md", "zero-network"},
+	{"docs/c-abi.md", "c-abi"},
+	// Running the server
+	{"docs/configuration.md", "configuration"},
+	{"docs/api.md", "api"},
 	{"docs/web-ui.md", "web-ui"},
+	// The numbers
+	{"docs/graph-model.md", "graph-model"},
 	{"ACCURACY.md", "accuracy"},
 	{"SOURCES.md", "sources"},
+	{"docs/interest-rates.md", "interest-rates"},
+	// Help
+	{"docs/troubleshooting.md", "troubleshooting"},
 }
 
 // notShipped lists canonical docs that deliberately do not go to the site, with

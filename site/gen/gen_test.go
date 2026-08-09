@@ -14,12 +14,15 @@ import (
 // minPages is the coverage floor for the whole guard. Every test below asserts
 // against it: a generator that was quietly emptied out must fail, not pass by
 // checking nothing.
-const minPages = 9
+// It is raised whenever the set grows, because a floor left at the size of an
+// older, smaller corpus stops being a floor: at 9, five pages could vanish
+// without a word.
+const minPages = 13
 
 // minLinks is the coverage floor for the link scan. The generated bundle
 // currently carries far more than this; the floor exists so that a scan which
 // silently stops matching links fails instead of reporting success.
-const minLinks = 25
+const minLinks = 80
 
 // repoRoot locates the module root, failing loudly rather than skipping — a
 // docs guard that quietly does nothing is worse than no guard at all.

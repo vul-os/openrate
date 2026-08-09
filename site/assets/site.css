@@ -266,6 +266,26 @@ code { font-family: var(--mono); font-size: max(11px, .88em); color: var(--teal)
 }
 .hdr nav a:hover, .hdr nav a.on { color: var(--text); }
 @media (max-width: 860px) { .hdr nav { display: none; } }
+/* 320px, measured in a browser rather than guessed at: the bar's own contents
+   — the wordmark plus three 44px controls — came to 330px inside a 320px
+   viewport on both pages, so the header, and only the header, was pushing the
+   document 10px over. Neither of the obvious fixes is available: 44px is the
+   ratified tap-target floor and the Vulos mark is ratified suite chrome, so
+   nothing here may shrink below 44 and nothing may be dropped. What can give
+   is the space between them and the size of the wordmark, which is set at
+   21px for a 1440px header and does not need to be at 320.
+
+   `overflow-x: clip` on body means this never showed up as a scrollbar, and it
+   would not show up in a scrollWidth check on <html> either — the same trap a
+   sibling landing hid a doubled-over viewport behind. It was found by walking
+   every element's bounding box against the viewport, which is what actually
+   answers the question. */
+@media (max-width: 380px) {
+  .hdr { gap: 8px; }
+  .brand { gap: 7px; }
+  .brand svg { width: 23px; height: 23px; }
+  .brand .word { font-size: 18px; }
+}
 
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -520,6 +540,68 @@ pre.cb-wrap { overflow-x: hidden; }
    the panel drops out of flow behind it. */
 .toc-btn { display: none; }
 .docs-side nav { display: flex; flex-direction: column; gap: 2px; }
+
+/* ── the index's groups ───────────────────────────────────────────────────
+   Fourteen pages in one flat column is a wall, not an index: nothing tells a
+   reader that "Zero network" belongs beside "Go library" rather than beside
+   "Interest rates", and there is no way to put away a part of the product you
+   are not using. So the pages sit in five groups, each a real <section> with a
+   real <button>, and the button collapses it.
+
+   The heading is a button and not a bare label, which means it has to look
+   like neither a page link nor a page title. It takes the same mono/uppercase
+   treatment .lbl uses everywhere else on the site, sits at --text-4 rather
+   than --text-3 so the page titles under it stay the brighter thing, and only
+   the chevron moves on hover — a group header that highlighted like a link
+   would read as a fifteenth page. */
+.nav-group + .nav-group { margin-top: 10px; }
+.nav-grp {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  min-height: 34px; padding: 4px 12px 4px 12px; margin: 0;
+  background: none; border: none; cursor: pointer; text-align: left;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--text-4);
+}
+.nav-grp span { flex: 1 1 auto; min-width: 0; }
+.nav-grp .gc {
+  flex: none; width: 13px; height: 13px; opacity: .7;
+  transition: transform .2s var(--ease), opacity .15s var(--ease);
+}
+.nav-grp:hover .gc { opacity: 1; }
+.nav-grp[aria-expanded="false"] .gc { transform: rotate(-90deg); }
+.nav-items { display: flex; flex-direction: column; gap: 2px; }
+.nav-group.collapsed .nav-items { display: none; }
+
+/* ── in-page headings, nested under the page they belong to ───────────────
+   The on-this-page rail owns this job above 1380px, in its own column. Below
+   that the rail is not drawn (see the .docs grid), and until now that left a
+   phone, a tablet and most laptop windows with no way to see the shape of a
+   document or move within it. This is the same list, in the one column that
+   always exists, and the media query below is deliberately the SAME breakpoint
+   as the rail's so the two can never both be on screen.
+
+   Indented from a rule rather than from padding alone: the list has to read as
+   belonging to the link above it, and at this width a bare indent looks like a
+   misaligned sibling.
+
+   Every selector here carries `.docs-side` for specificity and not for style:
+   `.docs-side nav a` above sets a 44px floor, a radius and --text-3 on every
+   anchor in this rail, and a bare `.nav-heads a` loses to it. */
+.docs-side .nav-heads {
+  list-style: none; margin: 2px 0 4px 22px; padding: 0;
+  border-left: 1px solid var(--line-2);
+}
+.docs-side .nav-heads li { margin: 0; padding: 0; }
+.docs-side .nav-heads a {
+  display: flex; align-items: center; min-height: 40px;
+  padding: 6px 10px 6px 12px; margin-left: -1px;
+  border-left: 2px solid transparent; border-radius: 0;
+  font-size: 12.5px; line-height: 1.45; color: var(--text-4);
+  transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+.docs-side .nav-heads a:hover { color: var(--text-2); background: none; }
+.docs-side .nav-heads a.here { color: var(--teal); border-left-color: var(--teal); }
+@media (min-width: 1380px) { .docs-side .nav-heads { display: none; } }
 /* `.docs-side nav a`, not `.docs-side a` — the search results are anchors in
    the same aside, and a display:flex meant for a one-line nav row laid their
    title and their excerpt side by side instead of stacked. */
@@ -541,7 +623,12 @@ pre.cb-wrap { overflow-x: hidden; }
 .docs-search:focus { outline: none; border-color: color-mix(in srgb, var(--blue) 50%, transparent); }
 .hits { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
 .hit { display: block; min-height: 44px; padding: 9px 12px; border-radius: var(--r-sm); background: var(--paper-3); }
-.hit:hover { background: var(--paper-2); }
+/* .on is the KEYBOARD cursor, moved with the arrow keys while focus stays in
+   the search box (role=combobox + aria-activedescendant). It has to be visible
+   as strongly as hover, because it is the only thing on screen telling a
+   keyboard reader which result Enter will open. */
+.hit:hover, .hit.on { background: var(--paper-2); }
+.hit.on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 55%, transparent); }
 .hit b { display: block; font-size: 12.5px; color: var(--text); font-weight: 600; }
 .hit span { display: block; font-size: 12px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hits-none { padding: 10px 12px; font-size: 12.5px; color: var(--text-4); }
@@ -868,16 +955,28 @@ html:not(.js) #content { display: none; }
   .docs-side.open .toc-panel, html:not(.js) .toc-panel { display: flex; }
   html:not(.js) .toc-panel { position: static; max-height: none; box-shadow: none; padding: 16px 0 22px; }
   .toc-panel > .lbl { display: none; }
-  /* Two columns wherever two columns fit, so nine titles are one glance
+  /* Two columns wherever two columns fit, so a group's pages are one glance
      rather than one scroll. auto-fit + a 150px floor means it is one column
-     on the narrowest phones without a second breakpoint to keep in step. */
-  .docs-side nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 2px; }
+     on the narrowest phones without a second breakpoint to keep in step.
+     The grid is on .nav-items, not on nav: the groups themselves stack, so
+     each heading still sits directly above the pages it names — laying the
+     GROUPS out in two columns would put "Embedding" beside the pages of
+     "Start here". */
+  .docs-side nav { display: flex; flex-direction: column; gap: 2px; }
+  .docs-side .nav-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 2px; }
   .docs-side nav a { border-left: none; border-radius: var(--r-sm); padding: 8px 12px; }
   .docs-side nav a.active {
     border-left: none; color: var(--teal);
     background: color-mix(in srgb, var(--teal) 10%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal) 32%, transparent);
   }
+  /* The heading list is a nested list under one link, so it never joins the
+     two-column grid — it spans it, and keeps its rule and its indent. */
+  .docs-side .nav-heads { grid-column: 1 / -1; margin-left: 14px; }
+  .docs-side .nav-heads a {
+    border-left: 2px solid transparent; border-radius: 0; padding: 6px 10px 6px 12px;
+  }
+  .docs-side .nav-heads a.here { border-left-color: var(--teal); background: none; box-shadow: none; }
   .docs-main { max-width: none; }
 }
 
