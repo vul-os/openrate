@@ -83,7 +83,27 @@ inside the code reporting that an engine could not be opened.
 | file | mode | what it shows |
 |---|---|---|
 | `direct_convert.cpp` | direct | version probe, an empty engine refusing to guess, `load`, `convert`, a crossed pair reporting its path, an engine refusing `refresh`, both error styles, a handle closed during stack unwinding, closing engine-before-refresher |
-| `sidecar_convert.cpp` | sidecar | `Socket` and `Sidecar` classes with destructors, spawn on a free loopback port, `/healthz` poll, waiting for the first fetch to land, convert, the book, HTTP errors |
+| `sidecar_convert.cpp` | sidecar | `Socket` and `Sidecar` classes with destructors, spawn on a free loopback port, the `/healthz` then `/readyz` waits, convert, the book, HTTP errors |
+
+**Two waits, because there are two questions.** `/healthz` is liveness: 200 the
+instant the listener binds, with an empty book behind it. `/readyz` is
+readiness: 200 once the snapshot holds a currency, and 503 with a JSON body —
+`reason`, plus `last_error` per source — until then. Converting on the strength
+of `/healthz` is how this example used to get *unknown or unreachable currency
+pair* for every pair and still exit 0, so it waits for both and prints the
+503's reasons if the second wait runs out:
+
+```
+openrate has no rates after 30s: no rates yet: no source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+Neither endpoint is under `/api/`, and the per-IP limiter guards only `/api/`,
+so readiness polling spends nothing from the budget the first real call wants —
+hence a flat 150 ms poll with no backoff. The child is spawned with
+`OPENRATE_RATELIMIT=0` for a related reason: it serves exactly one client over
+loopback, so there is no stranger to throttle, while the 120/min default is
+small enough that an honest batch of conversions would take a 429 from our own
+sidecar. Set `OPENRATE_RATELIMIT` in the environment to put it back.
 
 ```bash
 make                                      # build both

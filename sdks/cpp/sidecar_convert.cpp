@@ -201,6 +201,13 @@ public:
 			::setenv("OPENRATE_ADDR", addr.c_str(), 1);
 			// One fast source keeps the example quick; the default is four.
 			if (!std::getenv("OPENRATE_SOURCES")) ::setenv("OPENRATE_SOURCES", "ecb", 1);
+			// The binary limits /api/ to 120 requests a minute per IP by
+			// default — anti-scraping for a public deployment. This child
+			// listens on loopback and serves exactly one client, this process,
+			// so there is no stranger to throttle; meanwhile a legitimate batch
+			// of conversions would sail past 120/min and take a 429 from our
+			// own sidecar. Set OPENRATE_RATELIMIT yourself to put it back.
+			if (!std::getenv("OPENRATE_RATELIMIT")) ::setenv("OPENRATE_RATELIMIT", "0", 1);
 			::execlp(binary_path(), binary_path(), nullptr);
 			std::cerr << "exec " << binary_path() << ": " << std::strerror(errno) << "\n";
 			::_exit(127);
@@ -255,20 +262,76 @@ private:
 	pid_t pid_ = -1;
 };
 
-// "Healthy" and "useful" are different questions: openrate answers 200 from the
-// moment it is listening, with an empty book until the first fetch lands.
-bool wait_for_rates(int port, std::chrono::seconds budget) {
+// Turn a /readyz 503 body into the one line a caller can act on: the server's
+// own `reason`, then `name: last_error` for every source that has one.
+//
+// `last_error` is `omitempty`, so a source nobody has tried yet has no such key
+// — printing "ecb: " for it would be worse than printing nothing, and a body
+// with no errors in it degrades to the reason alone.
+//
+// The array is walked object by object because "name" and "last_error" have to
+// be read as a PAIR: a document-wide peek for one finds a different source's
+// than a document-wide peek for the other. No field of a source is itself an
+// object or an array, so the next `}` bounds each one and the first `]` bounds
+// the array.
+std::string describe_not_ready(std::string_view body) {
+	std::string out = peek(body, "reason");
+	if (out.empty()) out = "not ready, and it did not say why";
+
+	const size_t npos = std::string_view::npos;
+	const size_t key = body.find("\"sources\"");
+	const size_t first = key == npos ? npos : body.find('[', key);
+	const size_t end = first == npos ? npos : body.find(']', first);
+	bool printed = false;
+	for (size_t p = first; p != npos && end != npos && p < end;) {
+		const size_t open = body.find('{', p);
+		if (open == npos || open >= end) break;
+		const size_t close = body.find('}', open);
+		if (close == npos || close > end) break;
+
+		const std::string_view source = body.substr(open, close - open + 1);
+		const std::string err = peek(source, "last_error");
+		if (!err.empty()) {
+			const std::string name = peek(source, "name");
+			out += (printed ? "; " : " (") + (name.empty() ? "?" : name) + ": " + err;
+			printed = true;
+		}
+		p = close + 1;
+	}
+	if (printed) out += ")";
+	return out;
+}
+
+// "Live" and "useful" are different questions. /healthz answers 200 the moment
+// the listener binds, with an empty book behind it; /readyz answers 200 only
+// once the snapshot holds a currency, and 503 with a JSON body saying why not.
+// Waiting on the wrong one is how this example used to convert against nothing
+// and report every pair as an unknown currency.
+//
+// Neither endpoint is under /api/, and the rate limiter guards only /api/, so a
+// flat short interval is free — there is no limiter here to back off from. The
+// workaround this replaces polled /api/v1/meta, which there was.
+//
+// `why` ends up holding the most useful explanation seen: the last 503's if
+// there ever was one, otherwise the transport error. A server that said
+// "ecb: connection refused" explains more than a socket that later stopped
+// answering, so a transport error never displaces a reason the server gave.
+bool wait_ready(int port, std::chrono::seconds budget, std::string &why) {
 	const auto deadline = std::chrono::steady_clock::now() + budget;
+	bool explained = false;
+	why = "openrate never answered /readyz";
 	while (std::chrono::steady_clock::now() < deadline) {
 		try {
-			const std::string body = http_get(port, "/api/v1/meta").body;
-			if (body.find("\"currencies\": []") == std::string::npos &&
-			    body.find("\"currencies\":[]") == std::string::npos)
-				return true;
-		} catch (const std::exception &) {
-			// keep waiting
+			// http_get returns the body whatever the status, which is the only
+			// reason this can be specific rather than a bare timeout.
+			const Response r = http_get(port, "/readyz");
+			if (r.status == 200) return true;
+			why = describe_not_ready(r.body);
+			explained = true;
+		} catch (const std::exception &e) {
+			if (!explained) why = e.what();  // not listening (yet, or any more)
 		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(250));
+		std::this_thread::sleep_for(std::chrono::milliseconds(150));
 	}
 	return false;
 }
@@ -295,10 +358,12 @@ int main(int argc, char **argv) {
 			          << "  (not managed — spawning nothing)\n";
 		}
 
-		if (!wait_for_rates(port, std::chrono::seconds(30))) {
-			std::cout << "\nno rates arrived within 30s — the server started fine but could not\n"
-			             "reach its sources. Everything below needs a rate to exist.\n"
-			             "For a mode that needs no network at all, see direct_convert.cpp.\n";
+		std::string why;
+		if (!wait_ready(port, std::chrono::seconds(30), why)) {
+			std::cerr << "openrate has no rates after 30s: " << why << "\n";
+			std::cout << "\nThe server is listening but its book is empty, and everything below\n"
+			             "needs a rate to exist. For a mode that needs no network at all, see\n"
+			             "direct_convert.cpp.\n";
 			return 1;
 		}
 
