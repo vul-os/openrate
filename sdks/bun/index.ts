@@ -26,8 +26,13 @@
  *
  * ```ts
  * await using side = await Sidecar.start({ sources: "ecb" });
+ * await side.waitForRates();                  // start() waited for the LISTENER
  * await side.convert("EUR", "ZAR", 100);
  * ```
+ *
+ * The waitForRates() line is not optional politeness: the startup refresh has
+ * not finished when start() returns, and a convert against an empty book is a
+ * 404 that reads like a bad currency code.
  *
  * `bun:ffi` has no asynchronous call mode, so every direct call runs on the
  * thread that made it. Engine methods answer from memory in microseconds, so
@@ -484,13 +489,47 @@ export interface SidecarOptions {
   ui?: boolean;
   /** Extra arguments appended verbatim. */
   args?: string[];
-  /** Extra environment for the child. */
+  /** Extra environment for the child; overrides what {@link Sidecar.start} sets. */
   env?: Record<string, string>;
-  /** Health-check timeout in milliseconds (default 10000). */
+  /**
+   * How long to wait for the child to start LISTENING, in milliseconds
+   * (default 10000). Waiting for rates is a separate step with its own
+   * deadline — see {@link Sidecar.waitForRates}.
+   */
   timeoutMs?: number;
   /** Binary to run; default OPENRATE_BINARY, else "openrate" on PATH. */
   binary?: string;
 }
+
+/** The parts of a `/readyz` 503 body this client acts on. */
+interface ReadyBody {
+  currencies?: number;
+  reason?: string;
+  sources?: { name?: string; last_error?: string }[];
+}
+
+/**
+ * Turn a `/readyz` 503 body into one line a human can act on.
+ *
+ * `last_error` is `omitempty` on the wire, so a source that has simply not been
+ * tried yet has no such key: those are dropped rather than printed as
+ * `ecb: undefined`, and a body where nobody has failed yet degrades to the
+ * server's `reason` alone.
+ */
+function describeNotReady(text: string): string {
+  let body: ReadyBody;
+  try {
+    body = JSON.parse(text) as ReadyBody;
+  } catch {
+    // A 503 from something that is not openrate — a proxy, say. Show it raw.
+    return text.trim().slice(0, 200) || "the server answered 503 with no body";
+  }
+  const reason = body.reason ?? "not ready";
+  const causes = (body.sources ?? []).flatMap((s) => (s.last_error ? [`${s.name ?? "?"}: ${s.last_error}`] : []));
+  return causes.length > 0 ? `${reason} (${causes.join("; ")})` : reason;
+}
+
+const seconds = (ms: number): string => `${Math.round(ms / 100) / 10}s`;
 
 function freePort(): number {
   const srv = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {} } });
@@ -508,6 +547,9 @@ async function getJSON(url: string): Promise<unknown> {
 
 /**
  * The `openrate` binary in a child process, started and supervised for you.
+ *
+ * {@link start} waits for the listener (LIVENESS); {@link waitForRates} waits
+ * for the book (READINESS). Both, in that order, before the first convert.
  *
  * Async-disposable, so `await using side = await Sidecar.start()` kills the
  * child on the way out of the block.
@@ -535,7 +577,12 @@ export class Sidecar implements AsyncDisposable {
     if (opts.args) args.push(...opts.args);
 
     const child = Bun.spawn(args, {
-      env: { ...process.env, ...opts.env },
+      // OPENRATE_RATELIMIT=0: the child listens on loopback and serves exactly
+      // one client — this process. The 120/min default is anti-scraping for a
+      // public deployment and there is no stranger here to throttle, while a
+      // legitimate batch of conversions would sail past it and take a 429 from
+      // our own sidecar. Pass env: { OPENRATE_RATELIMIT: "120" } to restore it.
+      env: { ...process.env, OPENRATE_RATELIMIT: "0", ...opts.env },
       stdout: "inherit",
       stderr: "inherit",
     });
@@ -544,6 +591,10 @@ export class Sidecar implements AsyncDisposable {
     const deadline = Date.now() + (opts.timeoutMs ?? 10_000);
     for (;;) {
       try {
+        // /healthz is LIVENESS: it answers the instant the listener binds, with
+        // no rates fetched yet. Readiness is waitForRates(), and start() does
+        // not do it for you — a long first refresh should not look like a slow
+        // spawn, and a caller with its own deadline gets to set it.
         const res = await fetch(base + "/healthz");
         await res.text();
         if (res.status === 200) return new Sidecar(child, base);
@@ -552,7 +603,7 @@ export class Sidecar implements AsyncDisposable {
       }
       if (Date.now() > deadline) {
         child.kill();
-        throw new Error(`openrate did not become healthy on ${addr} in time`);
+        throw new Error(`openrate did not start listening on ${addr} within ${seconds(opts.timeoutMs ?? 10_000)}`);
       }
       await Bun.sleep(50);
     }
@@ -576,18 +627,44 @@ export class Sidecar implements AsyncDisposable {
   }
 
   /**
-   * Wait until the server has rates. A server refreshes on startup, so this is
-   * a poll of /api/v1/meta rather than anything the API exposes. Returns the
-   * currency count, which is 0 if the deadline passed with none.
+   * Wait until the server can actually answer a conversion, and return how many
+   * currencies it holds. This is READINESS: `GET /readyz`, which is 200 once the
+   * startup refresh has put rates in the snapshot and 503 with the per-source
+   * outcomes until then. Nothing blocks while it waits.
+   *
+   * A fixed 150 ms interval is right here: `/readyz` sits outside `/api/`, so
+   * `guard()`'s rate limiter never sees it and polling cannot spend the budget
+   * this call is waiting to hand to `convert()`.
+   *
+   * On timeout it THROWS, carrying the last thing the server said — the 503's
+   * `reason` plus every source that has an error, or the transport failure if
+   * the server never answered at all:
+   *
+   *     openrate has no rates after 20s: no rates yet: no source has returned a
+   *     usable quote (ecb: dial tcp 127.0.0.1:1: connect: connection refused)
+   *
+   * The alternative, a bare timeout or a returned 0, makes the caller guess
+   * between "offline", "wrong sources" and "just slow".
    */
   async waitForRates(timeoutMs = 20_000): Promise<number> {
     const deadline = Date.now() + timeoutMs;
+    let cause = "the server never answered /readyz";
     for (;;) {
-      const meta = (await this.meta()) as { currencies?: string[] };
-      const n = meta.currencies?.length ?? 0;
-      if (n > 0) return n;
-      if (Date.now() > deadline) return 0;
-      await Bun.sleep(250);
+      try {
+        // Not getJSON(): it discards the body of a non-2xx response, and on a
+        // 503 that body is the entire diagnosis.
+        const res = await fetch(`${this.baseURL}/readyz`);
+        const text = await res.text();
+        if (res.status === 200) return (JSON.parse(text) as ReadyBody).currencies ?? 0;
+        cause = describeNotReady(text);
+      } catch (e) {
+        // Not listening yet, or gone. Either way it is the current cause.
+        cause = e instanceof Error ? e.message : String(e);
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`openrate has no rates after ${seconds(timeoutMs)}: ${cause}`);
+      }
+      await Bun.sleep(150);
     }
   }
 

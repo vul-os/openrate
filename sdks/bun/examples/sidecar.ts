@@ -11,7 +11,14 @@
 //   go build -o /tmp/openrate ../../cmd/openrate
 //
 // A server refreshes on startup, so this example uses the network. If the
-// machine is offline it says so and exits 0 rather than pretending.
+// machine is offline it reports WHICH source failed and how, then exits 0
+// rather than pretending. To watch that path without unplugging anything:
+//   NO_PROXY=127.0.0.1 HTTPS_PROXY=http://127.0.0.1:1 \
+//     OPENRATE_READY_TIMEOUT_MS=3000 bun run examples/sidecar.ts
+//
+// NO_PROXY is not decoration: Bun's fetch honours HTTP(S)_PROXY for loopback
+// URLs too, so without it this process cannot reach its own sidecar and the
+// run fails at start(), before readiness is ever tested.
 
 import { Sidecar } from "../index.ts";
 
@@ -27,13 +34,25 @@ await using side = await Sidecar.start({ base: "ZAR", sources: "ecb", ui: false 
 console.log(`sidecar    ${side.baseURL}`);
 console.log(`api        ${side.apiBaseURL}\n`);
 
-// waitForRates polls /api/v1/meta on a timer — nothing blocks while it waits,
-// which is the difference from direct mode's refresher.ready().
-const currencies = await side.waitForRates(20_000);
-if (currencies === 0) {
-  console.log("rates       none arrived within 20s — the sidecar could not reach its sources (offline?)");
+// waitForRates polls /readyz on a timer — nothing blocks while it waits, which
+// is the difference from direct mode's refresher.ready(). start() only waited
+// for the listener; converting before this line would ask an empty book and get
+// "unknown or unreachable currency pair" for every pair.
+const readyTimeoutMs = Number(process.env.OPENRATE_READY_TIMEOUT_MS ?? 20_000);
+let currencies = 0;
+try {
+  currencies = await side.waitForRates(readyTimeoutMs);
+} catch (e) {
+  // The message carries the 503's reason and each source's last error, so this
+  // says WHICH source failed and how — not just "timed out".
+  console.log(`rates       ${e instanceof Error ? e.message : "non-Error thrown"}`);
   console.log("            openrate says so rather than inventing a number; that is the design.");
-} else {
+  // And the exit code says it too. An example that prints a failure and exits 0
+  // is the same false green as converting against an empty book: whatever runs
+  // this in CI sees success.
+  process.exitCode = 1;
+}
+if (currencies > 0) {
   console.log(`rates       ${currencies} currencies after the startup refresh`);
 
   const c = (await side.convert("EUR", "ZAR", 100)) as Convert;
