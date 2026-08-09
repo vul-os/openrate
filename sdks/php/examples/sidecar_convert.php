@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 /**
  * SIDECAR (out-of-process) — the SDK spawns the `openrate` binary on a loopback
- * port, waits for /healthz, and shuts it down at exit. You never run a server
+ * port, waits for /readyz, and shuts it down at exit. You never run a server
  * by hand.
  *
  *   php sdks/php/examples/sidecar_convert.php
  *
  * Environment:
- *   OPENRATE_BINARY   path to the openrate binary (default: bundled bin/openrate, then PATH)
- *   OPENRATE_SOURCES  comma-separated FX sources (default: ecb,coinbase,luno,sarb)
+ *   OPENRATE_BINARY        path to the openrate binary (default: bundled bin/openrate, then PATH)
+ *   OPENRATE_SOURCES       comma-separated FX sources (default here: ecb)
+ *   OPENRATE_READY_TIMEOUT seconds to wait for the first rate (default 30)
  *
  * This is the recommended shape for PHP. sdks/php/README.md explains why, with
  * the php-fpm measurements behind the claim.
@@ -29,10 +30,17 @@ use Openrate\Openrate;
 use Openrate\OpenrateException;
 
 $sources = getenv('OPENRATE_SOURCES') ?: 'ecb';
+$readyTimeout = (float) (getenv('OPENRATE_READY_TIMEOUT') ?: '30');
 
+// start() returns only once /readyz says a conversion will succeed, so there is
+// no "wait for the book" step here and no window in which this example could
+// convert against an empty one. If no rate ever arrives it throws, naming the
+// source that failed rather than timing out silently.
 try {
-    $base = Openrate::start(['sources' => $sources, 'ui' => false, 'timeout' => 60.0]);
+    $base = Openrate::start(['sources' => $sources, 'ui' => false, 'timeout' => $readyTimeout]);
     echo "sidecar : {$base}\n";
+    printf("probes  : healthy %s (up), ready %s (has rates)\n",
+        Openrate::healthy() ? 'yes' : 'no', Openrate::ready() ? 'yes' : 'no');
 } catch (OpenrateException $e) {
     fwrite(STDERR, "could not start the sidecar: {$e->getMessage()}\n");
     exit(1);
@@ -41,14 +49,7 @@ try {
 // try/finally, so a failure below still stops the child rather than leaving an
 // orphaned server on a port.
 try {
-    // The server starts answering /healthz before its first fetch completes, so
-    // wait for the book to be populated rather than racing it.
-    $deadline = microtime(true) + 60.0;
     $meta = Openrate::meta();
-    while (count($meta['currencies'] ?? []) === 0 && microtime(true) < $deadline) {
-        usleep(250_000);
-        $meta = Openrate::meta();
-    }
 
     echo 'meta    : base ', $meta['default_base'],
         ', ', count($meta['currencies']), ' currencies from ', count($meta['sources']), " source(s)\n";

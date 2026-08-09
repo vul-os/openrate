@@ -4,7 +4,7 @@ Two ways to use openrate from PHP, both supported:
 
 | mode | what it is | file |
 | --- | --- | --- |
-| **Sidecar** *(recommended for PHP)* | the SDK spawns the `openrate` binary on a loopback port, waits for `/healthz`, and shuts it down at exit | `src/Openrate.php` |
+| **Sidecar** *(recommended for PHP)* | the SDK spawns the `openrate` binary on a loopback port, waits for `/readyz`, and shuts it down at exit | `src/Openrate.php` |
 | **Direct** | `libopenrate` loaded into the PHP process through ext-ffi — no child process, no port | `src/Ffi.php` |
 
 **For PHP the sidecar is the right default, and this is not a hedge.** The
@@ -29,6 +29,7 @@ echo $r['result'];                      // 1842.0
 $rates = Openrate::rates('ZAR');        // the all-pairs snapshot
 $meta  = Openrate::meta();              // sources, freshness, currency list
 $base  = Openrate::baseUrl();           // http://127.0.0.1:<port>
+Openrate::ready();                      // GET /readyz — has it got rates yet?
 ```
 
 The sidecar starts lazily on first use, is reused (singleton), and is terminated
@@ -39,7 +40,8 @@ php sdks/php/examples/sidecar_convert.php
 ```
 
 ```
-sidecar : http://127.0.0.1:50196
+sidecar : http://127.0.0.1:59834
+probes  : healthy yes (up), ready yes (has rates)
 meta    : base ZAR, 30 currencies from 1 source(s)
 source  : ecb        29 edges
 convert : 100 EUR = 115.3500 USD (rate 1.153500, 1 hop, ecb)
@@ -53,11 +55,38 @@ A sidecar always has a refresher — `openrate serve` is the program whose job i
 to fetch. `Openrate::start(['sources' => 'ecb'])` narrows which sources it uses;
 it cannot make it fetch nothing.
 
+### Up is not the same as ready
+
+`Openrate::start()` returns when the child is **ready**, not when it is
+listening. `/healthz` answers 200 the instant the listener binds, with an empty
+book until the first fetch lands — wait on that and every conversion comes back
+`unknown or unreachable currency pair`, which reads like a bad currency code and
+is not. So the SDK polls **`/readyz`**, which is 503 until the snapshot has
+currencies in it and says why:
+
+```
+could not start the sidecar: openrate has no rates after 8s: no rates yet: no
+source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/…":
+proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+`'timeout'` therefore has to cover the first fetch (default 30s).
+`Openrate::ready()` and `Openrate::waitReadyFor(30.0)` ask the same question of a
+server you did not start; `Openrate::healthy()` is liveness only.
+
+The poll is a fixed 150 ms with no backoff, which is fine because `/readyz` sits
+outside `/api/` and the per-IP limiter never sees it. And readiness means *some*
+rates, not *all* sources: with several sources racing, the book flips ready when
+the first one lands, so a pair a slower source would have supplied can still be
+missing. Name one source if you need to depend on it.
+
 One default worth knowing about: the binary rate-limits the JSON API to **120
 requests a minute per IP**, which is anti-scraping for a public deployment and
-wrong for a loopback sidecar with exactly one client. It is small enough that
-a legitimate batch of conversions can exhaust it and hand a later real
-call an HTTP 429. (Only /api/ paths are limited; /healthz is not.) `Openrate::start()` therefore
+wrong for a loopback sidecar with exactly one client. There is no stranger here
+to throttle, and the budget is small enough that a legitimate batch of
+conversions can exhaust it and hand a later real call an HTTP 429.
+(Readiness polling is not the reason: only /api/ paths are limited, and neither
+/healthz nor /readyz is under /api/.) `Openrate::start()` therefore
 passes `OPENRATE_RATELIMIT=0`; pass `['ratelimit' => 120]` to put it back.
 
 ### Binary resolution
@@ -309,7 +338,7 @@ Observable on PHP 8.5.9, and all of it shaped `src/Ffi.php`:
 
 | file | mode | what it shows |
 | --- | --- | --- |
-| `examples/sidecar_convert.php` | sidecar | spawn, wait for the first fetch, convert, cross-rate, snapshot, HTTP error, guaranteed stop |
+| `examples/sidecar_convert.php` | sidecar | spawn, wait for `/readyz`, convert, cross-rate, snapshot, HTTP error, guaranteed stop |
 | `examples/direct_convert.php` | direct | version probe, empty engine, `load`, convert, cross-rate, `rates`/`meta`, an engine refusing `refresh`, opt-in refresher, `finally { close() }` |
 | `examples/fork_probe.php` | direct | reproduces the fork hazard, shows which methods hide it, and the macOS TLS crash |
 

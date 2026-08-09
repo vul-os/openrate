@@ -6,8 +6,9 @@ namespace Openrate;
 
 /**
  * openrate as a managed sidecar: the SDK spawns the `openrate` binary on a
- * loopback port, waits for it to answer /healthz, and terminates it at shutdown.
- * You never run a server by hand.
+ * loopback port, waits for it to be READY — /readyz, not /healthz, so the first
+ * conversion has rates to work with — and terminates it at shutdown. You never
+ * run a server by hand.
  *
  *   use Openrate\Openrate;
  *
@@ -34,6 +35,12 @@ final class Openrate
     /**
      * Start the sidecar (idempotent). Returns the base URL (http://host:port).
      *
+     * It returns when the child is READY, not merely listening: /readyz is 503
+     * until the snapshot has currencies in it, so 'timeout' has to cover the
+     * first fetch. A server that comes up and never gets a rate throws with the
+     * reason /readyz gave — "ecb: connection refused" — rather than a bare
+     * deadline.
+     *
      * @param array{port?:int,base?:string,sources?:string,refresh?:string,ui?:bool,ratelimit?:int,env?:array<string,string>,timeout?:float} $opts
      */
     public static function start(array $opts = []): string
@@ -48,11 +55,13 @@ final class Openrate
         $env = self::inheritedEnv();
         $env['OPENRATE_ADDR'] = $addr;
         // The binary defaults to 120 API requests/minute per IP, which is
-        // anti-scraping for a PUBLIC deployment. This sidecar is on loopback and
-        // serves exactly one client — us — and that budget is small enough that
-        // a legitimate batch of conversions can exhaust it and hand the first
-        // real call an HTTP 429. Default it off here and let a caller who wants
-        // it back pass ['ratelimit' => 120].
+        // anti-scraping for a PUBLIC deployment. This child listens on loopback
+        // and serves exactly one client — us — so there is no stranger here to
+        // throttle, while a legitimate batch of conversions would sail past
+        // 120/min and take a 429 from our own sidecar. Default it off here and
+        // let a caller who wants it back pass ['ratelimit' => 120]. (Readiness
+        // polling is not the reason: /readyz is outside /api/ and the limiter
+        // never sees it.)
         $env['OPENRATE_RATELIMIT'] = (string) ($opts['ratelimit'] ?? 0);
         if (isset($opts['base'])) {
             $env['OPENRATE_BASE'] = $opts['base'];
@@ -80,7 +89,7 @@ final class Openrate
         self::$base = "http://{$addr}";
 
         try {
-            self::waitHealthy(self::$base, (float) ($opts['timeout'] ?? 15.0));
+            self::waitReady(self::$base, (float) ($opts['timeout'] ?? 30.0));
         } catch (\Throwable $e) {
             self::stop();
             throw $e;
@@ -141,6 +150,36 @@ final class Openrate
     }
 
     /**
+     * GET /healthz — liveness. True the moment the process is listening, which
+     * is BEFORE it has any rates. Do not convert on the strength of it.
+     */
+    public static function healthy(): bool
+    {
+        return self::probe('/healthz');
+    }
+
+    /**
+     * GET /readyz — readiness. True once a conversion would actually succeed.
+     *
+     * A managed sidecar is already ready by the time start() returns; this is
+     * for the other case, a server you were merely pointed at, which can be up
+     * and still empty.
+     */
+    public static function ready(): bool
+    {
+        return self::probe('/readyz');
+    }
+
+    /**
+     * Block until /readyz says ready, or throw with the reason it gave. The
+     * same poll start() uses, not a second implementation of readiness.
+     */
+    public static function waitReadyFor(float $timeout = 30.0): void
+    {
+        self::waitReady(self::baseUrl(), $timeout);
+    }
+
+    /**
      * One GET against the JSON API. $path is relative to /api/v1.
      *
      * @return array<string,mixed>
@@ -193,6 +232,19 @@ final class Openrate
     }
 
     // ---------------------------------------------------------------- internals
+
+    /**
+     * One probe request against a non-/api/ path. Neither /healthz nor /readyz
+     * is rate-limited, so this costs the caller nothing.
+     */
+    private static function probe(string $path): bool
+    {
+        $ctx = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
+        $body = @file_get_contents(self::baseUrl() . $path, false, $ctx);
+        $headers = self::lastResponseHeaders($http_response_header ?? null);
+
+        return $body !== false && $headers !== null && self::parseStatus($headers) === 200;
+    }
 
     private static function running(): bool
     {
@@ -275,26 +327,84 @@ final class Openrate
         return (int) substr($name, (int) strrpos($name, ':') + 1);
     }
 
-    private static function waitHealthy(string $base, float $timeout): void
+    /**
+     * Poll GET /readyz until the server can actually answer a conversion.
+     *
+     * Not /healthz. /healthz answers the instant the listener binds, before any
+     * source has been fetched, so a caller that waits on it converts against an
+     * empty book and gets "unknown or unreachable currency pair" for every pair
+     * — a false green wearing a bad-currency-code costume.
+     *
+     * 150 ms fixed, and no backoff: /readyz sits outside /api/, so the per-IP
+     * limiter never sees it and there is no budget to spend by polling.
+     *
+     * On timeout the caller gets the cause, not a deadline: whatever the last
+     * 503 body said, or the transport error if the server never answered.
+     */
+    private static function waitReady(string $base, float $timeout): void
     {
         $deadline = microtime(true) + $timeout;
-        $last = 'connection refused';
-        $ctx = stream_context_create(['http' => ['timeout' => 1, 'ignore_errors' => true]]);
-        while (microtime(true) < $deadline) {
-            $body = @file_get_contents($base . '/healthz', false, $ctx);
+        $detail = null;      // from the last 503 body
+        $transport = 'connection refused';
+        // ignore_errors, or the 503 arrives as `false` with its body — the part
+        // that says WHY — thrown away.
+        $ctx = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
+        while (true) {
+            $body = @file_get_contents($base . '/readyz', false, $ctx);
             $headers = self::lastResponseHeaders($http_response_header ?? null);
             if ($body !== false && $headers !== null) {
                 $status = self::parseStatus($headers);
                 if ($status === 200) {
                     return;
                 }
-                $last = "status {$status}";
+                $detail = self::notReadyDetail($status, $body);
+            } else {
+                // Not listening yet (or gone).
+                $error = error_get_last();
+                $transport = $error['message'] ?? 'no response';
+                $detail = null;
             }
-            // 200 ms, not 50 ms: /healthz goes through the same per-IP limiter
-            // as the API, so a tight poll spends a budget the caller wanted.
-            usleep(200_000);
+            if (microtime(true) >= $deadline) {
+                break;
+            }
+            usleep(150_000);
         }
-        throw new OpenrateException("openrate did not become healthy within {$timeout}s: {$last}");
+
+        if ($detail !== null) {
+            throw new OpenrateException("openrate has no rates after {$timeout}s: {$detail}");
+        }
+
+        throw new OpenrateException(
+            "openrate never answered /readyz within {$timeout}s: {$transport}"
+        );
+    }
+
+    /**
+     * One actionable line out of a /readyz 503: the reason, plus every source
+     * that has an error to report. `last_error` is omitempty, so a source that
+     * has not been tried yet has no key at all — those are skipped rather than
+     * printed as "ecb: ", and if nothing failed the reason stands alone.
+     */
+    private static function notReadyDetail(int $status, string $body): string
+    {
+        $decoded = json_decode($body, true);
+        if (!\is_array($decoded)) {
+            return "HTTP {$status}";
+        }
+
+        $reason = (string) ($decoded['reason'] ?? '');
+        if ($reason === '') {
+            $reason = 'not ready';
+        }
+
+        $failed = [];
+        foreach ($decoded['sources'] ?? [] as $source) {
+            if (\is_array($source) && ($source['last_error'] ?? '') !== '') {
+                $failed[] = ($source['name'] ?? '?') . ': ' . $source['last_error'];
+            }
+        }
+
+        return $failed === [] ? $reason : $reason . ' (' . implode('; ', $failed) . ')';
     }
 
     /**
