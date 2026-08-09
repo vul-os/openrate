@@ -36,12 +36,33 @@ including on Windows, where the direct path does not exist.
 **It fetches.** `openrate serve` starts its refresher at startup, so standing
 one up means outbound requests. There is no offline mode for the server.
 
-The constructor waits for `/healthz` **and** for the currency list to fill.
-`/healthz` is liveness only: openrate answers 200 the moment it binds, while its
-first fetch is in flight, and conversions in that window return
+The constructor waits for `/healthz` **and then** for `/readyz`. `/healthz` is
+liveness only: openrate answers 200 the moment it binds, while its first fetch
+is in flight, and conversions in that window return
 `{"error":"unknown or unreachable currency pair"}` — which reads as a bad
-currency code rather than "not ready". Pass `waitForRates = false` to start
-against a cold server deliberately.
+currency code rather than "not ready". `/readyz` is the readiness probe: 200
+once the snapshot holds currencies, and until then 503 with the reason and every
+source's last error, so a startup that never succeeds fails with the cause:
+
+```
+openrate has no rates after 60s: no rates yet: no source has returned a usable
+quote (ecb: … dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+Pass `waitForRates = false` to start against a cold server deliberately.
+
+Earlier versions polled `/api/v1/meta` until its currency list filled, because
+openrate had no readiness endpoint. That is gone: `/api/v1/meta` is under
+`/api/`, the only prefix the server rate-limits, so the probe spent the budget
+the first real call needed. `/readyz` and `/healthz` are both outside `/api/`
+and never limited, which is why the poll is a flat 200 ms.
+
+The child also runs with its own limiter off — `ratelimit` defaults to `0`,
+passed through as `OPENRATE_RATELIMIT=0`. It listens on loopback and serves
+exactly one client: your process. The limiter is anti-scraping for a public
+deployment and there is no stranger here to throttle, while a legitimate batch
+of conversions would sail past the 120/min default and take a 429 from your own
+sidecar. Pass `ratelimit = 120` to restore the binary's default.
 
 Worked example: [`examples/SidecarRates.kt`](examples/SidecarRates.kt).
 

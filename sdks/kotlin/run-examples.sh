@@ -16,6 +16,15 @@
 #
 # Fails closed. Usage:  sdks/kotlin/run-examples.sh [direct|sidecar]
 #
+# SidecarRates reads OPENRATE_READY_TIMEOUT_SECONDS, which shortens the wait on
+# /readyz so the failure path is observable in seconds:
+#
+#   HTTPS_PROXY=http://127.0.0.1:1 HTTP_PROXY=http://127.0.0.1:1 \
+#   OPENRATE_READY_TIMEOUT_SECONDS=8 sdks/kotlin/run-examples.sh sidecar
+#
+# Every source then fails to fetch and the example exits non-zero with the
+# reason /readyz reported — each source and its error — not a bare timeout.
+#
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,12 +68,13 @@ elif [ "${which}" != "sidecar" ]; then
 fi
 
 # --- the openrate binary -----------------------------------------------------
+# Rebuilt every run rather than reused if present: a binary staged before
+# /readyz existed 404s the readiness poll, and the failure then reads as a
+# server problem instead of a stale file. `go build` is incremental.
 bin="${java_sdk}/bin/openrate"
-if [ ! -x "${bin}" ]; then
-  echo "run-examples: building the openrate binary…"
-  mkdir -p "${java_sdk}/bin"
-  ( cd "${root}" && go build -o "${bin}" ./cmd/openrate )
-fi
+echo "run-examples: building the openrate binary…"
+mkdir -p "${java_sdk}/bin"
+( cd "${root}" && go build -o "${bin}" ./cmd/openrate )
 
 # --- compile -----------------------------------------------------------------
 classes="${tmp}/classes"

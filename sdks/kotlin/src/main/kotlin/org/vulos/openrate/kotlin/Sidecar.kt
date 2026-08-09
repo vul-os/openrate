@@ -41,6 +41,17 @@ public class OpenRateSidecar(
     fixedPort: Int? = null,
     ui: Boolean = false,
     extraEnv: Map<String, String>? = null,
+    /**
+     * Per-IP API requests/minute for the child; `0` disables the limiter, and
+     * that is the default.
+     *
+     * The child listens on loopback and serves exactly one client: this
+     * process. The limiter is anti-scraping for a public deployment and there
+     * is no stranger here to throttle — while a legitimate batch of
+     * conversions would sail past the 120/min default and take a 429 from our
+     * own sidecar. Pass `120` to put the binary's default back.
+     */
+    ratelimit: Int = 0,
     healthTimeout: Duration = Duration.ofSeconds(30),
     /**
      * Wait for the server to actually hold rates, not merely to be listening.
@@ -49,6 +60,11 @@ public class OpenRateSidecar(
      * while its first fetch is in flight, and conversions in that window come
      * back "unknown or unreachable currency pair" — which reads as a bad
      * currency code rather than as "not ready yet".
+     *
+     * `/readyz` is the readiness probe that settles it: 200 once the snapshot
+     * holds currencies, and until then 503 with the reason and every source's
+     * last error, so a wait that times out says what failed instead of only
+     * how long it took.
      */
     waitForRates: Boolean = true,
     ratesTimeout: Duration = Duration.ofSeconds(60),
@@ -63,6 +79,7 @@ public class OpenRateSidecar(
         opts.port = fixedPort
         opts.ui = ui
         opts.env = extraEnv
+        opts.ratelimit = ratelimit
         opts.timeout = healthTimeout
         opts.waitForRates = waitForRates
         opts.ratesTimeout = ratesTimeout
