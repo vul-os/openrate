@@ -50,7 +50,7 @@ final class Openrate
         // The binary defaults to 120 API requests/minute per IP, which is
         // anti-scraping for a PUBLIC deployment. This sidecar is on loopback and
         // serves exactly one client — us — and that budget is small enough that
-        // the SDK's own startup health polling can exhaust it and hand the first
+        // a legitimate batch of conversions can exhaust it and hand the first
         // real call an HTTP 429. Default it off here and let a caller who wants
         // it back pass ['ratelimit' => 120].
         $env['OPENRATE_RATELIMIT'] = (string) ($opts['ratelimit'] ?? 0);

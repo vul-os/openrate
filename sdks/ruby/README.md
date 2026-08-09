@@ -55,8 +55,8 @@ cannot make it fetch nothing.
 One default worth knowing about: the binary rate-limits the JSON API to **120
 requests a minute per IP**, which is anti-scraping for a public deployment and
 wrong for a loopback sidecar with exactly one client. It is small enough that
-the SDK's own startup health polling could exhaust it and hand your first real
-call an HTTP 429 — which is how this was found. `Openrate.start` therefore
+a legitimate batch of conversions can exhaust it and hand a later real
+call an HTTP 429. (Only /api/ paths are limited; /healthz is not.) `Openrate.start` therefore
 passes `OPENRATE_RATELIMIT=0`; pass `ratelimit: 120` to put it back.
 
 ### Binary resolution

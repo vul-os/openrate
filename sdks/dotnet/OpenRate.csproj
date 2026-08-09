@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PackageId>OpenRate</PackageId>
+    <Version>0.1.2</Version>
+    <Description>Currency and interest rates with provenance — embedded, or as a local sidecar.</Description>
+    <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://vulos.org/projects/openrate/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vul-os/openrate</RepositoryUrl>
+    <PackageTags>currency;exchange-rates;fx;forex;interest-rates</PackageTags>
+    <!--
+      No AllowUnsafeBlocks, and that is worth noticing rather than assuming.
+      openrate's C ABI has no callback — there is deliberately no
+      openrate_stream — so `char**` is expressed as `out IntPtr` and the whole
+      binding is safe code. llmux's .NET SDK, which shares this ABI's shape,
+      DOES need unsafe, because llmux_stream takes a function pointer.
+    -->
+  </PropertyGroup>
+
+  <!-- Keep the examples out of the library compilation. -->
+  <ItemGroup>
+    <Compile Remove="examples/**/*.cs" />
+    <None Remove="examples/**" />
+  </ItemGroup>
+
+  <!-- Ship the bundled binary if present (gitignored in this repo). -->
+  <ItemGroup>
+    <None Include="bin/**" Pack="true" PackagePath="contentFiles/any/any/bin" Condition="Exists('bin')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

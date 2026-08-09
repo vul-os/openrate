@@ -128,7 +128,7 @@ defmodule Openrate.Sidecar do
     # OPENRATE_RATELIMIT: the binary defaults to 120 API requests/minute per IP,
     # which is anti-scraping for a PUBLIC deployment. This sidecar is on loopback
     # and serves exactly one client — us — and that budget is small enough that
-    # the SDK's own startup health polling can exhaust it and hand the first real
+    # a legitimate batch of conversions can exhaust it and hand the first real
     # call an HTTP 429. Default it off; pass `ratelimit: 120` to put it back.
     ratelimit = opts |> Keyword.get(:ratelimit, 0) |> to_string()
 
