@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openrate"
+version = "0.1.0"
+description = "Currency conversion with an auditable rate path — in your process, or as a local sidecar."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT OR Apache-2.0" }
+keywords = ["currency", "exchange-rate", "fx", "conversion", "zar", "ecb"]
+
+# No dependencies, and that is deliberate. Direct mode uses ctypes and the
+# sidecar client uses urllib; both are in the standard library.
+dependencies = []
+
+[project.urls]
+Homepage = "https://openrate.io"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openrate"]
+
+# Platform wheels bundle the artifacts under openrate/bin/ (the server binary)
+# and openrate/lib/ (the shared library). Both are produced by the Go build per
+# OS/arch; neither is committed.
+[tool.hatch.build.targets.wheel.force-include]
+"openrate/bin" = "openrate/bin"
+"openrate/lib" = "openrate/lib"
