@@ -63,7 +63,19 @@
  * this from a process that forks (Python multiprocessing, uWSGI, Unicorn) or
  * that installs its own SIGSEGV/SIGPROF handling (the JVM).
  *
- * All entry points are safe to call from multiple threads.
+ * All entry points are safe to call from multiple threads, INCLUDING against
+ * the same handle, and including openrate_close() concurrently with a call on
+ * the handle it is closing. A race between the two always resolves one of two
+ * ways and never a third: either the call runs to completion and the close then
+ * tears the object down, or the close wins and the call returns the ordinary
+ * "handle N is not open" error. There is no interleaving in which work outlives
+ * the handle that authorized it — in particular, openrate_call(h, "start")
+ * racing openrate_close(h) can never leave a refresh loop running, whichever
+ * order the two land in.
+ *
+ * What is NOT safe is using a handle you have already closed and then acting on
+ * the error: that is well-defined (you get "not open") but it means some other
+ * thread owns the lifetime, which is a design to fix rather than a race to win.
  *
  * ---------------------------------------------------------------------------
  * Streaming
@@ -123,6 +135,21 @@ uint64_t openrate_new(const char *config_json, char **err);
  *                     an API key in the environment never widens this set.
  *   interval_ms       cadence of the "start" loop (default 1h)
  *   fetch_timeout_ms  bound on one source's fetch (default 50s)
+ *
+ * Both millisecond fields are limited to 9223372036854 (about 292 years), which
+ * is everything a duration can hold. A larger value is REFUSED with *err set,
+ * rather than accepted: the multiply into nanoseconds wraps, and it does not
+ * wrap to something you would notice — interval_ms 288230376151711745 comes out
+ * as exactly 1ms, turning the most conservative cadence you can ask for into a
+ * loop that hammers every source a thousand times a second. Leave a field 0 for
+ * openrate's default. (timeout_ms on a per-call request is CLAMPED to the same
+ * ceiling instead of refused, since a 292-year deadline is indistinguishable
+ * from the one you asked for.)
+ *
+ * If the engine is closed by another thread while this call is in flight, this
+ * returns 0 with *err set to that engine's "handle N is not open". No refresher
+ * is created in that case — there is no outcome where you are handed a handle
+ * whose engine is already gone.
  */
 uint64_t openrate_refresher_new(uint64_t engine, const char *config_json, char **err);
 
@@ -148,8 +175,10 @@ uint64_t openrate_refresher_new(uint64_t engine, const char *config_json, char *
  *
  *   "meta"     {} -> {"default_base","built_at","currencies","sources"}
  *              Identical to GET /api/v1/meta. "sources" carries the fetch
- *              status of every refresher built over this engine, and is [] for
- *              an engine nobody refreshes.
+ *              status of every OPEN refresher built over this engine, and is []
+ *              for an engine nobody refreshes. A refresher you close drops out
+ *              of it: its last fetch status can never change again, and it is
+ *              reported under a handle you can no longer address.
  *
  *   "load"     {"edges":[{"from":"USD","to":"ZAR","rate":18.5,
  *                         "source":"mine","time":"2026-08-09T00:00:00Z"}],
@@ -166,7 +195,12 @@ uint64_t openrate_refresher_new(uint64_t engine, const char *config_json, char *
  *              One synchronous fetch of every source. THIS OPENS SOCKETS.
  *   "start"    {} -> {"running":true}   background loop on the configured
  *              interval. The only thread this library starts on its own.
+ *              Starting an already-running refresher is an error, not a second
+ *              loop. Starting one whose handle has been CLOSED is "handle N is
+ *              not open" — stop is reversible, close is not, and a loop started
+ *              after close would have no reachable stop.
  *   "stop"     {} -> {"running":false}  stops it and waits for it to exit.
+ *              Reversible: "start" afterwards is legal and starts a fresh loop.
  *   "ready"    {"timeout_ms":5000} -> {"ready":true}
  *              Blocks until the engine holds at least one currency. It does not
  *              fetch: something must be refreshing, or it waits.
@@ -179,6 +213,12 @@ char *openrate_call(uint64_t h, const char *method, const char *request_json, ch
  * Release a handle. Closing an engine also stops and releases every refresher
  * built over it, so closing in the "wrong" order cannot leak a running loop.
  * Closing an unknown or already-closed handle is a no-op.
+ *
+ * This is TERMINAL, and it waits: when it returns, any background loop on the
+ * handle has been cancelled AND has exited, so a host that closes everything
+ * and then unloads the library has no thread of ours left in its address space.
+ * It is also safe against a concurrent call on the same handle — see "Threads"
+ * above for exactly which two outcomes are possible.
  */
 void openrate_close(uint64_t h);
 
@@ -195,6 +235,12 @@ const char *openrate_abi_version(void);
 /*
  * How many handles are currently open. Diagnostic only — for a host test suite
  * asserting it closed what it opened.
+ *
+ * It is meaningful even when handles are being opened and closed concurrently:
+ * there is no window in which a refresher exists but no close can reach it, so
+ * a host that closes every handle it was given always sees this return to what
+ * it was. A number that will not come down is a leak in the library, not a race
+ * in your test.
  */
 uint64_t openrate_open_handles(void);
 
