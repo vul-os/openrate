@@ -23,12 +23,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vul-os/openrate/fxsource"
 	"github.com/vul-os/openrate/internal/api"
 	"github.com/vul-os/openrate/internal/ratelimit"
 	"github.com/vul-os/openrate/internal/ratesapi"
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
-	"github.com/vul-os/openrate/internal/sources"
 	"github.com/vul-os/openrate/internal/store"
 	"github.com/vul-os/openrate/web"
 )
@@ -45,7 +45,7 @@ type Options struct {
 	// Refresh is the source refresh interval (default 1h).
 	Refresh time.Duration
 	// Sources is a comma-separated source spec (e.g. "ecb,coinbase"). If empty,
-	// the default set is used (see sources.Build).
+	// the default set is used (see fxsource.Build).
 	Sources string
 	// Interest, when true, also runs the interest-rate engine and mounts its
 	// routes at /api/v1/interest/*. Off by default; the FX engine is unaffected.
@@ -85,7 +85,7 @@ type Local struct {
 // Start builds the engine, launches it in a background goroutine, and returns
 // once it is serving (the /healthz endpoint responds OK).
 func Start(opts Options) (*Local, error) {
-	srcs := sources.Build(opts.Sources)
+	srcs := fxsource.FromEnvSpec(opts.Sources)
 	if len(srcs) == 0 {
 		return nil, fmt.Errorf("openrate: no valid sources configured (spec=%q)", opts.Sources)
 	}

@@ -1,4 +1,4 @@
-package sources
+package fxsource
 
 // fiatAllow is the ISO-4217 set we admit from broad multi-asset feeds (e.g.
 // Coinbase lists hundreds of crypto tokens; we only want real currencies plus a

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/vul-os/openrate/fx"
+	"github.com/vul-os/openrate/fxsource"
 	"github.com/vul-os/openrate/internal/redact"
-	"github.com/vul-os/openrate/internal/sources"
 )
 
 // SourceStatus records the outcome of the last fetch for one source.
@@ -26,12 +26,12 @@ type Store struct {
 	mu       sync.RWMutex
 	g        *fx.Graph
 	snap     *fx.Snapshot
-	srcs     []sources.Source
+	srcs     []fxsource.Source
 	status   map[string]*SourceStatus
 	interval time.Duration
 }
 
-func New(interval time.Duration, srcs ...sources.Source) *Store {
+func New(interval time.Duration, srcs ...fxsource.Source) *Store {
 	st := &Store{
 		g:        fx.NewGraph(),
 		srcs:     srcs,
@@ -73,7 +73,7 @@ func (s *Store) refresh(ctx context.Context) {
 	}
 	results := make(chan result, len(s.srcs))
 	for _, src := range s.srcs {
-		go func(src sources.Source) {
+		go func(src fxsource.Source) {
 			c, cancel := context.WithTimeout(ctx, 50*time.Second) // SARB host can be slow to connect
 			defer cancel()
 			edges, err := src.Fetch(c)

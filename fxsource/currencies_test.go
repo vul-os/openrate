@@ -1,4 +1,4 @@
-package sources
+package fxsource
 
 import (
 	"crypto/sha256"
@@ -32,7 +32,7 @@ import (
 //
 // To re-pin after a *verified* change, run:
 //
-//	go test ./internal/sources/ -run TestCurrencyTableChecksum -v
+//	go test ./fxsource/ -run TestCurrencyTableChecksum -v
 //
 // and copy the reported digest.
 const (
@@ -176,7 +176,7 @@ func TestAllowedIsExactlyTheUnion(t *testing.T) {
 // dropdown silently degrades to a bare code. The two lists are maintained by
 // hand in different languages, so nothing but a test couples them.
 func TestUIMetadataCoversEngineCurrencies(t *testing.T) {
-	path := filepath.Join("..", "..", "web", "ui.html")
+	path := filepath.Join("..", "web", "ui.html")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		// Not a skip: the file is committed in this repo. If it moved, this test

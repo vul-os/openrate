@@ -17,12 +17,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vul-os/openrate/fxsource"
 	"github.com/vul-os/openrate/internal/api"
 	"github.com/vul-os/openrate/internal/ratelimit"
 	"github.com/vul-os/openrate/internal/ratesapi"
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
-	"github.com/vul-os/openrate/internal/sources"
 	"github.com/vul-os/openrate/internal/store"
 	"github.com/vul-os/openrate/web"
 )
@@ -49,7 +49,7 @@ func main() {
 	trustedProxies := flag.String("trusted-proxies", env("OPENRATE_TRUSTED_PROXIES", ""), "comma-separated proxy IPs/CIDRs whose X-Forwarded-For is trusted for rate-limiting (default none → use RemoteAddr)")
 	flag.Parse()
 
-	srcs := sources.Build(*srcSpec)
+	srcs := fxsource.FromEnvSpec(*srcSpec)
 	if len(srcs) == 0 {
 		log.Fatal("no valid sources configured")
 	}
