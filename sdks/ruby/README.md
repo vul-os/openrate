@@ -234,7 +234,7 @@ Prebuilt `libopenrate` today:
 
 | target | status |
 | --- | --- |
-| darwin/arm64 | **built, smoke-tested and benchmarked.** 6,682,274 bytes. |
+| darwin/arm64 | **built, smoke-tested and benchmarked.** ~6.7 MB (it varies slightly per build). |
 | darwin/amd64 | built (7,120,680 bytes) but **never executed** — this machine cannot run it. |
 | linux/amd64 | **not built locally.** A CI job exists and has never run. |
 | linux/arm64 | **built nowhere.** |
@@ -247,10 +247,13 @@ no build at all today. The `openrate` binary the sidecar spawns has no such gap.
 ### The rest of the honest list
 
 1. **The Go runtime lives in your process** — its GC, its scheduler, and its
-   signal handlers (`SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF`, …). Ruby installs
-   its own and Go chains to a pre-existing handler in most cases; "most" is the
-   honest word, and a `SIGPROF`-based sampling profiler (`stackprof` in `:wall`
-   mode) is the shape of thing to watch.
+   signal handlers. Measured, it **replaces** `SIGSEGV`, `SIGBUS`, `SIGFPE`,
+   `SIGPIPE` and `SIGURG`, chaining to what Ruby installed, and adds
+   `SA_ONSTACK` to `SIGILL`, `SIGXFSZ` and `SIGUSR2`. **`SIGPROF` is not
+   touched**, so `stackprof` — including `:wall` mode — is unaffected; Go
+   installs only synchronous signals plus `SIGPIPE` and `SIGURG` in this build
+   mode. The one to watch is `SIGSEGV`, which is also how Ruby prints its own
+   crash report.
 2. **Not fork-safe** — see above.
 3. **The shared library is 6–7 MB**, per process that loads it.
 4. **Prebuilt binaries cover darwin only, and one of the two has never been

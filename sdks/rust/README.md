@@ -46,8 +46,10 @@ file, a vendor feed, a fixture.
 ./sdks/rust/examples/run.sh sidecar
 ```
 
-Real output — darwin/arm64, rustc 1.97.1, Go 1.25.12, openrate 0.1.2,
-`libopenrate-darwin-arm64.dylib` 6,682,274 bytes:
+Real output — darwin/arm64, rustc 1.97.1, Go 1.25.12, openrate 0.1.2, against
+the `libopenrate-darwin-arm64.dylib` build that was measured here (6,682,274
+bytes; the size moves a little between builds, so treat the library as ~6.7 MB
+rather than that constant):
 
 ```
 ==> direct, engine only (no Refresher, so no socket opens)
@@ -236,9 +238,13 @@ reads "no rates" as success.
 
 ## The costs of direct mode
 
-1. **The Go runtime lives in your process** — GC, scheduler, and handlers for
-   `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF`. A Rust program with its own crash
-   reporter, sampling profiler or sanitizer build can conflict.
+1. **The Go runtime lives in your process** — GC, scheduler, and signal
+   handlers. Measured, it **replaces** `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPIPE`
+   and `SIGURG`, chaining to what was there, and adds `SA_ONSTACK` to `SIGILL`,
+   `SIGXFSZ` and `SIGUSR2`. A Rust program with its own crash reporter or a
+   sanitizer build can conflict over `SIGSEGV`/`SIGBUS`. A **sampling profiler
+   cannot**: `SIGPROF` is not touched, so `perf`, `pprof-rs` and friends are
+   unaffected.
 2. **Not fork-safe.** After `fork()` without `exec()` the Go runtime in the
    child is broken. In Rust the concrete victims are a direct `libc::fork()` and
    anything built on it; this is a much shorter list than Python's, because
@@ -250,7 +256,7 @@ reads "no rates" as success.
 
    | target | openrate | (llmux, for contrast) |
    | --- | --- | --- |
-   | darwin/arm64 | **built, smoke-tested, benchmarked** — 6,682,274 bytes | built and smoke-tested |
+   | darwin/arm64 | **built, smoke-tested, benchmarked** — ~6.7 MB | built and smoke-tested |
    | darwin/amd64 | **built but NEVER EXECUTED** — 7,120,680 bytes. Do not treat it as tested | not built |
    | linux/arm64 | **built nowhere** | built and smoke-tested |
    | linux/amd64 | not built locally; a CI job exists but **has never run** | tested in CI |

@@ -156,10 +156,12 @@ when:
 - **Your process forks.** The Go runtime does not survive `fork()` without
   `exec()`. `sidecar_convert.c` forks, and is safe doing so *only because it
   never loads libopenrate*. Do not merge the two examples into one binary.
-- **Your process handles its own signals** — a crash reporter, a sampling
-  profiler, a sanitizer build. Go installs handlers for `SIGSEGV`, `SIGBUS`,
-  `SIGFPE` and `SIGPROF`, and chains to a pre-existing handler in most cases.
-  "Most" is the honest word.
+- **Your process handles its own signals** — a crash reporter or a sanitizer
+  build. Measured, Go **replaces** `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPIPE` and
+  `SIGURG`, chaining to a pre-existing handler, and adds `SA_ONSTACK` to
+  `SIGILL`, `SIGXFSZ` and `SIGUSR2`. A **sampling profiler is not on that
+  list**: `SIGPROF` is not touched, so profiling is not a reason to avoid direct
+  mode.
 - **Several processes should share one refreshing book.** Four workers each
   fetching their own copy is worse in every dimension.
 - **You are not on darwin/arm64.** Read the next section before assuming.
@@ -168,7 +170,7 @@ when:
 
 | target | status |
 |---|---|
-| darwin/arm64 | built, smoke-tested and benchmarked. 6,682,274 bytes |
+| darwin/arm64 | built, smoke-tested and benchmarked. ~6.7 MB (varies slightly per build) |
 | darwin/amd64 | **built (7,120,680 bytes) but NEVER EXECUTED** — the build machine cannot run it. "Compiled", not "supported" |
 | linux/amd64 | **not built locally.** A CI job exists and has never run |
 | linux/arm64 | **built nowhere.** (llmux has this target; openrate does not) |

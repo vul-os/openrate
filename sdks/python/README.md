@@ -161,10 +161,15 @@ not a gap.
 ## The costs of direct mode — read these
 
 1. **The Go runtime lives in your interpreter.** Its garbage collector, its
-   scheduler, and its signal handlers for `SIGSEGV`, `SIGBUS`, `SIGFPE`,
-   `SIGPROF` and others. A Python profiler or crash reporter with its own
-   handling can conflict; Go chains to a pre-existing handler in most cases, and
-   "most" is the honest word.
+   scheduler, and its signal handlers. Measured, it **replaces** exactly five —
+   `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPIPE` and `SIGURG` — chaining to a
+   pre-existing handler, and adds `SA_ONSTACK` to three more (`SIGILL`,
+   `SIGXFSZ`, `SIGUSR2`). A crash reporter with its own `SIGSEGV` handling is
+   the realistic conflict. **`SIGPROF` is not touched**: Go installs only
+   synchronous signals plus `SIGPIPE` and `SIGURG` under
+   `-buildmode=c-shared`, so `py-spy`, `yappi` in wall-clock mode and
+   `signal.setitimer(ITIMER_PROF)` all keep working. Do not code around a
+   profiler hazard that is not there.
 
 2. **It is not fork-safe.** After `fork()` without `exec()` the Go runtime in
    the child is broken. Concrete victims in Python:
@@ -186,7 +191,8 @@ not a gap.
    sentence is a prediction from a measurement on the sibling library, not a
    result, and it is written that way on purpose.)*
 
-3. **The shared library is 6.7 MB** — 6,682,274 bytes on darwin/arm64.
+3. **The shared library is ~6.7 MB** on darwin/arm64 — not a constant: two
+   builds of the same source here produced 6,682,274 and 6,700,448 bytes.
 
 4. **Platform reality is narrow.** For **openrate** specifically:
 

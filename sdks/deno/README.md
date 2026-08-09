@@ -250,8 +250,11 @@ Not footnotes. These are properties of `-buildmode=c-shared`;
 [`ffi/README.md`](../../ffi/README.md) is the long version.
 
 1. **The Go runtime lives in your process** — its GC, its scheduler, and its
-   handlers for `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF` and others. Go chains
-   to a pre-existing handler in most cases; "most" is the honest word.
+   signal handlers. Measured, it **replaces** exactly five — `SIGSEGV`,
+   `SIGBUS`, `SIGFPE`, `SIGPIPE` and `SIGURG` — chaining to a pre-existing
+   handler, and adds `SA_ONSTACK` to three more (`SIGILL`, `SIGXFSZ`,
+   `SIGUSR2`). **`SIGPROF` is not touched**, so sampling profilers are
+   unaffected.
 
 2. **It is not fork-safe.** After `fork()` without `exec()` the Go runtime in
    the child is broken. Deno has no `fork()` in its API — `Deno.Command` always
@@ -260,14 +263,15 @@ Not footnotes. These are properties of `-buildmode=c-shared`;
    forks after loading. **Load the library after the fork, in the worker, never
    in the master.**
 
-3. **The library is 6.7 MB.** Measured: 6,682,274 bytes on darwin/arm64.
+3. **The library is ~6.7 MB** on darwin/arm64. Not a constant: two builds of the
+   same source here produced 6,682,274 and 6,700,448 bytes.
 
 4. **Platforms — and openrate's matrix is NOT llmux's.** Do not read one as
    covering the other.
 
    | target | status |
    |---|---|
-   | darwin/arm64 | built, smoke-tested, benchmarked. 6,682,274 bytes. |
+   | darwin/arm64 | built, smoke-tested, benchmarked. ~6.7 MB. |
    | darwin/amd64 | **built (7,120,680 bytes) but never executed** — the build machine cannot run it. Unverified. |
    | linux/amd64 | not built locally. A CI job exists and has never run. |
    | linux/arm64 | **built nowhere.** (llmux has this one; openrate does not.) |

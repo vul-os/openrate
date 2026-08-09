@@ -19,7 +19,7 @@ Everything below was executed on this machine, not inferred:
 | macOS | **15.7.3** (build 24G419), Apple silicon |
 | Xcode | **not installed** — Command Line Tools only. See [Testing](#testing) |
 | Package | SwiftPM, tools-version 5.9, platform floor macOS 13 |
-| openrate | 0.1.2, `libopenrate-darwin-arm64.dylib` 6,682,274 bytes |
+| openrate | 0.1.2, `libopenrate-darwin-arm64.dylib` — the build measured here was 6,682,274 bytes; the library is ~6.7 MB and the exact size moves between builds |
 
 ## The engine/refresher split is the reason to embed
 
@@ -294,7 +294,7 @@ The fix is nesting every `@Test` inside the suite. It costs nothing at this size
 
 | target | openrate | (llmux, for contrast) |
 | --- | --- | --- |
-| darwin/arm64 | **built, smoke-tested, benchmarked** — 6,682,274 bytes | built and smoke-tested |
+| darwin/arm64 | **built, smoke-tested, benchmarked** — ~6.7 MB | built and smoke-tested |
 | darwin/amd64 | **built but NEVER EXECUTED** — 7,120,680 bytes. Not tested | not built |
 | linux/arm64 | **built nowhere** | built and smoke-tested |
 | linux/amd64 | not built locally; a CI job exists but **has never run** | tested in CI |
@@ -310,10 +310,13 @@ device**. Point an iOS app at a remote `openrate serve` over the network.
 
 ## The costs of direct mode
 
-1. **The Go runtime lives in your process** — GC, scheduler, and handlers for
-   `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF`. The Swift runtime does not install
-   competing handlers, so this is quieter for Swift than for a JVM; a crash
-   reporter or sanitizer build in the same process can still conflict.
+1. **The Go runtime lives in your process** — GC, scheduler, and signal
+   handlers. Measured, it **replaces** `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPIPE`
+   and `SIGURG`, and adds `SA_ONSTACK` to `SIGILL`, `SIGXFSZ` and `SIGUSR2`.
+   The Swift runtime does not install competing handlers, so this is quieter for
+   Swift than for a JVM; a crash reporter or sanitizer build in the same process
+   can still conflict. `SIGPROF` is not touched, so Instruments-style sampling
+   is unaffected.
 2. **Not fork-safe.** After `fork()` without `exec()` the runtime in the child
    is broken. `Foundation.Process` always `exec`s and there is no idiomatic
    Swift pre-fork worker model, so the practical victim is a direct `fork(2)` in

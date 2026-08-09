@@ -339,10 +339,20 @@ language](c-abi.md).
 
 ### A signal handler stopped working after loading the library
 
-Loading it starts Go's runtime in your address space, and Go installs handlers
-for `SIGSEGV`, `SIGBUS`, `SIGFPE` and `SIGPROF`, chaining to a
-previously-installed handler where it can. The JVM is the classic conflict, and
-so is any `SIGPROF`-based profiler.
+Loading it starts Go's runtime in your address space. Measured under
+`-buildmode=c-shared`, Go **replaces five** handlers — `SIGSEGV`, `SIGBUS`,
+`SIGFPE`, `SIGPIPE` and `SIGURG` — chaining to a previously-installed handler
+where it can, and leaves three more in place with `SA_ONSTACK` added: `SIGILL`,
+`SIGXFSZ` and `SIGUSR2`. If the handler that stopped working is one of those
+eight, this is why. The JVM is the classic conflict, because `SIGSEGV` is how
+HotSpot recovers elided null checks and `SIGUSR2` is its thread suspend/resume
+handler; `libjsig` is the fix there.
+
+**Profilers are not the problem.** `SIGPROF` is *not* touched — Go installs only
+synchronous signals plus `SIGPIPE` and `SIGURG` in this build mode, and
+`SIGPROF` is neither. JFR, `py-spy`, `yappi` and `stackprof` are unaffected.
+(This page previously said the opposite. It was wrong; the per-signal
+measurement is in [`sdks/java/README.md`](https://github.com/vul-os/openrate/blob/main/sdks/java/README.md).)
 
 ### `handle 7 is not open`
 

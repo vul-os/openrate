@@ -284,7 +284,7 @@ Prebuilt `libopenrate` today:
 
 | target | status |
 | --- | --- |
-| darwin/arm64 | **built, smoke-tested and benchmarked.** 6,682,274 bytes. |
+| darwin/arm64 | **built, smoke-tested and benchmarked.** ~6.7 MB (it varies slightly per build). |
 | darwin/amd64 | built (7,120,680 bytes) but **never executed** — this machine cannot run it. |
 | linux/amd64 | **not built locally.** A CI job exists and has never run. |
 | linux/arm64 | **built nowhere.** |
@@ -298,9 +298,12 @@ spawns has no such gap.
 ### The rest of the honest list
 
 1. **The Go runtime lives in your process** — its GC, its scheduler, and its
-   signal handlers (`SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF`, …). Any extension
-   with its own opinions about those — Xdebug, an APM agent, a profiler — is
-   sharing them now.
+   signal handlers. Measured, it **replaces** `SIGSEGV`, `SIGBUS`, `SIGFPE`,
+   `SIGPIPE` and `SIGURG`, chaining to what was there, and adds `SA_ONSTACK` to
+   `SIGILL`, `SIGXFSZ` and `SIGUSR2`. Any extension with its own opinions about
+   *those* — Xdebug, an APM agent's crash handler — is sharing them now.
+   **`SIGPROF` is not touched**, so `SIGPROF`-driven PHP profilers are not
+   affected.
 2. **Not fork-safe** — see above.
 3. **The shared library is 6–7 MB**, per worker that loads it.
 4. **Prebuilt binaries cover darwin only, and one of those two has never been

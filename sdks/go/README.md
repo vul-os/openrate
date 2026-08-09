@@ -161,8 +161,8 @@ why is the point.
    your binary and the linker drops what you do not call.
 4. **Platform coverage.** This is the biggest difference, and openrate's C ABI
    coverage is **narrower than llmux's** — do not read one matrix for both
-   products. openrate ships: darwin/arm64 built and smoke-tested (6,682,274
-   bytes); darwin/amd64 **built but never executed** (7,120,680 bytes);
+   products. openrate ships: darwin/arm64 built and smoke-tested (~6.7 MB);
+   darwin/amd64 **built but never executed** (7,120,680 bytes);
    linux/amd64 not built locally, with a CI job that has never run;
    **linux/arm64 built nowhere** (llmux does have it); windows/amd64 built
    nowhere. The Go path has no matrix at all: `go get github.com/vul-os/openrate`

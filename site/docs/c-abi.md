@@ -54,10 +54,10 @@ seeing them. Each is expanded in [`ffi/README.md`](https://github.com/vul-os/ope
 
 | | What it means |
 |---|---|
-| **The Go runtime lives in your process** | its GC, its scheduler, and its handlers for `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF`. A JVM host, or a Python profiler using `SIGPROF`, can conflict. |
+| **The Go runtime lives in your process** | its GC, its scheduler, and its signal handlers. It replaces `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPIPE` and `SIGURG` (chaining to whatever was there) and adds `SA_ONSTACK` to `SIGILL`, `SIGXFSZ` and `SIGUSR2`. A JVM host is the classic conflict. **`SIGPROF` is not touched, so profilers are unaffected** — measured, and the opposite of what most people expect. |
 | **It is not fork-safe** | after `fork()` without `exec()` the Go runtime in the child is broken. Python `multiprocessing` on its default `fork` start method, uWSGI without `--lazy-apps`, preloading Gunicorn, clustered Unicorn/Puma — all hang. **Load the library after the fork, never before.** |
 | **Building needs cgo and a C toolchain per target** | consumers need only the artifact, but somebody builds it, and there is no `GOOS=windows go build` that produces a `.dll` without mingw-w64. |
-| **It is 6–8 MB** | 6,682,274 bytes on darwin/arm64; 7,120,680 on darwin/amd64. Measured, not estimated. |
+| **It is 6–8 MB** | ~6.7 MB on darwin/arm64; 7,120,680 bytes on darwin/amd64. Measured, not estimated — but the arm64 figure is not a constant: two builds of the same source here produced 6,682,274 and 6,700,448 bytes. |
 
 If any of those are true of your host, the sidecar is not a fallback — it is
 the better engineering answer.

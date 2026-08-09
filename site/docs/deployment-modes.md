@@ -103,8 +103,13 @@ that cannot be made to fetch.
 | `cmd/openrate`, default | 10,035,714 bytes | engine + API + console |
 | `cmd/openrate`, `-tags noui` | 9,969,458 bytes | **66,256 bytes** less |
 | a Go host importing `openrate`, never `serve` | 7,115,330 bytes | **zero** console bytes linked |
-| `libopenrate` darwin/arm64 | 6,682,274 bytes | the shared library |
+| `libopenrate` darwin/arm64 | ~6.7 MB | the shared library — see the note below |
 | `libopenrate` darwin/amd64 | 7,120,680 bytes | built, not executed on this machine |
+
+The shared library's arm64 size is given as an approximation on purpose: two
+builds of the same source here produced 6,682,274 and then 6,700,448 bytes, so a
+byte-exact figure for it would be false precision. The binary sizes above it are
+exact measurements of a single build.
 
 Two things that are easy to get wrong:
 

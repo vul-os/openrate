@@ -171,9 +171,10 @@ engine that cannot fetch**. Prefer it, unless:
 - **Your process forks.** The Go runtime does not survive `fork()` without
   `exec()`.
 - **Your process handles its own signals**, or you build with sanitizers, or you
-  ship a crash reporter. Go installs handlers for `SIGSEGV`, `SIGBUS`, `SIGFPE`
-  and `SIGPROF`, and chains to a pre-existing handler in most cases. "Most" is
-  the honest word.
+  ship a crash reporter. Measured, Go **replaces** `SIGSEGV`, `SIGBUS`,
+  `SIGFPE`, `SIGPIPE` and `SIGURG`, chaining to a pre-existing handler, and adds
+  `SA_ONSTACK` to `SIGILL`, `SIGXFSZ` and `SIGUSR2`. (A sampling profiler is
+  *not* a reason to avoid direct mode: `SIGPROF` is not touched.)
 - **Several processes should share one refreshing book.** Four workers each
   fetching their own copy is worse in every dimension.
 - **You are not on darwin/arm64.** Read the next section before assuming.
@@ -182,7 +183,7 @@ engine that cannot fetch**. Prefer it, unless:
 
 | target | status |
 |---|---|
-| darwin/arm64 | built, smoke-tested and benchmarked. 6,682,274 bytes |
+| darwin/arm64 | built, smoke-tested and benchmarked. ~6.7 MB (varies slightly per build) |
 | darwin/amd64 | **built (7,120,680 bytes) but NEVER EXECUTED** — the build machine cannot run it |
 | linux/amd64 | **not built locally.** A CI job exists and has never run |
 | linux/arm64 | **built nowhere.** (llmux has this target; openrate does not) |

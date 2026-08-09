@@ -159,11 +159,13 @@ conversions in 26 ms with no pool to exhaust.
 
 **4. Two runtimes in one address space.** The BEAM has a preemptive scheduler
 and per-process GC; the Go runtime has its own scheduler, a global GC, and
-handlers for `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF` and `SIGURG` (which Go
-sends to its own threads constantly for asynchronous preemption). ERTS installs
-its own, including for crash dumps. Both are well behaved alone; together they
-are a support burden nobody signed up for, plus a 6.4 MB library mapped into
-the VM.
+signal handlers: measured, it **replaces** `SIGSEGV`, `SIGBUS`, `SIGFPE`,
+`SIGPIPE` and `SIGURG` (the last of which Go sends to its own threads constantly
+for asynchronous preemption) and adds `SA_ONSTACK` to `SIGILL`, `SIGXFSZ` and
+`SIGUSR2`. ERTS installs its own, including for crash dumps. (`SIGPROF` is *not*
+touched, so profiling is not the conflict here — `SIGSEGV` and the crash-dump
+path are.) Both runtimes are well behaved alone; together they are a support
+burden nobody signed up for, plus a ~6.7 MB library mapped into the VM.
 
 **5. Nobody has to write, build, sign and ship C for five platforms.** A NIF
 needs a compiler on the user's machine or a precompiled artifact per target, and
@@ -214,7 +216,7 @@ ship against:
 
 | target | status |
 | --- | --- |
-| darwin/arm64 | **built, smoke-tested and benchmarked.** 6,682,274 bytes. |
+| darwin/arm64 | **built, smoke-tested and benchmarked.** ~6.7 MB (it varies slightly per build). |
 | darwin/amd64 | built (7,120,680 bytes) but **never executed**. |
 | linux/amd64 | **not built locally.** A CI job exists and has never run. |
 | linux/arm64 | **built nowhere.** |

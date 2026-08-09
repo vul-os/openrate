@@ -24,12 +24,22 @@ you know the other.
 
 **1. The Go runtime lives in your process.** Loading this library starts Go's
 garbage collector, its scheduler and its signal handlers inside your address
-space. Go installs handlers for `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPROF` and
-others, and chains to a previously-installed handler where it can. A host with
-its own opinions about those signals can conflict: the JVM is the classic case,
-and so is any Python profiler that uses `SIGPROF` (`yappi` in wall-clock mode,
-some `setitimer`-based samplers). If your runtime already fights with other
-native extensions over signals, expect to fight with this one.
+space. Measured against HotSpot (OpenJDK 26.0.2, darwin/arm64, this build mode),
+Go **replaces exactly five** handlers — `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGPIPE`
+and `SIGURG` — chaining to whatever was installed, and leaves three more in
+place with `SA_ONSTACK` added: `SIGILL`, `SIGXFSZ` and `SIGUSR2`. A host with
+its own opinions about those signals can conflict, and the JVM is the classic
+case: `SIGSEGV` is how HotSpot recovers elided null checks and grows stacks, and
+`SIGUSR2` is its thread suspend/resume handler.
+
+**`SIGPROF` is not touched, so sampling profilers are not affected.** This is
+worth stating plainly because the opposite is widely assumed — and because this
+document previously asserted it. Under `-buildmode=c-shared` Go's
+`sigInstallGoHandler` installs only *synchronous* signals plus `SIGPIPE` and
+`SIGURG`, and `SIGPROF` is neither. JFR, `py-spy`, `yappi` in wall-clock mode
+and `stackprof` keep working. Do not write defensive code for a hazard that is
+not there. The full per-signal measurement is in
+[`sdks/java/README.md`](../sdks/java/README.md#the-jvm-and-gos-signal-handlers).
 
 **2. It is not fork-safe.** After `fork()` without `exec()`, the Go runtime in
 the child is broken — its threads did not come across, so anything that needs
@@ -55,11 +65,14 @@ not.
 
 | Target | Size |
 |---|---|
-| darwin/arm64 | 6,682,274 bytes (6.4 MiB) |
+| darwin/arm64 | ~6.7 MB (~6.4 MiB) |
 | darwin/amd64 | 7,120,680 bytes (6.8 MiB) |
 
-Measured, not estimated. Linux and Windows figures are not listed because they
-have not been built on this machine — see [Building](#building).
+Measured, not estimated — but the arm64 figure is **not a constant**. Two builds
+of the same source here produced 6,682,274 and then 6,700,448 bytes, so it moves
+a little with build paths and toolchain. Treat it as "about 6.7 MB" rather than
+a number to assert in a test. Linux and Windows figures are not listed because
+they have not been built on this machine — see [Building](#building).
 
 **5. If any of that makes the sidecar the better choice for your language, take
 it.** That is a real option, not a consolation prize. It is the right call when
