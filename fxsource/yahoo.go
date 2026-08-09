@@ -47,18 +47,47 @@ type yahooChart struct {
 	} `json:"chart"`
 }
 
+// parseFXSymbol splits a Yahoo FX symbol into its base and quote currency.
+// The wire form is exactly eight characters — three letters of base, three of
+// quote, then the "=X" that marks a currency cross — so "USDZAR=X" yields
+// ("USD", "ZAR"). Anything else is a configuration mistake, not FX data.
+//
+// The length this replaces demanded nine characters and then sliced sym[6:] for
+// the suffix, a pair of conditions no string can satisfy at once: every symbol
+// was skipped and Fetch reported "no quotes (rate-limited or blocked?)", so a
+// dead adapter looked like an upstream throttle for as long as it shipped.
+func parseFXSymbol(sym string) (base, quote string, ok bool) {
+	if len(sym) != 8 || sym[6:] != "=X" {
+		return "", "", false
+	}
+	for i := 0; i < 6; i++ {
+		if sym[i] < 'A' || sym[i] > 'Z' {
+			return "", "", false
+		}
+	}
+	return sym[0:3], sym[3:6], true
+}
+
 func (y *Yahoo) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	var edges []fx.Edge
+	usable := 0
 	for _, sym := range y.Symbols {
-		if len(sym) != 9 || sym[6:] != "=X" { // "USDZAR=X"
+		from, to, ok := parseFXSymbol(sym)
+		if !ok {
 			continue
 		}
-		to := sym[3:6]
+		usable++
 		price, ts, err := y.quote(ctx, sym)
 		if err != nil || price <= 0 {
 			continue // tolerate per-symbol failures (rate limits)
 		}
-		edges = append(edges, fx.Edge{From: "USD", To: to, Rate: price, Source: y.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: from, To: to, Rate: price, Source: y.Name(), Time: ts})
+	}
+	if usable == 0 {
+		// Distinct from the throttle case on purpose: nothing was even asked of
+		// Yahoo, so reporting an upstream problem would send the operator to the
+		// wrong place. Name the real fault — the configured symbols.
+		return nil, fmt.Errorf("yahoo: none of the %d configured symbols is a well-formed FX symbol (want \"USDZAR=X\": 3-letter base, 3-letter quote, \"=X\")", len(y.Symbols))
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("yahoo: no quotes (rate-limited or blocked?)")
