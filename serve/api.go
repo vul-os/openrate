@@ -150,6 +150,46 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 // status is the source list for /meta. A server over an engine nobody refreshes
 // reports an empty list rather than null: there are no sources, which is a fact
 // about this deployment and not a missing field.
+// handleReady answers whether the engine can actually serve a conversion yet.
+//
+// /healthz is liveness: it says the process is up, and it answers the instant
+// the listener binds — before any source has been fetched. That is the correct
+// contract for a liveness probe and the wrong one for a client deciding when
+// to send its first request, and the gap is not theoretical: every managed
+// sidecar in sdks/ was written against /healthz, saw a 200, converted
+// immediately, got {"error":"unknown or unreachable currency pair"} for every
+// pair, and exited 0. A false green that also disguises itself as a bad
+// currency code.
+//
+// Readiness is "the snapshot has currencies in it". Not ready is a 503 that
+// carries the per-source outcomes, so a caller can print WHY it is not ready
+// (ecb: connection refused) instead of a bare timeout.
+//
+// It sits outside /api/ deliberately: guard() applies the rate limiter only to
+// /api/ paths, so a client polling this while it waits cannot burn the budget
+// it is waiting to use. Polling /api/v1/meta — which is what the SDKs had to
+// do without this — does exactly that.
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	snap := s.engine.Snapshot()
+	n := len(snap.Currencies)
+	body := map[string]any{
+		"ready":      n > 0,
+		"currencies": n,
+		"built_at":   snap.BuiltAt,
+		"sources":    s.status(),
+	}
+	if n == 0 {
+		body["reason"] = "no rates yet: no source has returned a usable quote"
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Access-Control-Allow-Origin", s.cors)
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(body)
+		return
+	}
+	s.writeJSON(w, body)
+}
+
 func (s *Server) status() []fxsource.Status {
 	if s.opts.Status == nil {
 		return []fxsource.Status{}

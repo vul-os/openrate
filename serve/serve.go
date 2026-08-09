@@ -106,6 +106,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/convert", s.handleConvert)
 	mux.HandleFunc("/api/v1/meta", s.handleMeta)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) })
+	mux.HandleFunc("/readyz", s.handleReady)
 	for _, r := range s.opts.Extra {
 		if r != nil {
 			r.Routes(mux)
