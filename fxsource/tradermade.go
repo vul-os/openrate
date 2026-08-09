@@ -21,7 +21,7 @@ type TraderMade struct {
 }
 
 func NewTraderMade() *TraderMade {
-	return &TraderMade{Key: os.Getenv("OPENRATE_TRADERMADE_KEY"), Client: &http.Client{Timeout: 15 * time.Second}}
+	return &TraderMade{Key: os.Getenv("OPENRATE_TRADERMADE_KEY"), Client: newClient(15 * time.Second)}
 }
 
 func (t *TraderMade) Name() string { return "tradermade" }

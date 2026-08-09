@@ -58,7 +58,7 @@ func NewSARBRates() *SARBRates {
 	return &SARBRates{
 		BaseURL: SARBRatesURL,
 		Days:    180,
-		Client:  &http.Client{Timeout: 25 * time.Second, Transport: transport},
+		Client:  newClientWithTransport(25*time.Second, transport),
 	}
 }
 

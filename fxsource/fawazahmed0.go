@@ -28,7 +28,7 @@ type Fawaz struct {
 }
 
 func NewFawaz() *Fawaz {
-	return &Fawaz{URL: FawazURL, Fallback: FawazFallbackURL, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &Fawaz{URL: FawazURL, Fallback: FawazFallbackURL, Client: newClient(15 * time.Second)}
 }
 
 func (f *Fawaz) Name() string { return "fawazahmed0" }

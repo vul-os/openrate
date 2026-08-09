@@ -26,7 +26,7 @@ type Luno struct {
 }
 
 func NewLuno() *Luno {
-	return &Luno{URL: LunoURL, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &Luno{URL: LunoURL, Client: newClient(15 * time.Second)}
 }
 
 func (l *Luno) Name() string { return "luno" }

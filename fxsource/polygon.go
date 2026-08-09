@@ -21,7 +21,7 @@ type Polygon struct {
 }
 
 func NewPolygon() *Polygon {
-	return &Polygon{Key: os.Getenv("OPENRATE_POLYGON_KEY"), Client: &http.Client{Timeout: 15 * time.Second}}
+	return &Polygon{Key: os.Getenv("OPENRATE_POLYGON_KEY"), Client: newClient(15 * time.Second)}
 }
 
 func (p *Polygon) Name() string { return "polygon" }

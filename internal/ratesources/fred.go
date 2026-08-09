@@ -39,9 +39,10 @@ var fredSeries = []struct {
 }
 
 type FRED struct {
-	Key    string
-	Limit  int // observations per series
-	Client *http.Client
+	Key     string
+	Limit   int    // observations per series
+	BaseURL string // defaults to FREDBase
+	Client  *http.Client
 }
 
 func NewFRED() *FRED {
@@ -52,9 +53,10 @@ func NewFRED() *FRED {
 		}
 	}
 	return &FRED{
-		Key:    os.Getenv("OPENRATE_FRED_API_KEY"),
-		Limit:  limit,
-		Client: &http.Client{Timeout: 15 * time.Second},
+		Key:     os.Getenv("OPENRATE_FRED_API_KEY"),
+		Limit:   limit,
+		BaseURL: FREDBase,
+		Client:  newClient(15 * time.Second),
 	}
 }
 
@@ -115,7 +117,11 @@ func (f *FRED) fetchSeries(ctx context.Context, id string) ([]fredPoint, error) 
 	q.Set("file_type", "json")
 	q.Set("sort_order", "desc")
 	q.Set("limit", strconv.Itoa(f.Limit))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, FREDBase+"?"+q.Encode(), nil)
+	base := f.BaseURL
+	if base == "" {
+		base = FREDBase
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}

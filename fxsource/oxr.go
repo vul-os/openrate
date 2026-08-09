@@ -21,7 +21,7 @@ type OXR struct {
 }
 
 func NewOXR() *OXR {
-	return &OXR{Key: os.Getenv("OPENRATE_OXR_APP_ID"), Client: &http.Client{Timeout: 15 * time.Second}}
+	return &OXR{Key: os.Getenv("OPENRATE_OXR_APP_ID"), Client: newClient(15 * time.Second)}
 }
 
 func (o *OXR) Name() string { return "oxr" }

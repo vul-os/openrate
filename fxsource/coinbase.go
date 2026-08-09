@@ -24,7 +24,7 @@ type Coinbase struct {
 }
 
 func NewCoinbase() *Coinbase {
-	return &Coinbase{URL: CoinbaseURL, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &Coinbase{URL: CoinbaseURL, Client: newClient(15 * time.Second)}
 }
 
 func (c *Coinbase) Name() string { return "coinbase" }

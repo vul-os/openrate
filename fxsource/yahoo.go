@@ -11,21 +11,26 @@ import (
 	"github.com/vul-os/openrate/fx"
 )
 
+// YahooBaseURL is the prefix each chart request is built on; the symbol and
+// query string are appended to it.
+const YahooBaseURL = "https://query1.finance.yahoo.com/v8/finance/chart/"
+
 // Yahoo ingests FX quotes from Yahoo Finance's unofficial v8 chart endpoint
 // (query1.finance.yahoo.com). It is free and near-real-time (~1 min during
 // market hours) but comes with real caveats: no SLA, aggressive per-IP rate
 // limiting (HTTP 429), and — importantly — Yahoo's Terms prohibit automated
 // extraction and its robots.txt disallows crawlers. Kept OFF by default; enable
-// with -sources ONLY if your use is permitted. Symbol "USD<CCY>=X" reads as
-// "1 USD = price CCY".
+// with -sources ONLY if your use is permitted. A symbol is "<BASE><QUOTE>=X",
+// e.g. "USDZAR=X", and reads as "1 BASE = price QUOTE".
 type Yahoo struct {
 	Symbols []string // e.g. ["USDZAR=X","USDEUR=X"]
+	BaseURL string   // defaults to YahooBaseURL
 	Client  *http.Client
 }
 
 func NewYahoo() *Yahoo {
 	syms := []string{"USDZAR=X", "USDEUR=X", "USDGBP=X", "USDJPY=X", "USDCHF=X", "USDAUD=X", "USDCAD=X"}
-	return &Yahoo{Symbols: syms, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &Yahoo{Symbols: syms, BaseURL: YahooBaseURL, Client: newClient(15 * time.Second)}
 }
 
 func (y *Yahoo) Name() string { return "yahoo" }
@@ -62,7 +67,11 @@ func (y *Yahoo) Fetch(ctx context.Context) ([]fx.Edge, error) {
 }
 
 func (y *Yahoo) quote(ctx context.Context, sym string) (float64, time.Time, error) {
-	url := "https://query1.finance.yahoo.com/v8/finance/chart/" + sym + "?interval=1m&range=1d"
+	base := y.BaseURL
+	if base == "" {
+		base = YahooBaseURL
+	}
+	url := base + sym + "?interval=1m&range=1d"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, time.Time{}, err

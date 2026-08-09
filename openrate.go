@@ -171,7 +171,16 @@ func (l *Local) Close() error {
 
 func waitHealthy(base string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	client := &http.Client{Timeout: time.Second}
+	// This client only ever talks to the loopback server this process just
+	// started, so it must never be talked into going anywhere else: a redirect
+	// out of /healthz is not a thing our own mux emits, and following one would
+	// be an outbound request the embedding host never asked for. Refuse them —
+	// http.ErrUseLastResponse returns the 3xx as-is, which is not 200, so the
+	// poll keeps waiting instead of chasing the Location.
+	client := &http.Client{
+		Timeout:       time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	var last error
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(base + "/healthz")

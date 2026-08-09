@@ -22,7 +22,7 @@ type TwelveData struct {
 }
 
 func NewTwelveData() *TwelveData {
-	return &TwelveData{Key: os.Getenv("OPENRATE_TWELVEDATA_KEY"), Client: &http.Client{Timeout: 15 * time.Second}}
+	return &TwelveData{Key: os.Getenv("OPENRATE_TWELVEDATA_KEY"), Client: newClient(15 * time.Second)}
 }
 
 func (t *TwelveData) Name() string { return "twelvedata" }

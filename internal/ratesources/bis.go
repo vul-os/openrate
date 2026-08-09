@@ -49,7 +49,7 @@ func NewBIS() *BIS {
 	}
 	return &BIS{
 		URL:    fmt.Sprintf(BISURLFmt, n),
-		Client: &http.Client{Timeout: 40 * time.Second},
+		Client: newClient(40 * time.Second),
 	}
 }
 

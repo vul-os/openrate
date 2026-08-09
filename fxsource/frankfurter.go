@@ -23,7 +23,7 @@ type Frankfurter struct {
 }
 
 func NewFrankfurter() *Frankfurter {
-	return &Frankfurter{URL: FrankfurterURL, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &Frankfurter{URL: FrankfurterURL, Client: newClient(15 * time.Second)}
 }
 
 func (f *Frankfurter) Name() string { return "frankfurter" }

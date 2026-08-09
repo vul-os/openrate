@@ -24,7 +24,7 @@ type ECB struct {
 }
 
 func NewECB() *ECB {
-	return &ECB{URL: ECBDailyURL, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &ECB{URL: ECBDailyURL, Client: newClient(15 * time.Second)}
 }
 
 func (e *ECB) Name() string { return "ecb" }

@@ -43,7 +43,7 @@ func NewSARB() *SARB {
 		DialContext:         (&net.Dialer{Timeout: 13 * time.Second}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
-	return &SARB{URL: SARBURL, Client: &http.Client{Timeout: 20 * time.Second, Transport: transport}}
+	return &SARB{URL: SARBURL, Client: newClientWithTransport(20*time.Second, transport)}
 }
 
 func (s *SARB) Name() string { return "sarb" }

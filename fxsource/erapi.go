@@ -22,7 +22,7 @@ type ERAPI struct {
 }
 
 func NewERAPI() *ERAPI {
-	return &ERAPI{URL: ERAPIURL, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &ERAPI{URL: ERAPIURL, Client: newClient(15 * time.Second)}
 }
 
 func (e *ERAPI) Name() string { return "erapi" }

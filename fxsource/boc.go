@@ -28,7 +28,7 @@ type BoC struct {
 }
 
 func NewBoC() *BoC {
-	return &BoC{URL: BoCURL, Client: &http.Client{Timeout: 15 * time.Second}}
+	return &BoC{URL: BoCURL, Client: newClient(15 * time.Second)}
 }
 
 func (b *BoC) Name() string { return "boc" }
