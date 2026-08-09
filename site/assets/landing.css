@@ -92,12 +92,51 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 @media (max-width: 980px) { .hero-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; }
+
+/* ── the hero's load sequence ─────────────────────────────────────────────
+   The hero sits above the fold, so the .rv observer marks it `in` on the
+   first frame and it has never actually had an entrance. This gives it one:
+   eyebrow, headline, the two ledes, the actions, and the docket last, so the
+   evidence lands just after the claim it backs.
+
+   An animation rather than another .rv state, deliberately. A reveal whose
+   resting value is `opacity: 0` strands its content the moment the class that
+   clears it fails to arrive; here the resting value is the finished frame and
+   `backwards` borrows the opening one only while the animation runs. Nothing
+   here is gated on script. The reduced-motion block in site.css collapses
+   every animation to .01ms, which switches this off with it. */
+@keyframes heroRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+html.js .hero-copy > *,
+html.js .hero .docket { animation: heroRise .7s var(--ease-out) backwards; }
+html.js .hero-copy > *:nth-child(1) { animation-delay: .04s; }
+html.js .hero-copy > *:nth-child(2) { animation-delay: .11s; }
+html.js .hero-copy > *:nth-child(3) { animation-delay: .18s; }
+html.js .hero-copy > *:nth-child(4) { animation-delay: .25s; }
+html.js .hero-copy > *:nth-child(n+5) { animation-delay: .32s; }
+html.js .hero .docket { animation-delay: .3s; }
+/* site.css's reduced-motion block collapses animation DURATION but says
+   nothing about DELAY, and `backwards` holds the opening frame for the whole
+   delay — which left the docket at opacity 0 for 300ms for exactly the reader
+   who asked for less motion. The shorthand resets delay along with the rest. */
+@media (prefers-reduced-motion: reduce) {
+  html.js .hero-copy > *,
+  html.js .hero .docket { animation: none !important; }
+}
 .hero h1 {
   font-size: clamp(3rem, 8.2vw, 6.2rem); line-height: .94; font-weight: 460;
   letter-spacing: -.026em; margin-top: 4px;
 }
 .hero .lede { font-size: clamp(1.02rem, 1.5vw, 1.16rem); max-width: 46ch; }
 .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+/* The three hero actions measured 563px against a 559px copy column at 1440 —
+   four pixels over, which dropped "Source" onto a row by itself directly under
+   a half-empty line. Trimming the gap and 2px of side padding off these three
+   buttons only buys 16px of slack, enough that the row holds from 1280 up.
+   Below that it still wraps, and wraps to a fuller second line. */
+@media (min-width: 1240px) {
+  .hero .cta { gap: 10px; }
+  .hero .cta .btn { padding-left: 18px; padding-right: 18px; }
+}
 
 /* ── the docket ───────────────────────────────────────────────────────────
    A dealing slip: perforated top and bottom edge (a repeating radial mask,
@@ -271,7 +310,11 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 .shotbox .fallback {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 20px;
-  font-family: var(--mono); font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-4);
+  /* --text-4 measures 4.29:1 against .shotbox's --paper-2 rather than against
+     the page paper the token was picked for, so this one lifts to --text-3
+     (5.83:1). The fallback is the only thing a reader sees when a capture is
+     missing; it cannot be the least legible text on the page. */
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-3);
 }
 
 /* ── the instrument panel ─────────────────────────────────────────────────

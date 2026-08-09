@@ -147,6 +147,13 @@ document.documentElement.classList.add("js");
     </noscript>
     <div class="crumb"><span class="lbl" id="crumb"></span></div>
     <article class="md" id="content">Loading…</article>
+    <!-- The fourteen documents are an ordered path — the sidebar groups run
+         Start here → Embedding → Run the server → The numbers → Help — but
+         until now the only way to walk it was to go back up to the sidebar and
+         find the next title yourself. Built by the viewer for the same reason
+         the on-this-page rail is: which document is current is only known at
+         runtime. -->
+    <nav class="docs-pager" id="pager" hidden aria-label="Previous and next document"></nav>
   </main>
 </div>
 
@@ -699,9 +706,11 @@ async function load(slug) {
     dressCodeBlocks();
     dressTables();
     buildRail();
+    buildPager(doc.slug);
     updateScrollHints();
     window.scrollTo({ top: 0 });
   } catch (err) {
+    pager.hidden = true;
     docsGrid.classList.add("no-rail");
     rail.innerHTML = "";
     railMark = null;
@@ -710,6 +719,40 @@ async function load(slug) {
       ".md</code> — " + err.message + "</div>";
   }
 }
+
+/* ── previous / next ──────────────────────────────────────────────────────
+ * DOCS is already in reading order, so the neighbours are just i±1. The first
+ * and last documents render one card rather than an empty half. */
+const pager = document.getElementById("pager");
+
+function buildPager(slug) {
+  const i = DOCS.findIndex(d => d.slug === slug);
+  if (i < 0) { pager.hidden = true; return; }
+  const prev = DOCS[i - 1], next = DOCS[i + 1];
+  let html = "";
+  if (prev) html += '<a class="prev" href="#' + prev.slug + '"><span class="dir">Previous</span><span class="t">' + esc(prev.title) + "</span></a>";
+  if (next) html += '<a class="next" href="#' + next.slug + '"><span class="dir">Next</span><span class="t">' + esc(next.title) + "</span></a>";
+  pager.innerHTML = html;
+  pager.hidden = !html;
+}
+
+/* The same path, without scrolling to the bottom to find it. Guarded exactly
+ * as "/" is: never while the reader is typing, never with a modifier held
+ * (⌘←/⌥← are browser history and word-jump), and never while the mobile
+ * sidebar is open, where the arrows belong to the list inside it. */
+document.addEventListener("keydown", e => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+  const el = document.activeElement;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+  if (side.classList.contains("open")) return;
+  const i = DOCS.findIndex(d => d.slug === currentSlug);
+  if (i < 0) return;
+  const to = DOCS[e.key === "ArrowLeft" ? i - 1 : i + 1];
+  if (!to) return;
+  e.preventDefault();
+  location.hash = "#" + to.slug;
+});
 
 /* ── search ───────────────────────────────────────────────────────────────
  * Fourteen documents is still small enough to search by fetching all of them

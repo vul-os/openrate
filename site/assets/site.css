@@ -343,9 +343,16 @@ pre.cb-wrap code, .code pre code { white-space: pre-wrap; overflow-wrap: break-w
 /* --in is the line's own leading whitespace, published by site.js. The pair
    cancels on the first line — which therefore starts exactly where its own
    indentation puts it — and leaves every continuation 2.6ch inside that. */
+/* The indent is capped at 30% of the column. Tracking the source indentation
+   exactly is right until the indentation is most of the column: at 320 the C
+   example's deepest line reserved 215px of a 250px box and wrapped the string
+   literal into a 36px ribbon four characters wide. The cap is a proportion
+   rather than a breakpoint so it only engages where it is actually needed —
+   at 1440 it sits around 36ch and nothing in these docs reaches it. */
 pre.cb-wrap .cl, .code pre .cl {
-  padding-left: calc(var(--in, 0ch) + 2.6ch);
-  text-indent: calc(-1 * (var(--in, 0ch) + 2.6ch));
+  --in-capped: min(var(--in, 0ch), 30%);
+  padding-left: calc(var(--in-capped) + 2.6ch);
+  text-indent: calc(-1 * (var(--in-capped) + 2.6ch));
 }
 /* A blank line is an empty block box, which would otherwise collapse to zero
    height and close up the paragraphing the author put in the listing. 1lh is
@@ -612,7 +619,11 @@ pre.cb-wrap { overflow-x: hidden; }
   transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
 }
 .docs-side nav a:hover { color: var(--text); background: var(--paper-3); }
-.docs-side nav a.active { color: var(--teal); border-left-color: var(--teal); background: color-mix(in srgb, var(--teal) 7%, transparent); }
+/* 5%, not 7%: at 7% the tint pulled the row ground to rgb(226,230,221) in
+   light theme and --teal measured 4.485:1 on it — under the floor, and
+   invisible to a token audit because the token is fine and the row it sits
+   on is what moved. 5% measures 4.61:1 and is not tellable apart. */
+.docs-side nav a.active { color: var(--teal); border-left-color: var(--teal); background: color-mix(in srgb, var(--teal) 5%, transparent); }
 
 .docs-search {
   width: 100%; margin-bottom: 12px; min-height: 44px;  /* was 35px */
@@ -650,6 +661,34 @@ pre.cb-wrap { overflow-x: hidden; }
    cap themselves at 72ch regardless. */
 .docs-main { min-width: 0; padding: clamp(30px,4vw,48px) var(--gut) clamp(56px,8vw,96px); }
 .crumb { margin-bottom: 18px; }
+
+/* ── previous / next ──────────────────────────────────────────────────────
+   Two cards closing the document, matching the sidebar's own idiom: the
+   direction in mono caps as a label, the destination title in text. Auto-fit
+   rather than two fixed columns so the first and last documents — which have
+   only one neighbour — get a single full-width card instead of a card and a
+   hole. The `next` card pushes itself to the right-hand track when it is the
+   only one, so "next" never sits where "previous" would. */
+.docs-pager {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 12px; margin-top: clamp(40px, 6vw, 64px);
+  padding-top: clamp(24px, 3vw, 32px); border-top: 1px solid var(--line);
+  max-width: 72ch;
+}
+.docs-pager a {
+  display: flex; flex-direction: column; gap: 6px; min-height: 44px;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper-2); color: var(--text-2);
+  transition: border-color .15s var(--ease), background .15s var(--ease), color .15s var(--ease);
+}
+.docs-pager a:hover { border-color: var(--line-3); background: var(--paper-3); color: var(--text); }
+.docs-pager a:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.docs-pager .dir {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text-3);
+}
+.docs-pager .t { font-size: 14.5px; line-height: 1.35; }
+.docs-pager .next { text-align: right; grid-column: -2; }
 
 /* ── the on-this-page rail ────────────────────────────────────────────────
    What now occupies the space the phantom column used to reserve. The docs
@@ -967,7 +1006,9 @@ html:not(.js) #content { display: none; }
   .docs-side nav a { border-left: none; border-radius: var(--r-sm); padding: 8px 12px; }
   .docs-side nav a.active {
     border-left: none; color: var(--teal);
-    background: color-mix(in srgb, var(--teal) 10%, transparent);
+    /* Same correction as the desktop rule above; the inset ring below is what
+       carries the emphasis here, not the fill. */
+    background: color-mix(in srgb, var(--teal) 6%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal) 32%, transparent);
   }
   /* The heading list is a nested list under one link, so it never joins the
