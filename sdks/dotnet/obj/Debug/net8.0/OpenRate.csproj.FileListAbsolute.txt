@@ -1,5 +1,0 @@
-/Users/pc/code/vulos/openrate/sdks/dotnet/obj/Debug/net8.0/OpenRate.GeneratedMSBuildEditorConfig.editorconfig
-/Users/pc/code/vulos/openrate/sdks/dotnet/obj/Debug/net8.0/OpenRate.AssemblyInfoInputs.cache
-/Users/pc/code/vulos/openrate/sdks/dotnet/obj/Debug/net8.0/OpenRate.AssemblyInfo.cs
-/Users/pc/code/vulos/openrate/sdks/dotnet/obj/Debug/net8.0/OpenRate.csproj.CoreCompileInputs.cache
-/Users/pc/code/vulos/openrate/sdks/dotnet/obj/Debug/net8.0/OpenRate.sourcelink.json
