@@ -105,3 +105,37 @@ func TestRotatingXFFCannotMintBuckets(t *testing.T) {
 		t.Fatal("rotating XFF from an untrusted peer must not bypass the limit")
 	}
 }
+
+// XFF can arrive as several header LINES, not one comma-joined line: HAProxy's
+// `option forwardfor` appends a new occurrence. Header.Get returns only the
+// first, and the first is whatever the CLIENT sent — so a Get-based
+// rightmost-untrusted walk reads the attacker's line and never reaches the
+// proxy's, returning a forged address. Two clients behind the same trusted proxy
+// could then each pin the other's bucket, or rotate the value for an unlimited
+// budget: the exact bypass the trusted-proxy gate exists to prevent.
+func TestClientIPReadsEveryForwardedForLineNotJustTheFirst(t *testing.T) {
+	l := New(60, 60, "10.0.0.5")
+	defer l.Stop()
+
+	r := &http.Request{RemoteAddr: "10.0.0.5:41234", Header: http.Header{}}
+	r.Header.Add("X-Forwarded-For", "198.51.100.7") // the client's own forged line, sent first
+	r.Header.Add("X-Forwarded-For", "203.0.113.44") // what the trusted proxy actually observed
+
+	if got, want := l.ClientIP(r), "203.0.113.44"; got != want {
+		t.Fatalf("ClientIP = %q, want %q — the walk read the client's forged header line "+
+			"instead of the trusted proxy's, so the rate-limit bucket is attacker-chosen", got, want)
+	}
+}
+
+// The single-line form every comma-appending proxy (nginx) emits must keep
+// working identically, so the fix above cannot have traded one shape for the other.
+func TestClientIPStillWalksASingleCommaJoinedLine(t *testing.T) {
+	l := New(60, 60, "10.0.0.5")
+	defer l.Stop()
+
+	r := req("10.0.0.5:41234", "198.51.100.7, 203.0.113.44")
+
+	if got, want := l.ClientIP(r), "203.0.113.44"; got != want {
+		t.Fatalf("ClientIP = %q, want %q", got, want)
+	}
+}

@@ -188,12 +188,21 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 // used. Blank entries are skipped; a malformed (non-trusted, unparseable) entry
 // marks the untrusted boundary and causes a fail-safe fall back to RemoteAddr.
 // If the header is absent or every hop is trusted, RemoteAddr is used.
+//
+// Header.VALUES, not Header.Get. XFF may legitimately arrive as several separate
+// header lines rather than one comma-joined line — HAProxy's `option forwardfor`
+// adds an occurrence rather than appending to an existing one — and Header.Get
+// returns only the FIRST. A client that sends its own X-Forwarded-For line puts
+// it first, so a Get-based walk would evaluate the attacker's line and never see
+// the proxy's, handing back a forged address from the very code whose purpose is
+// to find the unforgeable one. Joining every occurrence in order restores the
+// right-to-left walk over the complete hop list.
 func (l *Limiter) ClientIP(r *http.Request) string {
 	host := remoteHost(r)
 	if !l.trustsPeer(host) {
 		return host
 	}
-	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 	for i := len(parts) - 1; i >= 0; i-- {
 		p := strings.TrimSpace(parts[i])
 		if p == "" {
