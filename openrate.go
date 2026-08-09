@@ -30,7 +30,7 @@ import (
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
 	"github.com/vul-os/openrate/internal/store"
-	"github.com/vul-os/openrate/web"
+	"github.com/vul-os/openrate/serve/web"
 )
 
 // Options configures the embedded engine. The zero value is valid and mirrors

@@ -1,3 +1,5 @@
+//go:build !noui
+
 package web
 
 import (
@@ -128,13 +130,13 @@ func TestLicensesEmbedded(t *testing.T) {
 // and nobody re-copies it here, the binary would silently serve outdated
 // attribution — this test fails loudly instead.
 func TestLicensesInSyncWithRoot(t *testing.T) {
-	root, err := os.ReadFile(filepath.Join("..", "THIRD-PARTY-NOTICES.txt"))
+	root, err := os.ReadFile(filepath.Join("..", "..", "THIRD-PARTY-NOTICES.txt"))
 	if err != nil {
 		t.Fatalf("cannot read repo-root THIRD-PARTY-NOTICES.txt: %v", err)
 	}
 	if !bytes.Equal(root, Licenses) {
-		t.Fatalf("web/THIRD-PARTY-NOTICES.txt has drifted from the repo-root copy. "+
-			"Re-run scripts/gen-notices.sh, then `cp THIRD-PARTY-NOTICES.txt web/THIRD-PARTY-NOTICES.txt` "+
+		t.Fatalf("serve/web/THIRD-PARTY-NOTICES.txt has drifted from the repo-root copy. "+
+			"Re-run scripts/gen-notices.sh, then `cp THIRD-PARTY-NOTICES.txt serve/web/THIRD-PARTY-NOTICES.txt` "+
 			"(root is %d bytes, web copy is %d bytes)", len(root), len(Licenses))
 	}
 }

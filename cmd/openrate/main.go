@@ -24,7 +24,7 @@ import (
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
 	"github.com/vul-os/openrate/internal/store"
-	"github.com/vul-os/openrate/web"
+	"github.com/vul-os/openrate/serve/web"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=vX.Y.Z".

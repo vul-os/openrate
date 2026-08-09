@@ -81,16 +81,26 @@ jobs:
       - name: Docs — site/docs generated, in sync, and link-clean
         run: go test ./site/gen -v
 
-      # The web UI (web/ui.html) is hand-written HTML/CSS/JS with no build step
-      # and is embedded verbatim by web/embed.go — there is no bundle that can
-      # go stale relative to a source tree, because ui.html IS the source. The
-      # boot-guard properties the old Playwright suite checked (the UI is
-      # present, non-trivial, exposes the converter/board, references no
+      # The web UI (serve/web/ui.html) is hand-written HTML/CSS/JS with no build
+      # step and is embedded verbatim by serve/web/embed.go — there is no bundle
+      # that can go stale relative to a source tree, because ui.html IS the
+      # source. The boot-guard properties the old Playwright suite checked (the
+      # UI is present, non-trivial, exposes the converter/board, references no
       # external origin) are asserted directly against the embedded bytes in
-      # web/embed_test.go, which the Test step above already runs; this step
-      # just makes that coverage legible in the CI log.
+      # serve/web/embed_test.go, which the Test step above already runs; this
+      # step just makes that coverage legible in the CI log.
       - name: Web UI — embedded, self-contained, no external origins
-        run: go test ./web -v
+        run: go test ./serve/web -v
+
+      # The UI is optional: `-tags noui` compiles the console out entirely and
+      # serve mounts a JSON stub in its place. A build tag nothing exercises is
+      # a build tag that quietly stops compiling, so the tagged state is built,
+      # vetted and tested here — not just built.
+      - name: Build and test without the UI (-tags noui)
+        run: |
+          go build -tags noui ./...
+          go vet -tags noui ./...
+          go test -tags noui ./...
 
   # The landing page's product captures were blurry and silently cropped for a
   # release, because the capture's aspect (1.33) and the display box's (0.92)

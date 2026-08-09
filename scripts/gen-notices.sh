@@ -6,7 +6,7 @@
 # packages) into the static marketing site under site/assets/ — the Geist
 # Sans / Geist Mono webfonts (site/assets/fonts/, SIL OFL-1.1) and the
 # highlight.js/marked bundles (site/assets/vendor/, each with its own
-# .LICENSE file next to it). The embedded UI (web/ui.html) is a single
+# .LICENSE file next to it). The embedded UI (serve/web/ui.html) is a single
 # hand-written HTML document with no npm dependency of any kind, so there is
 # no npm dependency graph to resolve here any more. MIT, BSD, ISC,
 # Apache-2.0 and OFL-1.1 all require the copyright notice and licence text to
@@ -16,10 +16,10 @@
 #
 # The generated file is committed, and copied to two places that must stay
 # byte-identical to it: site/licenses.txt for the static marketing site, and
-# web/THIRD-PARTY-NOTICES.txt, a physical copy inside web/ (go:embed patterns
+# serve/web/THIRD-PARTY-NOTICES.txt, a physical copy inside serve/web/ (go:embed patterns
 # cannot contain "..", so the root file can't be embedded directly) that
-# web/embed.go embeds as web.Licenses and Handler() serves at /licenses.txt.
-# web/embed_test.go's TestLicensesInSyncWithRoot fails go test ./web if that
+# serve/web/embed.go embeds as web.Licenses and Handler() serves at /licenses.txt.
+# serve/web/embed_test.go's TestLicensesInSyncWithRoot fails go test ./serve/web if that
 # copy ever drifts from the root file — this script is what keeps them in
 # step. It is NOT hand-maintained.
 set -euo pipefail
@@ -62,7 +62,7 @@ third-party software listed below. Each entry gives the component name, its
 version, the licence it is distributed under, and the full text of that licence,
 as those licences require. This file exists in three places, kept identical by
 scripts/gen-notices.sh: here at the repo root; as site/licenses.txt, served by
-the static marketing site at /licenses.txt; and as web/THIRD-PARTY-NOTICES.txt,
+the static marketing site at /licenses.txt; and as serve/web/THIRD-PARTY-NOTICES.txt,
 embedded into the openrate binary (web.Licenses) and served by it at
 /licenses.txt too.
 
@@ -76,7 +76,7 @@ HEADER
   echo "site/assets/fonts/ (committed files, no package manager involved) for the"
   echo "marketing site. The SIL Open Font License 1.1 requires this notice and"
   echo "licence text to accompany every redistribution of those font files. The"
-  echo "embedded UI (web/ui.html) ships no webfonts at all — system font stacks only."
+  echo "embedded UI (serve/web/ui.html) ships no webfonts at all — system font stacks only."
   echo
   for lic in site/assets/fonts/LICENSE-*.txt; do
     [[ -e "$lic" ]] || continue
@@ -134,13 +134,13 @@ HEADER
 } > "$OUT"
 
 # Surface it. The static marketing site is deployed separately from the
-# binary, so it gets its own copy at site/licenses.txt. web/THIRD-PARTY-NOTICES.txt
-# is a physical copy too (go:embed patterns cannot contain "..", so web/ can't
-# embed the root file directly) — web/embed.go embeds it as web.Licenses and
+# binary, so it gets its own copy at site/licenses.txt. serve/web/THIRD-PARTY-NOTICES.txt
+# is a physical copy too (go:embed patterns cannot contain "..", so serve/web/ cannot
+# embed the root file directly) — serve/web/embed.go embeds it as web.Licenses and
 # serves it from the running binary at /licenses.txt. Regenerating notices
 # without this copy would leave the embedded copy stale, which
-# web/embed_test.go's TestLicensesInSyncWithRoot would then (correctly) catch.
+# serve/web/embed_test.go's TestLicensesInSyncWithRoot would then (correctly) catch.
 cp "$OUT" site/licenses.txt
-cp "$OUT" web/THIRD-PARTY-NOTICES.txt
+cp "$OUT" serve/web/THIRD-PARTY-NOTICES.txt
 
-echo "==> wrote $OUT, site/licenses.txt and web/THIRD-PARTY-NOTICES.txt ($(wc -l < "$OUT" | tr -d ' ') lines)"
+echo "==> wrote $OUT, site/licenses.txt and serve/web/THIRD-PARTY-NOTICES.txt ($(wc -l < "$OUT" | tr -d ' ') lines)"

@@ -7,16 +7,26 @@
 // /licenses.txt, so a release binary running with no internet access still
 // carries its own attribution — the same file scripts/gen-notices.sh writes
 // to the repo root and copies to site/licenses.txt for the marketing site.
+//
+// The whole package is compiled out of a build tagged `noui`: nothing here is
+// referenced except through Handler, so a size-sensitive host drops ~50KB of
+// embedded bytes by building with -tags noui and loses only the console.
 // go:embed cannot reach outside the package directory (no ".." in a pattern),
-// so web/THIRD-PARTY-NOTICES.txt is a committed copy of the root file;
+// so serve/web/THIRD-PARTY-NOTICES.txt is a committed copy of the root file;
 // embed_test.go asserts the two are byte-identical so the embedded copy
 // cannot silently go stale.
+//go:build !noui
+
 package web
 
 import (
 	_ "embed"
 	"net/http"
 )
+
+// Embedded reports whether this build carries the console. It is false in a
+// build tagged `noui`, where Handler serves a small JSON stub instead.
+const Embedded = true
 
 //go:embed ui.html
 var UI []byte
