@@ -64,7 +64,12 @@ func (f *Frankfurter) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	}
 	var edges []fx.Edge
 	for code, rate := range fr.Rates {
-		if rate <= 0 {
+		// Allowlist as every other adapter does. Frankfurter mirrors the ECB
+		// daily file, whose codes are all in fiatAllow, so nothing real is lost;
+		// what it removes is the ability of a compromised mirror to plant tens of
+		// thousands of invented codes, each of which becomes a graph node in an
+		// O(N^2) cross-rate search.
+		if !allowed(code) || rate <= 0 {
 			continue
 		}
 		edges = append(edges, fx.Edge{From: fr.Base, To: code, Rate: rate, Source: f.Name(), Time: ts})

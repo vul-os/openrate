@@ -71,8 +71,19 @@ func (e *ECB) Fetch(ctx context.Context) ([]fx.Edge, error) {
 			ts = time.Now().UTC()
 		}
 		for _, r := range cube.Rates {
+			// Admit only allowlisted ISO codes, as every other adapter does. The
+			// daily file's real contents are a subset of fiatAllow, so this drops
+			// nothing ECB publishes today — it bounds what a compromised or
+			// spoofed feed can inject. Currency codes become graph nodes and the
+			// cross-rate search is O(N^2) in them, so a feed answering with tens
+			// of thousands of invented codes is a memory-exhaustion vector, not
+			// merely dirty data. The empty-code case is covered too: allowed("")
+			// is false.
+			if !allowed(r.Currency) {
+				continue
+			}
 			rate, rerr := strconv.ParseFloat(r.Rate, 64)
-			if rerr != nil || rate <= 0 || r.Currency == "" {
+			if rerr != nil || rate <= 0 {
 				continue
 			}
 			edges = append(edges, fx.Edge{
