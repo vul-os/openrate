@@ -70,18 +70,96 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def _wait_healthy(base: str, timeout: float) -> None:
-    deadline = time.time() + timeout
-    last: Exception | None = None
-    while time.time() < deadline:
+_LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost"})
+_no_proxy_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _urlopen(url: str, timeout: float):
+    """urlopen, except that loopback never goes through a proxy.
+
+    $HTTP_PROXY/$HTTPS_PROXY are process-wide and urllib honours them for every
+    host, including 127.0.0.1 — so in a proxied environment the managed sidecar
+    became unreachable from the process that spawned it, and said so in the
+    proxy's words ("connection refused") rather than its own. A child on
+    loopback is never something a proxy should carry. A client pointed at a
+    remote server keeps the environment's proxy settings, which is what they
+    are for.
+    """
+    host = urllib.parse.urlsplit(url).hostname or ""
+    opener = _no_proxy_opener if host in _LOOPBACK else urllib.request
+    return opener.open(url, timeout=timeout)
+
+
+def _not_ready_detail(body: Any) -> str:
+    """One actionable line out of a /readyz 503 body.
+
+    The body carries `reason` plus the per-source outcomes, and the sources are
+    the half a caller can act on: "no rates yet" is a symptom, "ecb: connection
+    refused" is the cause. `last_error` is omitempty, so a source that has not
+    been tried yet has no key at all — those are skipped rather than printed as
+    `ecb: None`, and if nothing failed the reason stands alone.
+    """
+    if not isinstance(body, dict):
+        return "not ready"
+    reason = str(body.get("reason") or "not ready")
+    sources = body.get("sources")
+    failed = [
+        f"{source.get('name') or '?'}: {source['last_error']}"
+        for source in (sources if isinstance(sources, list) else [])
+        if isinstance(source, dict) and source.get("last_error")
+    ]
+    return f"{reason} ({'; '.join(failed)})" if failed else reason
+
+
+def _wait_ready(base: str, timeout: float, interval: float = 0.1) -> None:
+    """Poll GET /readyz until the server can actually answer a conversion.
+
+    Not /healthz. /healthz answers the instant the listener binds, before any
+    source has been fetched, so a caller that treats it as ready converts
+    against an empty book and gets "unknown or unreachable currency pair" for
+    every pair — a false green wearing a bad-currency-code costume.
+
+    A fixed 100 ms poll is correct here: /readyz sits outside /api/, so the
+    per-IP limiter never sees it and there is no budget to spend.
+
+    On timeout the caller gets the cause, not a bare deadline: whatever the last
+    503 said, or — if the server never answered at all — the transport error.
+    """
+    deadline = time.monotonic() + timeout
+    detail: str | None = None  # from the last 503 body
+    transport: Exception | None = None
+    while True:
         try:
-            with urllib.request.urlopen(base + "/healthz", timeout=1) as r:
+            with _urlopen(base + "/readyz", timeout=2) as r:
                 if r.status == 200:
                     return
-        except (urllib.error.URLError, ConnectionError, OSError) as exc:
-            last = exc
-        time.sleep(0.05)
-    raise OpenRateSidecarError(f"openrate did not become healthy within {timeout}s: {last}")
+        except urllib.error.HTTPError as exc:
+            # urllib hands a non-2xx response back as an exception, and the 503
+            # here has a JSON body worth keeping — reading it is the whole point.
+            if exc.code == 404:
+                raise OpenRateSidecarError(
+                    f"{base}/readyz answered 404: this openrate binary predates the "
+                    "readiness endpoint. Upgrade it, or point the client at a server "
+                    "that has one."
+                ) from exc
+            try:
+                detail = _not_ready_detail(json.loads(exc.read().decode("utf-8", "replace")))
+            except (ValueError, OSError):
+                detail = f"HTTP {exc.code}"
+            transport = None
+        except (urllib.error.URLError, OSError) as exc:
+            # Not listening yet (or gone). Keep the text: on the unhappy path it
+            # is the difference between "the child died" and "the child is slow".
+            transport, detail = exc, None
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(interval)
+
+    if detail is not None:
+        raise OpenRateSidecarError(f"openrate has no rates after {timeout:g}s: {detail}")
+    raise OpenRateSidecarError(
+        f"openrate never answered /readyz within {timeout:g}s: {transport}"
+    )
 
 
 def start(
@@ -90,13 +168,19 @@ def start(
     sources: str | None = None,
     refresh: str | None = None,
     env: dict | None = None,
-    timeout: float = 20.0,
+    ratelimit: int = 0,
+    timeout: float = 30.0,
 ) -> str:
     """Start the sidecar (idempotent) and return its base URL.
 
     ``sources`` is a comma-separated adapter list (``"ecb,coinbase"``); the
     default is openrate's own (ecb, coinbase, luno, sarb). ``refresh`` is a Go
     duration such as ``"1h"``.
+
+    It returns when the child is READY — when ``/readyz`` says a conversion
+    would succeed — not merely when it is listening. ``timeout`` therefore has
+    to cover the first fetch, and a server that comes up but never gets a rate
+    raises with the reason ``/readyz`` gave rather than a bare deadline.
 
     UNLIKE DIRECT MODE, THIS FETCHES. The server refreshes on startup and on its
     interval — that is what a server is for. If you want a process that provably
@@ -112,6 +196,12 @@ def start(
         addr = f"127.0.0.1:{port}"
         child_env = dict(os.environ)
         child_env["OPENRATE_ADDR"] = addr
+        # The child listens on loopback and serves exactly one client: us. The
+        # binary's 120/min default is anti-scraping for a public deployment and
+        # there is no stranger here to throttle, while an ordinary batch of
+        # conversions would sail past it and take a 429 from our own sidecar.
+        # Pass ratelimit=120 to put the public default back.
+        child_env["OPENRATE_RATELIMIT"] = str(ratelimit)
         if base_currency:
             child_env["OPENRATE_BASE"] = base_currency
         if sources is not None:
@@ -124,7 +214,7 @@ def start(
         _proc = subprocess.Popen([_binary_path()], env=child_env)
         _base = f"http://{addr}"
         try:
-            _wait_healthy(_base, timeout)
+            _wait_ready(_base, timeout)
         except Exception:
             _stop_locked()  # _lock is held; the non-reentrant lock would deadlock
             raise
@@ -195,7 +285,7 @@ class Client:
         if query:
             url += "?" + urllib.parse.urlencode(query)
         try:
-            with urllib.request.urlopen(url, timeout=self.timeout) as r:
+            with _urlopen(url, timeout=self.timeout) as r:
                 return json.load(r)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", "replace").strip()
@@ -221,8 +311,35 @@ class Client:
         return self._get("/api/v1/meta")
 
     def healthy(self) -> bool:
+        """``GET /healthz`` — liveness. True the moment the process is listening.
+
+        Do not convert on the strength of this: it is 200 before the first fetch
+        lands. :meth:`ready` is the question you actually want answered.
+        """
         try:
-            with urllib.request.urlopen(self.base_url + "/healthz", timeout=self.timeout) as r:
+            with _urlopen(self.base_url + "/healthz", timeout=self.timeout) as r:
                 return r.status == 200
         except (urllib.error.URLError, OSError):
             return False
+
+    def ready(self) -> bool:
+        """``GET /readyz`` — readiness. True once a conversion would succeed.
+
+        A managed sidecar is already ready by the time :func:`start` returns.
+        This is for the other case: a server you were merely pointed at, which
+        may be up and still empty.
+        """
+        try:
+            with _urlopen(self.base_url + "/readyz", timeout=self.timeout) as r:
+                return r.status == 200
+        except (urllib.error.URLError, OSError):
+            return False
+
+    def wait_ready(self, timeout: float = 30.0) -> None:
+        """Block until ``/readyz`` says ready, or raise with the reason it gave.
+
+        Redundant for a managed sidecar, where :func:`start` has already waited.
+        Useful against a server you do not control — and it is the same poll,
+        not a second implementation of readiness.
+        """
+        _wait_ready(self.base_url, timeout)

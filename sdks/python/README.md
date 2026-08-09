@@ -87,18 +87,44 @@ remote = openrate.Client("https://openrate.example")  # spawns nothing
 
 `openrate.start()` resolves the binary (`$OPENRATE_BINARY` → bundled
 `bin/openrate` → `openrate` on `PATH`), picks a free loopback port, launches it
-with `OPENRATE_ADDR=127.0.0.1:<port>` and the environment inherited, polls
-`/healthz`, and terminates the child at exit. Start is lazy, singleton and
+with `OPENRATE_ADDR=127.0.0.1:<port>` and the environment inherited, waits for
+`/readyz`, and terminates the child at exit. Start is lazy, singleton and
 thread-safe. `Client.close()` stops a sidecar this process started and leaves a
 server it was merely pointed at alone.
 
 `start(base_currency=..., sources=..., refresh=...)` maps to `OPENRATE_BASE`,
 `OPENRATE_SOURCES` and `OPENRATE_REFRESH`, exactly as for the standalone binary.
 
-**"Healthy" and "useful" are different questions.** The server answers 200 from
-the moment it is listening, with an empty book until its first fetch lands.
-`examples/sidecar_convert.py` polls `/api/v1/meta` for a currency list rather
-than assuming.
+**"Live" and "useful" are different questions, and `start()` waits for the
+second one.** `/healthz` answers 200 the moment the listener binds, with an
+empty book until the first fetch lands — a client that believes it converts
+against nothing and gets `unknown or unreachable currency pair` for every pair.
+So the launcher polls **`/readyz`** instead, which is 503 until the snapshot has
+currencies in it and carries the reason:
+
+```
+openrate.OpenRateSidecarError: openrate has no rates after 30s: no rates yet:
+no source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/…":
+proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+`start(timeout=…)` therefore has to cover the first fetch (default 30s).
+`Client.ready()` and `Client.wait_ready()` ask the same question of a server you
+did not start; `Client.healthy()` is still there and still means liveness only.
+
+Two things worth knowing about the poll. It runs at a fixed 100 ms, which is
+fine because `/readyz` sits outside `/api/` and the per-IP limiter never sees
+it. And readiness means *some* rates, not *all* sources: with several sources
+racing, the book flips ready as soon as the first one lands, so a pair a slower
+source would have supplied can still be missing. Name one source if you need to
+depend on it.
+
+`start()` also passes `OPENRATE_RATELIMIT=0` to the child. Not for the polling —
+the limiter never sees `/healthz` or `/readyz` — but because the child listens
+on loopback and serves exactly one client: this process. The 120/min default is
+anti-scraping for a public deployment and there is no stranger here to throttle,
+while an ordinary batch of conversions would sail past it and take a 429 from
+our own sidecar. Pass `start(ratelimit=120)` to put the public default back.
 
 ## Direct
 
@@ -211,11 +237,19 @@ no fetching   openrate: unknown engine method "refresh" (have: convert, rates, m
 cd sdks/python && python3 -m unittest discover -s tests
 ```
 
-39 tests, no network, no Go toolchain. `test_direct.py` drives the real shared
+46 tests, no network, no Go toolchain. `test_direct.py` drives the real shared
 library and skips cleanly when none is resolvable; `test_sidecar.py` drives
 `tests/fake_openrate.py`, a stdlib server that honours `OPENRATE_ADDR`. Set
 `OPENRATE_BINARY_REAL` to also run the one integration test against the real
 server.
+
+The fake can be told to hold the liveness/readiness gap open
+(`FAKE_OPENRATE_NEVER_READY=1`), so the readiness tests are about the failure
+they were written for: that `start()` follows `/readyz` and not `/healthz`, that
+its timeout names the source and error that caused it, that a source with no
+`last_error` yet degrades to the reason alone rather than `fake: None`, and that
+breaking `/api/v1/meta` outright does not affect startup — proof the old
+readiness workaround is gone rather than merely edited around.
 
 The direct tests are about what a ctypes binding gets wrong, not about openrate:
 
@@ -234,12 +268,15 @@ The direct tests are about what a ctypes binding gets wrong, not about openrate:
 
 ```
 openrate.start(port=None, base_currency=None, sources=None, refresh=None,
-               env=None, timeout=20.0) -> str
+               env=None, ratelimit=0, timeout=30.0) -> str    # waits for /readyz
 openrate.base_url() -> str
 openrate.stop() -> None
 openrate.Client(url=None, timeout=10.0)
     .base_url / .convert(from, to, amount=1) / .rates(base=None) / .meta()
-    .healthy() / .close() / context manager
+    .healthy()        # GET /healthz — liveness
+    .ready()          # GET /readyz  — readiness
+    .wait_ready(timeout=30.0)
+    .close() / context manager
 
 openrate.library_path(path=None) -> str
 openrate.load_library(path=None, require_version=None) -> ctypes.CDLL

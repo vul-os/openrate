@@ -6,7 +6,7 @@
 
 You do not run a server. `openrate.Client()` finds the binary
 ($OPENRATE_BINARY, the bundled openrate/bin/openrate, or `openrate` on PATH),
-picks a free loopback port, launches it, polls /healthz, and terminates it at
+picks a free loopback port, launches it, waits for /readyz, and terminates it at
 exit. Given a URL instead, it spawns nothing and talks to the server you already
 run — the same client either way, because it is the same API.
 
@@ -16,14 +16,18 @@ sends no packets, that is `examples/direct_convert.py` — an engine with no
 refresher.
 
 This example needs network access for the managed case, because a freshly
-started openrate has an empty book until its first fetch lands. It says so
-rather than failing mysteriously if the fetch does not come back.
+started openrate has an empty book until its first fetch lands. Waiting for
+/readyz rather than /healthz is what makes that a named failure ("ecb:
+connection refused") instead of every conversion coming back as an unknown
+currency pair.
+
+    OPENRATE_READY_TIMEOUT   seconds to wait for the first rate (default 30)
 """
 
 from __future__ import annotations
 
+import os
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -32,20 +36,7 @@ import openrate  # noqa: E402
 from openrate import Client, OpenRateSidecarError  # noqa: E402
 
 SOURCES = "ecb"  # one fast source keeps the example quick; the default is four
-
-
-def wait_for_rates(client: Client, seconds: float = 30.0) -> bool:
-    """Poll /api/v1/meta until the first refresh has landed.
-
-    The server answers 200 with an empty book from the moment it is healthy, so
-    "healthy" and "useful" are different questions and this asks the second one.
-    """
-    deadline = time.time() + seconds
-    while time.time() < deadline:
-        if client.meta()["currencies"]:
-            return True
-        time.sleep(0.25)
-    return False
+READY_TIMEOUT = float(os.environ.get("OPENRATE_READY_TIMEOUT", "30"))
 
 
 def main(argv: list[str]) -> int:
@@ -56,18 +47,22 @@ def main(argv: list[str]) -> int:
     # same thing, and closes nothing when the client points at somebody else's
     # server — it did not start it.
     if url is None:
-        openrate.start(sources=SOURCES, base_currency="ZAR")
+        # start() returns when /readyz says a conversion will succeed, so there
+        # is no separate "wait for the book" step here and no window in which
+        # this example could convert against an empty one. If no rate arrives it
+        # raises, naming the source that failed.
+        openrate.start(sources=SOURCES, base_currency="ZAR", timeout=READY_TIMEOUT)
 
     with Client(url) as client:
         print(f"base url:     {client.base_url}")
         print(f"managed:      {'no — pointing at an existing server' if url else 'yes'}")
-        print(f"healthy:      {client.healthy()}\n")
+        print(f"healthy:      {client.healthy()}   (liveness: the process is up)")
+        print(f"ready:        {client.ready()}   (readiness: it has rates)\n")
 
-        if not wait_for_rates(client):
-            print("no rates arrived within 30s — the sidecar started fine but could not")
-            print("reach its sources. Everything below needs a rate to exist.")
-            print("For a mode that needs no network at all, see direct_convert.py.")
-            return 1
+        if url is not None:
+            # Somebody else's server can be up and still empty; we did not wait
+            # for it at startup because we did not start it.
+            client.wait_ready(READY_TIMEOUT)
 
         meta = client.meta()
         print(f"meta          default base {meta['default_base']}, "
