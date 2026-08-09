@@ -126,9 +126,16 @@ func freshness(age time.Duration) (string, float64) {
 // the series. Dispersion is measured in absolute basis points (1 percentage
 // point = 100 bps), since interest rates are levels, not ratios.
 func corroborate(quotes []rates.Quote) (Corroboration, float64) {
+	// Only levels we can do arithmetic on (see usableLevel). rates.Materialize
+	// already refuses a NaN/Inf observation, but Assess takes a Series directly
+	// and nothing stops a caller — or a future second producer of Series — from
+	// handing us one, and an unfiltered NaN makes min/max NaN and the whole
+	// Assessment unencodable.
 	seen := map[string]float64{}
 	for _, q := range quotes {
-		seen[q.Source] = q.Value
+		if usableLevel(q.Value) {
+			seen[q.Source] = q.Value
+		}
 	}
 	n := len(seen)
 	if n == 0 {
@@ -143,10 +150,21 @@ func corroborate(quotes []rates.Quote) (Corroboration, float64) {
 		max = math.Max(max, v)
 		sum += v
 	}
-	spreadBps := (max - min) * 100 // percentage points -> basis points
+	spreadBps := boundedBps((max - min) * 100) // percentage points -> basis points
 	mean := sum / float64(n)
-	agree := spreadBps <= 5
-	var factor float64
+	factor, agree := spreadBand(spreadBps)
+	return Corroboration{
+		Sources: n, SpreadBps: round2(spreadBps), Agree: agree,
+		Min: min, Max: max, Mean: round2(mean),
+	}, factor
+}
+
+// spreadBand maps an absolute dispersion in bps to the confidence factor and the
+// agreement flag. It is a separate function so the guarantee boundedBps relies
+// on is directly testable: the clamped value must land in the worst factor
+// bucket and must not agree.
+func spreadBand(spreadBps float64) (factor float64, agree bool) {
+	agree = spreadBps <= 5
 	switch {
 	case spreadBps <= 2:
 		factor = 1.0
@@ -157,10 +175,7 @@ func corroborate(quotes []rates.Quote) (Corroboration, float64) {
 	default:
 		factor = 0.78
 	}
-	return Corroboration{
-		Sources: n, SpreadBps: round2(spreadBps), Agree: agree,
-		Min: min, Max: max, Mean: round2(mean),
-	}, factor
+	return factor, agree
 }
 
 func grade(conf float64) string {
@@ -176,4 +191,63 @@ func grade(conf float64) string {
 	}
 }
 
-func round2(f float64) float64 { return math.Round(f*100) / 100 }
+// A published level must be bounded in magnitude, not merely finite — the same
+// argument as fx's rate band (see usable in fx/graph.go), with the interest-rate
+// shape of the arithmetic: the divergent term here is (max-min)*100, which is
+// +Inf for any pair of levels more than ~1.8e306 apart, and round2's f*100
+// overflows for any |f| >= ~1.8e306. Both produce a number json.Marshal refuses,
+// which under serve's encode-then-write is a 500 on a series whose only problem
+// is one absurd value from one source.
+//
+// Unlike an FX rate, a level is a percentage and is routinely negative (the ECB
+// deposit rate sat at -0.5 for years), so the band is symmetric about zero and
+// the lower end must stay open — there is no reciprocal here to protect. Real
+// policy and reference rates live in about [-5, 1000]; the loose end is
+// Type == "index", where a level is an index reading rather than a percentage
+// and can carry many digits. 1e12 leaves nine orders of magnitude of headroom
+// over any index level a feed publishes, and anything past it is a parse or
+// scaling error, not a rate.
+//
+// Worst case with |v| <= 1e12 over n sources: (max-min)*100 <= 2e14,
+// sum <= n*1e12 (+Inf needs n > 1.8e296: unreachable), mean <= 1e12, and
+// round2's largest intermediate is 2e16 — 292 orders of magnitude below
+// overflow, so every field of Corroboration is finite by construction.
+const maxLevel = 1e12
+
+// usableLevel reports whether a published level is inside that band. NaN fails
+// (every comparison with NaN is false) and so does ±Inf, so this subsumes the
+// finiteness test.
+func usableLevel(v float64) bool {
+	return math.Abs(v) <= maxLevel
+}
+
+// boundedBps is the second line of defence on the dispersion figure. usableLevel
+// caps it at 2e14, so this cannot fire today; it is here so that widening the
+// band later cannot turn a dispersion into a token json.Marshal refuses.
+//
+// A dispersion we could not compute is reported as the largest representable
+// one, never as a small one: math.MaxFloat64 encodes as an ordinary JSON number,
+// lands in the widest band (factor 0.78) and is far above the 5 bps agreement
+// threshold, so a clamped value can never read as agreement or as better quality
+// than was actually measured.
+func boundedBps(x float64) float64 {
+	if math.IsNaN(x) || math.IsInf(x, 0) {
+		return math.MaxFloat64
+	}
+	return x
+}
+
+// round2 rounds to two decimals for publication. f*100 overflows to ±Inf for any
+// |f| >= ~1.8e306, so the naive expression turns a finite number the encoder
+// could emit into one it cannot. Returning such an input unchanged is the
+// correct answer rather than a fallback — above 2^53/100 (~9.0e13) a float64 has
+// no fractional part left, so it already is its own two-decimal rounding. The
+// common path (confidence in 0..1, mean and spread of real levels) takes the
+// same expression as before, bit for bit.
+func round2(f float64) float64 {
+	scaled := f * 100
+	if math.IsInf(scaled, 0) {
+		return f
+	}
+	return math.Round(scaled) / 100
+}
