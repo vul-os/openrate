@@ -14,7 +14,6 @@
 package fx
 
 import (
-	"math"
 	"sort"
 	"time"
 )
@@ -154,7 +153,8 @@ func (g *Graph) adjacency() (map[string][]Edge, []string, map[string][]Quote) {
 	}
 	for _, edges := range g.bySource {
 		for _, e := range edges {
-			// A rate must be positive AND finite. `rate <= 0` alone is not enough:
+			// A rate must be positive, finite AND bounded (see usable). `rate <= 0`
+			// alone is not enough:
 			// NaN and +Inf both fail that test (every comparison with NaN is false),
 			// and strconv.ParseFloat accepts the literal strings "NaN"/"Inf" without
 			// an error — so a feed emitting one (BIS already publishes literal NaN
@@ -163,6 +163,10 @@ func (g *Graph) adjacency() (map[string][]Edge, []string, map[string][]Quote) {
 			// mid-response, handing the client a 200 with a truncated body. Refuse
 			// it at the one chokepoint every edge passes through, exactly as
 			// rates.Materialize refuses a non-finite observation.
+			//
+			// The magnitude band does the same job for values that are finite but
+			// absurd (1e-306, 1e300): they survive every "is it a number" test and
+			// then blow up the accuracy model computed from them.
 			inv := 1 / e.Rate
 			if !usable(e.Rate) || !usable(inv) {
 				continue
@@ -233,10 +237,58 @@ func (g *Graph) Materialize(now time.Time) *Snapshot {
 	return &Snapshot{BuiltAt: now, Currencies: currencies, matrix: matrix, direct: direct}
 }
 
-// usable reports whether a rate is a positive, finite number — the only kind
-// that can be multiplied along a path and then JSON-encoded.
+// A rate must be bounded in magnitude, not merely finite. float64 runs out to
+// ~1.8e308, and admitting that entire span is what makes everything computed
+// from a rate unprovable: two direct quotes for one pair at 1e-306 and 1e300
+// send the accuracy model's (max-min)/min*10000 to +Inf, and round2's f*100
+// overflows for any |f| >= ~1.8e306. Neither is a value encoding/json can emit,
+// so a "rate" no feed on earth publishes takes down the response carrying it.
+// Bounding the input is the only fix that holds for every expression downstream
+// at once; patching each expression as it is found is a treadmill.
+//
+// The band is symmetric in log space, and that symmetry is load-bearing: every
+// edge implies its inverse (1/Rate), so a band closed under reciprocal is one
+// where admission can never be one-directional. [1e-18, 1e18] is closed under
+// reciprocal exactly; the old guard was not, which is why an edge at
+// math.SmallestNonzeroFloat64 was admitted while its inverse overflowed.
+//
+// 1e18 clears every rate a real feed publishes with room to spare:
+//   - fiat spans roughly 1e-5..1e5 (IRR/USD at one end, USD/IRR at the other)
+//   - crypto quotes reach 1e-8 per unit (satoshi), so a USD->sat rate is ~1e8
+//   - the worst hyperinflation a modern feed carried, old ZWD, reached ~1e14
+//   - 1e18 is itself the largest denomination ratio in live use: wei per ether
+//
+// So the tightest real case still sits four orders of magnitude inside the band,
+// and anything outside it is a data error, not a price.
+//
+// The bound is what makes every downstream expression provably finite. For rates
+// r in [1e-18, 1e18] over n distinct quotes, the worst case of each expression
+// in Materialize, corroborate and round2 is:
+//
+//	1/r                  <= 1e18                  inverse edge
+//	r_a * r_b            <= 1e36                  one BFS hop (checked before use)
+//	sum of n quotes      <= n * 1e18              +Inf needs n > 1.8e290: unreachable
+//	mean                 in [1e-18, 1e18]
+//	(r-mean)^2           <= 4e36, so stdev <= 2e18
+//	stdev/mean*10000     <= 2e18/1e-18*1e4 = 2e40 stdev_bps
+//	(max-min)/min*10000  <= 1e18/1e-18*1e4 = 1e40 spread_bps
+//	round2(2e40)         -> 2e40*100 = 2e42       the largest intermediate anywhere
+//
+// 2e42 is 266 orders of magnitude below the overflow point, so no arithmetic in
+// the accuracy model can produce a token the JSON encoder rejects.
+const (
+	minRate = 1e-18
+	maxRate = 1e18
+)
+
+// usable reports whether a rate is a positive, finite number inside the
+// magnitude band above — the only kind that can be inverted, multiplied along a
+// path, and then JSON-encoded alongside the accuracy model derived from it.
 func usable(rate float64) bool {
-	return rate > 0 && !math.IsInf(rate, 0) && !math.IsNaN(rate)
+	// The band subsumes the finiteness test it replaced: every comparison with
+	// NaN is false, +Inf fails the upper bound, and -Inf (like 0 and any negative
+	// rate) fails the lower one.
+	return rate >= minRate && rate <= maxRate
 }
 
 func addDistinct(xs []string, x string) []string {

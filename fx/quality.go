@@ -155,10 +155,18 @@ func sourceClass(sources []string) (string, float64) {
 }
 
 func corroborate(quotes []Quote) (Corroboration, float64) {
-	// Distinct sources only.
+	// Distinct sources only, and only quotes in the same magnitude band the graph
+	// admits an edge in (see usable in graph.go). Assess is exported and takes a
+	// []Quote directly, so a caller can reach this arithmetic without ever going
+	// through the graph, and `q.Rate > 0` is not a sufficient filter for it:
+	// +Inf > 0 is true, and 1e-306 is the divergent term in the spread below —
+	// one quote at 16.5 next to one at 1e-306 makes (max-min)/min*10000 exactly
+	// +Inf, which json.Marshal refuses, taking the whole response with it.
+	// Bounding the inputs makes every expression in this function finite by
+	// construction; the worst-case magnitudes are worked out over usable().
 	seen := map[string]float64{}
 	for _, q := range quotes {
-		if q.Rate > 0 {
+		if usable(q.Rate) {
 			seen[q.Source] = q.Rate
 		}
 	}
@@ -185,11 +193,22 @@ func corroborate(quotes []Quote) (Corroboration, float64) {
 	stdev := math.Sqrt(ss / float64(n-1))
 	stdevBps := 0.0
 	if mean > 0 {
-		stdevBps = stdev / mean * 10000
+		stdevBps = boundedBps(stdev / mean * 10000)
 	}
-	spread := (max - min) / min * 10000 // bps
-	agree := spread <= 50
-	var factor float64
+	spread := boundedBps((max - min) / min * 10000) // bps
+	factor, agree := spreadBand(spread)
+	return Corroboration{
+		Sources: n, SpreadBps: round2(spread), Agree: agree,
+		Mean: mean, Stdev: stdev, StdevBps: round2(stdevBps), Min: min, Max: max,
+	}, factor
+}
+
+// spreadBand maps a dispersion in bps to the confidence factor and the
+// agreement flag (see ACCURACY.md — the two use different thresholds). It is a
+// separate function so the guarantee boundedBps relies on is directly testable:
+// the clamped value must land in the worst factor bucket and must not agree.
+func spreadBand(spread float64) (factor float64, agree bool) {
+	agree = spread <= 50
 	switch {
 	case spread <= 25:
 		factor = 1.0
@@ -200,10 +219,7 @@ func corroborate(quotes []Quote) (Corroboration, float64) {
 	default:
 		factor = 0.72
 	}
-	return Corroboration{
-		Sources: n, SpreadBps: round2(spread), Agree: agree,
-		Mean: mean, Stdev: stdev, StdevBps: round2(stdevBps), Min: min, Max: max,
-	}, factor
+	return factor, agree
 }
 
 func grade(conf float64) string {
@@ -219,6 +235,37 @@ func grade(conf float64) string {
 	}
 }
 
+// boundedBps is the second line of defence on a dispersion figure. The quote
+// filter in corroborate caps both figures at ~2e40, so this cannot fire today;
+// it is here so that widening the admission band later cannot silently turn a
+// dispersion into a token json.Marshal refuses to emit.
+//
+// A dispersion we could not compute is reported as the largest one representable,
+// never as a small one. math.MaxFloat64 encodes as an ordinary JSON number, sits
+// in the widest spread band (factor 0.72) and far above the 50 bps agreement
+// threshold, so a clamped value can never read as agreement or as better quality
+// than was actually measured. -Inf is unreachable (both figures are non-negative
+// by construction) and is mapped the same way, which is the safe direction.
+func boundedBps(x float64) float64 {
+	if math.IsNaN(x) || math.IsInf(x, 0) {
+		return math.MaxFloat64
+	}
+	return x
+}
+
+// round2 rounds to two decimals for publication. The multiply has to be guarded:
+// f*100 overflows to ±Inf for any |f| >= ~1.8e306, so the naive expression turns
+// a finite number the encoder could emit into one it cannot. Returning such an
+// input unchanged is the correct answer rather than a fallback — above 2^53/100
+// (~9.0e13) a float64 has no fractional part left, so it already *is* its own
+// two-decimal rounding.
+//
+// Everything on the common path (confidence in 0..1, spreads in bps) takes the
+// same expression as before, bit for bit.
 func round2(f float64) float64 {
-	return math.Round(f*100) / 100
+	scaled := f * 100
+	if math.IsInf(scaled, 0) {
+		return f
+	}
+	return math.Round(scaled) / 100
 }
