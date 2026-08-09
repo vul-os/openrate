@@ -286,11 +286,79 @@ struct OpenRateDirect {
         #expect(compact(#"{ "a" : "he said \"hi\" " }"#) == #"{"a":"he said \"hi\" "}"#)
     }
 
+    /// VERBATIM captures from `GET /readyz` on a running `openrate serve`.
+    ///
+    /// Note the shapes, which are not the same: the 200 goes through openrate's
+    /// pretty-printing writer and the 503 does not, so one is indented and the
+    /// other compact. Both are here because a helper tuned to one of them is
+    /// exactly the bug `theNaiveSubstringCheckIsTheOneThatFails` pins.
+    private let realReady = """
+        {
+          "built_at": "2026-08-09T21:01:12.011567Z",
+          "currencies": 30,
+          "ready": true,
+          "sources": [
+            {
+              "name": "ecb",
+              "edges": 29,
+              "last_ok": "2026-08-09T21:01:12.011567Z"
+            }
+          ]
+        }
+        """
+
+    /// 503, captured a few hundred ms after start: the source has not failed,
+    /// it has not been tried yet, so there is **no `last_error` key at all**
+    /// (`omitempty`). A message builder that prints `ecb: ` here is wrong.
+    private let realNotReadyUntried = """
+        {"built_at":"2026-08-09T21:01:11.438068Z","currencies":0,"ready":false,\
+        "reason":"no rates yet: no source has returned a usable quote",\
+        "sources":[{"name":"ecb","edges":0,"last_ok":"0001-01-01T00:00:00Z"}]}
+        """
+
+    /// 503 with the source genuinely broken — captured with
+    /// `HTTPS_PROXY=http://127.0.0.1:1`. The URL inside `last_error` is
+    /// quoted, which is what defeats substring scanning.
+    private let realNotReadyFailed = """
+        {"built_at":"2026-08-09T21:02:18.93628Z","currencies":0,"ready":false,\
+        "reason":"no rates yet: no source has returned a usable quote",\
+        "sources":[{"name":"ecb","edges":0,"last_ok":"0001-01-01T00:00:00Z",\
+        "last_error":"Get \\"https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml\\": \
+        proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused"}]}
+        """
+
     @Test func hasCurrenciesReadsTheRealPrettyPrintedResponses() {
         #expect(
             hasCurrencies(realMetaReady),
-            "the readiness check missed a server that IS serving rates")
+            "a meta document from a server that IS serving rates read as empty")
         #expect(!hasCurrencies(realMetaEmpty))
+    }
+
+    /// The message a caller sees on a readiness timeout. "Timed out" is what
+    /// this replaces.
+    @Test func notReadyReasonNamesTheSourceAndItsError() throws {
+        let why = try #require(notReadyReason(in: realNotReadyFailed))
+        #expect(why.hasPrefix("no rates yet: no source has returned a usable quote"), "\(why)")
+        #expect(why.contains("ecb: "), "\(why)")
+        #expect(why.contains("connection refused"), "\(why)")
+        // The whole error, not the fragment before the first escaped quote.
+        #expect(why.contains("ecb.europa.eu"), "\(why)")
+    }
+
+    /// The degrade case: nothing has failed yet, so there is a reason and no
+    /// source detail. It must not invent one.
+    @Test func notReadyReasonIsTheReasonAloneWhenNoSourceHasFailed() throws {
+        let why = try #require(notReadyReason(in: realNotReadyUntried))
+        #expect(why == "no rates yet: no source has returned a usable quote", "\(why)")
+        #expect(!why.contains("ecb"), "printed a source with no last_error: \(why)")
+    }
+
+    /// A 200 is never formatted as a failure, and a body that is not the
+    /// document at all yields nil so the caller can print it raw.
+    @Test func notReadyReasonHandlesTheReadyBodyAndRubbish() {
+        #expect(notReadyReason(in: realReady) == nil)
+        #expect(notReadyReason(in: "not json at all") == nil)
+        #expect(notReadyReason(in: "") == nil)
     }
 
     @Test func hasCurrenciesAlsoReadsTheCompactCABIShape() {
@@ -306,16 +374,24 @@ struct OpenRateDirect {
             "if this passes, openrate stopped pretty-printing — hasCurrencies works either way")
     }
 
+    /// Both documents carry the same `sources` array, so one extractor serves
+    /// the readiness message and a caller reading `meta()`.
     @Test func sourceErrorsSurvivesAnEmbeddedQuotedURL() {
-        let got = sourceErrors(in: realMetaEmpty)
-        #expect(got.hasPrefix("ecb: "), "\(got)")
-        // The whole message, not the fragment before the first escaped quote.
-        #expect(got.contains("i/o timeout"), "\(got)")
-        #expect(got.contains("ecb.europa.eu"), "\(got)")
+        for doc in [realMetaEmpty, realNotReadyFailed] {
+            let got = sourceErrors(in: doc)
+            #expect(got.hasPrefix("ecb: "), "\(got)")
+            // The whole message, not the fragment before the first escaped quote.
+            #expect(got.contains("ecb.europa.eu"), "\(got)")
+        }
+        #expect(sourceErrors(in: realMetaEmpty).contains("i/o timeout"))
+        #expect(sourceErrors(in: realNotReadyFailed).contains("connection refused"))
     }
 
     @Test func sourceErrorsIsEmptyWhenAllAreFine() {
         #expect(sourceErrors(in: realMetaReady).isEmpty)
+        #expect(sourceErrors(in: realReady).isEmpty)
+        // A source with no last_error key contributes nothing, not "ecb: ".
+        #expect(sourceErrors(in: realNotReadyUntried).isEmpty)
     }
 
     @Test func freePortIsInRange() throws {

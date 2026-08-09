@@ -5,9 +5,10 @@
 //
 // Compare with openrate-direct-example, which is the better default when you
 // are on darwin/arm64. The sidecar earns its place when several processes
-// should share one refresher, when you want the HTTP shell's rate limiter and
-// CORS policy, or when you are on a platform openrate has no prebuilt library
-// for — which, for openrate, is most of them. See the README.
+// should share one refresher, or when you are on a platform openrate has no
+// prebuilt library for — which, for openrate, is most of them. (Not for the
+// HTTP shell's hardening: a sidecar this SDK owns runs with the anti-scraping
+// limiter off, because its only client is this process.) See the README.
 
 import Foundation
 import OpenRate
@@ -42,14 +43,22 @@ do {
     // Liveness first: already true, and it means almost nothing.
     print("healthz:   \(try sc.healthz())  (liveness only — no rates implied)")
 
-    // Readiness is a different question. /healthz answered before any source
-    // had been fetched; waitReady polls /api/v1/meta, with backoff, until the
-    // engine actually holds currencies.
+    // Readiness is a different question, and the server answers it directly:
+    // /readyz is 503 with a per-source diagnosis until the engine holds
+    // currencies, then 200. Everything below this line would otherwise be
+    // running against an empty book.
+    //
+    // The timeout is settable so the failure path is observable without
+    // waiting a minute for it:
+    //   OPENRATE_READY_TIMEOUT=5 HTTPS_PROXY=http://127.0.0.1:1 ./run.sh sidecar
+    let readyTimeout =
+        ProcessInfo.processInfo.environment["OPENRATE_READY_TIMEOUT"].flatMap(TimeInterval.init) ?? 45
     let t = Date()
-    let meta = try sc.waitReady(timeout: 45)
+    let readyz = try sc.waitReady(timeout: readyTimeout)
     print("ready:     after \(String(format: "%.3fs", Date().timeIntervalSince(t)))")
-    // compact() because the HTTP API pretty-prints; see its doc comment.
-    print("meta:      \(first(compact(meta), 180))")
+    // compact() because the 200 from /readyz is pretty-printed; see its doc.
+    print("readyz:    \(first(compact(readyz), 180))")
+    print("meta:      \(first(compact(try sc.meta()), 180))")
 
     // ---------------------------------------------------------------- convert
     // The same document the C ABI's "convert" method returns, over a different

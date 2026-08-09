@@ -16,9 +16,10 @@ public enum SidecarError: Error, CustomStringConvertible {
     case spawn(String)
     /// The child never started listening.
     case notLive(String)
-    /// The child listened but never acquired any rates. Carries the per-source
-    /// errors from `/api/v1/meta`, because "timed out" alone is useless and
-    /// meta already knows which source failed and why.
+    /// The child listened but never acquired any rates. Carries the `reason`
+    /// and the per-source errors from the last `/readyz` 503, because "timed
+    /// out" alone is useless and the server already knows which source failed
+    /// and why.
     case notReady(String)
     /// A non-200 response. Carries the code and the body, because the body is
     /// where openrate puts its `{"error": "..."}` object.
@@ -34,7 +35,8 @@ public enum SidecarError: Error, CustomStringConvertible {
                 """
         case .spawn(let m): return "failed to spawn openrate: \(m)"
         case .notLive(let m): return "openrate never started listening: \(m)"
-        case .notReady(let m): return "openrate is listening but has no rates: \(m)"
+        // Reads as "openrate has no rates after 30s: <reason> (ecb: <error>)".
+        case .notReady(let m): return "openrate has no rates \(m)"
         case .status(let c, let b): return "HTTP \(c): \(b)"
         case .transport(let m): return "transport: \(m)"
         }
@@ -87,6 +89,14 @@ public final class Sidecar: @unchecked Sendable {
         var args = ["-addr", addr, "-base", base, "-ui=\(ui)"]
         if let sources { args += ["-sources", sources] }
         process.arguments = args
+        // The child listens on loopback and serves exactly one client: this
+        // process. openrate's limiter is anti-scraping for a public deployment
+        // and there is no stranger here to throttle — while a legitimate batch
+        // of conversions sails past the 120/min default and takes a 429 from
+        // our own sidecar.
+        var childEnv = ProcessInfo.processInfo.environment
+        childEnv["OPENRATE_RATELIMIT"] = "0"
+        process.environment = childEnv
         // The child's logs are the operator's, not ours to swallow.
         process.standardOutput = FileHandle.standardError
         process.standardError = FileHandle.standardError
@@ -135,37 +145,43 @@ public final class Sidecar: @unchecked Sendable {
         throw SidecarError.notLive(last)
     }
 
-    /// Blocks until `/api/v1/meta` reports at least one currency, and returns
-    /// that meta document.
+    /// Blocks until `GET /readyz` answers 200, and returns that body.
     ///
     /// This is the HTTP equivalent of the library's `Refresher.ready`, and it is
     /// a different question from `/healthz`, which answers `ok` the instant the
-    /// listener binds.
+    /// listener binds. Readiness is "the snapshot has currencies in it": until
+    /// then `/readyz` is a `503` whose body names every source and why it has
+    /// not produced a quote, which is what the `notReady` error carries instead
+    /// of a bare timeout.
     ///
-    /// # Why this backs off instead of polling on a fixed interval
+    /// # Why a fixed interval is right here
     ///
-    /// `openrate serve` ships an anti-scraping rate limiter on by default:
-    /// **120 API requests per minute per IP**. A readiness loop at 200 ms is 300
-    /// a minute and gets rate-limited *by the server it is waiting for* —
-    /// `HTTP 429 {"error":"rate limited — slow down."}` a few seconds in. The
-    /// Rust SDK's first version did exactly that and failed on its first run
-    /// against a real binary. The delay here starts at 100 ms and doubles to a
-    /// 2 s ceiling: about 25 requests over a 45-second wait.
+    /// `openrate serve` ships an anti-scraping rate limiter on by default — 120
+    /// requests per minute per IP — but it applies to `/api/` paths only, and
+    /// `/readyz` is not one. Polling it cannot spend the budget the first real
+    /// conversion needs, so there is nothing for a backoff to protect. This
+    /// SDK's earlier readiness check polled `/api/v1/meta`, which *is* under
+    /// `/api/`, and needed a 100 ms → 2 s backoff purely to stay under the
+    /// limit of the server it was waiting for.
     @discardableResult
     public func waitReady(timeout: TimeInterval = 45) throws -> String {
         let deadline = Date().addingTimeInterval(timeout)
-        var last = ""
-        var delay: TimeInterval = 0.1
-        while Date() < deadline {
-            let meta = try self.meta()
-            if OpenRate.hasCurrencies(meta) { return meta }
-            last = meta
-            Thread.sleep(forTimeInterval: delay)
-            delay = min(delay * 2, 2.0)
+        var last = "/readyz never answered"
+        while true {
+            do {
+                return try get("/readyz")
+            } catch SidecarError.status(503, let body) {
+                // Not ready, and the body says why.
+                last = OpenRate.notReadyReason(in: body) ?? body
+            } catch {
+                // Not listening yet, or gone again. The transport text is the
+                // most specific thing known.
+                last = "\(error)"
+            }
+            if Date() >= deadline { break }
+            Thread.sleep(forTimeInterval: 0.15)
         }
-        let why = OpenRate.sourceErrors(in: last)
-        throw SidecarError.notReady(
-            why.isEmpty ? "no rates within \(Int(timeout))s" : "no rates within \(Int(timeout))s: \(why)")
+        throw SidecarError.notReady("after \(Int(timeout))s: \(last)")
     }
 
     // MARK: API
@@ -325,21 +341,30 @@ public func compact(_ json: String) -> String {
 
 /// Whether a `/api/v1/meta` document reports at least one currency.
 /// Tolerant of pretty-printing; see ``compact(_:)``.
+///
+/// This is **not** how ``Sidecar/waitReady(timeout:)`` decides — that asks
+/// `/readyz`, which answers the question directly and says why when the answer
+/// is no. Kept because a caller reading `meta()` still wants it.
 public func hasCurrencies(_ meta: String) -> Bool {
     let c = compact(meta)
     return c.contains("\"currencies\":[") && !c.contains("\"currencies\":[]")
 }
 
-/// Pulls `name: last_error` pairs out of a meta document, for an error message.
+/// Pulls `name: last_error` pairs out of any document carrying openrate's
+/// `sources` array — `/readyz` and `/api/v1/meta` both do — for an error
+/// message.
 ///
 /// Uses `JSONSerialization` rather than substring scanning, because openrate's
 /// `last_error` values are Go `net/http` errors that embed the URL **in
 /// quotes** — `Get \"https://…\": dial tcp: i/o timeout` — and a scan to the
 /// first `"` returns `Get \`, the useless half. Foundation is already linked
 /// here, so unlike the Rust SDK there is no reason to hand-roll it.
-public func sourceErrors(in meta: String) -> String {
+///
+/// `last_error` is `omitempty`: a source that has not been tried yet has no
+/// such key, and contributes nothing rather than `ecb: `.
+public func sourceErrors(in document: String) -> String {
     guard
-        let data = meta.data(using: .utf8),
+        let data = document.data(using: .utf8),
         let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
         let sources = obj["sources"] as? [[String: Any]]
     else { return "" }
@@ -350,4 +375,27 @@ public func sourceErrors(in meta: String) -> String {
             return "\((s["name"] as? String) ?? "?"): \(err)"
         }
         .joined(separator: "; ")
+}
+
+/// The readable half of a `/readyz` 503: its `reason`, followed by
+/// `name: last_error` for every source that has one.
+///
+/// `nil` when the body is not that document, so a caller can fall back to
+/// printing it raw rather than swallowing something unexpected.
+///
+/// Note the two shapes this must survive: the 200 goes through openrate's
+/// pretty-printing writer and the 503 does not, so the not-ready body is
+/// compact and the ready one is indented. Parsing rather than scanning is what
+/// makes that a non-issue — the substring check this replaced would have had to
+/// know.
+public func notReadyReason(in readyBody: String) -> String? {
+    guard
+        let data = readyBody.data(using: .utf8),
+        let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return nil }
+    let reason = obj["reason"] as? String
+    let errs = sourceErrors(in: readyBody)
+    if errs.isEmpty { return reason }
+    guard let reason else { return errs }
+    return "\(reason) (\(errs))"
 }

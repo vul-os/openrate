@@ -86,9 +86,11 @@ refresh:   {"sources":[{"name":"ecb","edges":29,"last_ok":"2026-08-09T14:18:48.1
 EUR->USD:  result=115.35 rate=1.1535 hops=1 via EUR->USD grade=C
 
 ==> sidecar (child process over HTTP)
-sidecar:   http://127.0.0.1:60837
+sidecar:   http://127.0.0.1:54126
 healthz:   ok  (liveness only — no rates implied)
-ready:     after 0.716s
+ready:     after 0.620s
+readyz:    {"built_at":"2026-08-09T21:03:25.482267Z","currencies":30,"ready":true,"sources":[{"name":"ecb","edges":29,"last_ok":"2026-08-09T21:03:25.482267Z"}]}
+meta:      {"built_at":"2026-08-09T21:03:25.482267Z","currencies":["AUD","BRL","CAD","CHF","CNY","CZK","DKK","EUR","GBP","HKD","HUF","IDR","ILS","INR","ISK","JPY","KRW","MXN","MYR","NOK","NZD…
 EUR->USD:  result=115.35 rate=1.1535 hops=1 grade=C
 rates EUR: 24279 bytes
 rates XXX: HTTP 200, empty book = true   (the C ABI returns "unknown base currency")
@@ -171,12 +173,22 @@ notice.
 
 ```swift
 let sc = try Sidecar(base: "EUR", sources: "ecb")
-try sc.waitReady(timeout: 45)                       // NOT the same as healthz
+try sc.waitReady(timeout: 45)                       // polls /readyz, NOT /healthz
 let json = try sc.convert(from: "EUR", to: "USD", amount: 100)
 ```
 
+`init` returns as soon as the child is **listening**; `waitReady` is the
+separate step that waits for it to hold rates. Skipping it converts against an
+empty book — see below.
+
 `deinit` terminates and reaps the child, so an early `throw` cannot leave a
 serving openrate holding a port and an hourly ECB fetch running forever.
+
+The child is started with `OPENRATE_RATELIMIT=0`. It listens on loopback and
+serves exactly one client — this process. The limiter is anti-scraping for a
+public deployment and there is no stranger here to throttle, while a legitimate
+batch of conversions would sail past the 120/min default and take a `429` from
+your own sidecar.
 
 Two implementation notes, both patterns worth *not* copying blindly:
 
@@ -197,14 +209,30 @@ Every one was found by running the code, not by reading it.
 listener binds, *before* any source has been fetched. Treat it as readiness and
 your program asks for a conversion and is told the pair is unknown — a false
 green that also disguises itself as a bad currency code. `waitReady` polls
-`/api/v1/meta` until the currency list is non-empty, and **throws** rather than
-returning something empty. In-process the equivalent is `Refresher.ready`, which
-blocks until the engine holds at least one currency and does not itself fetch.
+**`/readyz`**, which is `503` until the snapshot holds currencies, and **throws**
+rather than returning something empty. In-process the equivalent is
+`Refresher.ready`, which blocks until the engine holds at least one currency and
+does not itself fetch.
 
-**2. `openrate serve` rate-limits its own readiness poll.** The anti-scraping
-limiter is on by default at **120 requests per minute per IP**. A poll every
-200 ms is 300 a minute and gets `HTTP 429 {"error":"rate limited — slow down."}`
-a few seconds in. `waitReady` backs off 100 ms → 2 s.
+**2. A readiness timeout must say whose fault it is.** The `503` from `/readyz`
+carries a `reason` and the per-source outcome, so the error reads — reproduce it
+with
+`HTTPS_PROXY=http://127.0.0.1:1 OPENRATE_READY_TIMEOUT=5 ./run.sh sidecar`:
+
+```
+openrate has no rates after 5s: no rates yet: no source has returned a usable
+quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml":
+proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+`last_error` is `omitempty`, so a source that simply has not been tried yet
+contributes nothing and the message degrades to the `reason` alone — never
+`ecb: `. Two further shapes to know: the `200` is pretty-printed and the `503`
+is not, and `last_error` embeds the URL **in quotes**. Both are why
+`notReadyReason(in:)` parses instead of scanning. This poll runs at a fixed
+150 ms, which it can afford because openrate's rate limiter applies to `/api/`
+paths only and `/readyz` is not one; the earlier version polled `/api/v1/meta`,
+which *is*, and needed a 100 ms → 2 s backoff to stay under 120/min.
 
 **3. The HTTP API pretty-prints. The C ABI does not.** `GET /api/v1/meta`
 answers with indentation, so `"currencies": [`; `openrate_call(h, "meta", …)`
@@ -296,9 +324,11 @@ device**. Point an iOS app at a remote `openrate serve` over the network.
 6. **When the sidecar is genuinely better:** several processes sharing **one**
    refresher (four processes each refreshing is four times the load on ECB and
    SARB, from four IPs, on four unsynchronised cadences); wanting the HTTP
-   shell's rate limiter, CORS policy and trusted-proxy handling; wanting
+   shell's CORS policy and trusted-proxy handling in front of it; wanting
    openrate restartable independently; or being on any platform except
-   darwin/arm64.
+   darwin/arm64. (Not its rate limiter: a sidecar `Sidecar` owns runs with the
+   limiter off, since its only client is your process. Run `openrate serve`
+   yourself if you want it applied.)
 
 ## Layout
 
@@ -306,7 +336,7 @@ device**. Point an iOS app at a remote `openrate serve` over the network.
 sdks/swift/
   Package.swift                          no dependencies, no unsafeFlags
   Sources/OpenRate/Direct.swift          the C ABI binding — Engine, Refresher, deinit
-  Sources/OpenRate/Sidecar.swift         spawn/supervise `openrate serve`, plus compact/hasCurrencies
+  Sources/OpenRate/Sidecar.swift         spawn/supervise `openrate serve`, plus the JSON-shape helpers
   Sources/openrate-direct-example/
   Sources/openrate-sidecar-example/
   Tests/OpenRateTests/DirectTests.swift  swift-testing, one serialized suite
