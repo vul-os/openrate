@@ -55,25 +55,37 @@ type object interface {
 	close()
 }
 
+// LOCK ORDER, for the whole package:
+//
+//	engineObj.mu  ->  refresherObj.mu  ->  the registry mu below
+//
+// The registry lock is the INNERMOST one. Nothing in this file calls into an
+// object while holding mu — register/install/lookup/take/OpenHandles only touch
+// the map — so the registry can never be the outer lock in a cycle, and an
+// object is free to publish or retire a handle while holding its own lock. That
+// is what makes engineObj.adopt able to register a refresher and append it to
+// the engine's child list in ONE critical section (see engine.go), which is the
+// property that leaves no window for a concurrent engine close to slip through.
+//
+// The corollary, and the rule to keep: engineObj.close and refresherObj.close
+// release their own lock BEFORE calling take() on a child or detaching from a
+// parent, so the outer-to-inner direction is never inverted.
 var (
 	mu      sync.Mutex
 	next    uint64 = 1
 	objects        = map[uint64]object{}
 )
 
-// register stores obj and returns its handle. Handles start at 1 so that 0 is
-// always invalid, which is what openrate_new returns on failure.
-func register(obj object) uint64 {
-	h := reserve()
-	install(h, obj)
-	return h
-}
-
-// reserve allocates a handle without publishing anything under it. It exists
-// for an object that needs to know its own handle — a refresher, which the
-// engine that owns it must be able to unregister — so the handle can be built
-// into the object BEFORE the object becomes reachable, rather than written into
-// it afterwards while another thread could already be closing it.
+// reserve allocates a handle without publishing anything under it. Handles
+// start at 1 so that 0 is always invalid, which is what openrate_new returns on
+// failure.
+//
+// It is separate from install because every object here needs to know its own
+// handle before it becomes reachable: a refresher so the engine that owns it can
+// unregister it, an engine so it can name itself in the "handle is not open"
+// error it returns when a refresher is built over it as it closes. Writing the
+// handle in afterwards would mean writing it while another thread could already
+// be closing the object.
 func reserve() uint64 {
 	mu.Lock()
 	defer mu.Unlock()
@@ -88,12 +100,24 @@ func install(h uint64, obj object) {
 	objects[h] = obj
 }
 
+// errHandleNotOpen is THE error a host sees for a handle that is not live, and
+// it is one function so that every way of discovering that fact produces the
+// same sentence. lookup returns it for a handle that is gone from the registry;
+// an object returns it for itself when a close landed between the caller's
+// lookup and the caller's method call. Those two are the same event from the
+// host's side — the handle was closed — and a host that matches on "not open"
+// must not have to also match on some second phrasing that only appears when it
+// loses a race. include/openrate.h promises exactly this one outcome.
+func errHandleNotOpen(h uint64) error {
+	return fmt.Errorf("openrate: handle %d is not open (never created, or already closed)", h)
+}
+
 func lookup(h uint64) (object, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	obj, ok := objects[h]
 	if !ok {
-		return nil, fmt.Errorf("openrate: handle %d is not open (never created, or already closed)", h)
+		return nil, errHandleNotOpen(h)
 	}
 	return obj, nil
 }
@@ -141,7 +165,9 @@ func New(configJSON string) (uint64, error) {
 		Base:   cfg.Base,
 		Logger: logger(cfg.Quiet),
 	})
-	return register(&engineObj{e: e, now: time.Now}), nil
+	h := reserve()
+	install(h, &engineObj{e: e, handle: h, now: time.Now})
+	return h, nil
 }
 
 // NewRefresher builds a Refresher over the Engine behind engineHandle and
@@ -169,12 +195,20 @@ func NewRefresher(engineHandle uint64, configJSON string) (uint64, error) {
 			engineHandle, obj.kindName())
 	}
 	h := reserve()
-	ro, err := newRefresherObj(eo.e, h, configJSON)
+	ro, err := newRefresherObj(eo, h, configJSON)
 	if err != nil {
 		return 0, err
 	}
-	install(h, ro)
-	eo.adopt(ro)
+	// One call, not two. Publishing the handle and adopting it onto the engine
+	// used to be separate steps, and a concurrent openrate_close(engine) landing
+	// between them left a refresher that was live in the registry but absent
+	// from the child list the engine had already snapshotted — a handle nothing
+	// could ever close, so openrate_open_handles() never returned to zero. adopt
+	// does both under the engine's lock, and refuses if the engine is already
+	// closing, so the refresher is either fully owned or never born.
+	if err := eo.adopt(ro); err != nil {
+		return 0, err
+	}
 	return h, nil
 }
 
