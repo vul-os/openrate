@@ -827,11 +827,75 @@ c, err = e.Convert("USD", "ZAR", 100) // now answers from what r fetched</code><
             observable until something feeds it a snapshot.
           </p>
           <p style="margin-top:14px">
+            <b>Provably</b> is a counted number, not a turn of phrase. Every adapter is rewired
+            through a transport that counts round trips, an <code>Engine</code> and a
+            <code>Refresher</code> over all thirteen sources are constructed, and the count has
+            to be zero — then the test fetches once on purpose and the number has to move, because
+            a counter wired to nothing reports zero forever.
+            <a href="./docs.html#zero-network" style="color:var(--teal)">How that is held</a>.
+          </p>
+          <p style="margin-top:14px">
             Add a <code>Refresher</code> only when the program should fetch, and
             <code>serve.New</code> only when it should also answer HTTP — the binary above is
             just those three pieces, wired together for you. Full guide:
             <a href="./docs.html#library" style="color:var(--teal)">the embedding docs</a>.
           </p>
+        </div>
+      </div>
+
+      <!-- ── not Go ────────────────────────────────────────────────────────
+           The three preceding blocks all assume a Go program or a terminal,
+           and openrate now answers a reader who has neither. The order of
+           these cells is the order of the recommendation, not the order of
+           the engineering: the sidecar first, because it is the right answer
+           for most non-Go hosts, and the shared library last with the cost
+           that most often rules it out stated in the cell rather than behind
+           the link. Same .cells strip §06 uses. ─────────────────────────── -->
+      <div class="instr bleed rv" style="margin-top:clamp(22px,3vw,34px)">
+        <div class="instr-top">
+          <div>
+            <span class="pair">Not a Go program?</span>
+            <span class="sub">Two ways in · nine bindings · same JSON</span>
+          </div>
+          <div class="instr-measure">
+            <b>3.7 µs</b>
+            <!-- No unit in this label. .lbl is text-transform: uppercase, and CSS
+                 uppercases "µs" to "ΜS" — a capital Greek Mu, which renders as an
+                 M and turns microseconds into milliseconds at a glance. The
+                 comparison is stated as a ratio here and the 33.5 µs figure lives
+                 in the cell below, which is not uppercased. -->
+            <span class="lbl">per conversion, in-process · 9× a loopback call</span>
+          </div>
+        </div>
+        <div class="cells">
+          <div>
+            <span class="ct">Sidecar · the default</span>
+            <p style="font-size:13px;line-height:1.6;color:var(--text-4)">
+              Run the binary, talk to it over loopback. No toolchain, no linking, no Go
+              runtime inside your process. Every language already has an HTTP client, and
+              openrate stays restartable and crash-isolated on its own.
+            </p>
+          </div>
+          <div>
+            <span class="ct">In-process · when it pays</span>
+            <p style="font-size:13px;line-height:1.6;color:var(--text-4)">
+              <code>libopenrate</code> is six C functions — JSON in, JSON out — and 3.7 µs a
+              conversion against 33.5 µs over a warm loopback connection. It is
+              <b>not fork-safe</b>, and the Go runtime's signal
+              handlers move into your process. Both facts are stated before the benchmark, not
+              after it.
+            </p>
+          </div>
+          <div>
+            <span class="ct">Bindings</span>
+            <p style="font-size:13px;line-height:1.6;color:var(--text-4)">
+              C, C++, Go, Python, Ruby, PHP, Rust, Java, Elixir — each implementing
+              <em>both</em> modes behind one API, so changing your mind later is a constructor
+              argument. <a href="./docs.html#deployment-modes" style="color:var(--teal)">Which
+              mode should I choose</a> · <a href="./docs.html#c-abi" style="color:var(--teal)">the
+              C ABI</a>.
+            </p>
+          </div>
         </div>
       </div>
     </div>
