@@ -77,6 +77,21 @@ func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
 	snap := s.engine.Snapshot()
 	now := s.now().UTC()
 
+	// NOTE — an unknown base is NOT rejected here, and that is a standing
+	// inconsistency rather than an oversight. Rebase yields nothing for a base
+	// the snapshot does not know, so ?base=ZZZ answers 200 with `"rates":{}`,
+	// which a caller checking only the status code reads as "no rates
+	// available". [openrate.Engine.Rates] and the C ABI both return
+	// ErrUnknownBase for the same input.
+	//
+	// It stays because it is a published contract, not an accident: sdks/go,
+	// sdks/python and sdks/deno each document the difference in their README,
+	// two of their example programs demonstrate it deliberately, and the ABI's
+	// own comment cites the HTTP behaviour as the thing it is departing from.
+	// Aligning it is a wire change that has to land together with those, which
+	// makes it a decision for the API contract and not a fix to make quietly
+	// inside the serving layer. TestRatesUnknownBaseKeepsItsDocumentedShape
+	// pins it so it cannot drift either way unnoticed.
 	rates := map[string]rateView{}
 	for ccy := range snap.Rebase(base) {
 		c, err := fx.Describe(snap, base, ccy, 1, now)
@@ -105,26 +120,33 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 	if to == "" {
 		to = s.engine.DefaultBase()
 	}
-	amount := 1.0
-	if a := r.URL.Query().Get("amount"); a != "" {
-		// Genuinely unparseable input keeps the historical default of 1.0; a
-		// parseable but non-finite one is refused below by Describe.
-		if v, err := strconv.ParseFloat(a, 64); err == nil {
-			amount = v
-		}
+	amount, err := parseAmount(r.URL.Query().Get("amount"))
+	if err != nil {
+		writeAPIError(w, err)
+		return
 	}
 
 	now := s.now().UTC()
-	c, err := fx.Describe(s.engine.Snapshot(), from, to, amount, now)
+	snap := s.engine.Snapshot()
+
+	// A currency the snapshot does not know is an unknown pair, including when
+	// both sides are the same unknown code. Describe cannot catch that on its
+	// own: Snapshot.Lookup answers the identity for from == to whatever the
+	// string is, so ?from=NOTACCY&to=NOTACCY used to return 200 with rate 1 and
+	// a quality grade attached — an invented answer about a currency that does
+	// not exist, in the shape of a real one. USD->USD stays exactly as it was:
+	// the code is known, so the identity is a true statement about it.
+	if !snap.Has(from) || !snap.Has(to) {
+		writeAPIError(w, fx.ErrUnknownPair)
+		return
+	}
+
+	c, err := fx.Describe(snap, from, to, amount, now)
 	if err != nil {
 		// Non-finite amounts and unrepresentable products both parse fine but
 		// make the JSON encoder fail mid-write, leaving the client with a 200
 		// and a truncated body. Fail cleanly instead.
-		status := http.StatusBadRequest
-		if errors.Is(err, fx.ErrUnknownPair) {
-			status = http.StatusNotFound
-		}
-		http.Error(w, `{"error":"`+err.Error()+`"}`, status)
+		writeAPIError(w, err)
 		return
 	}
 
@@ -135,6 +157,46 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		"result": c.Result,
 		"rate":   viewOf(c, now),
 	})
+}
+
+// parseAmount reads the ?amount= parameter. Three cases the endpoint used to
+// answer identically, and must not:
+//
+//   - ABSENT (or empty): the documented default of 1, so /convert?from=X&to=Y
+//     keeps returning the plain exchange rate.
+//   - UNPARSEABLE ("notanumber"): also 1. That is the endpoint's documented,
+//     long-standing behaviour and callers depend on it, so it stays.
+//   - OUT OF RANGE ("1e999"): rejected. ParseFloat returns ±Inf together with
+//     strconv.ErrRange for a literal too large to represent, and the old code
+//     tested only `err == nil` — so the ±Inf was thrown away along with the
+//     error and the request silently converted 1.0 instead. A caller asking to
+//     convert 1e999 units got a successful-looking answer about one unit. The
+//     error is fx.ErrInvalidAmount, exactly as for the ?amount=Inf that parses
+//     to the same value without an error, and it is a 400.
+func parseAmount(raw string) (float64, error) {
+	if raw == "" {
+		return 1, nil
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if errors.Is(err, strconv.ErrRange) {
+		return 0, fx.ErrInvalidAmount
+	}
+	if err != nil {
+		return 1, nil
+	}
+	return v, nil
+}
+
+// writeAPIError is the one error path for the read endpoints, so a refusal
+// cannot drift in shape between them: an unknown pair is a 404, every other
+// refusal is a 400, and the body is the sentinel's own text — the same string
+// fx exports and the C ABI wraps, so a client can match on it.
+func writeAPIError(w http.ResponseWriter, err error) {
+	status := http.StatusBadRequest
+	if errors.Is(err, fx.ErrUnknownPair) {
+		status = http.StatusNotFound
+	}
+	http.Error(w, `{"error":"`+err.Error()+`"}`, status)
 }
 
 // GET /api/v1/meta -> sources + freshness + currency list
