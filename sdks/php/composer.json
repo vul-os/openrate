@@ -1,0 +1,28 @@
+{
+  "name": "openrate/openrate",
+  "description": "Open FX rates from open sources — embedded locally, as a managed sidecar or in-process through the C ABI.",
+  "type": "library",
+  "license": "MIT",
+  "homepage": "https://vulos.org/projects/openrate/",
+  "keywords": ["fx", "currency", "exchange-rates", "ecb", "sarb", "conversion"],
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6 || ^10.5"
+  },
+  "suggest": {
+    "ext-ffi": "For Openrate\\Ffi, the in-process C-ABI mode. Needs ffi.enable=1 outside the CLI SAPI; see README.md — the sidecar is the recommended default for PHP.",
+    "ext-pcntl": "For examples/fork_probe.php, which demonstrates why the sidecar is the default"
+  },
+  "autoload": {
+    "psr-4": {
+      "Openrate\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Openrate\\Tests\\": "tests/"
+    }
+  }
+}
