@@ -1,4 +1,5 @@
 import org.vulos.openrate.OpenRate;
+import org.vulos.openrate.OpenRateException;
 
 /**
  * openrate SIDECAR — the server as a child process on 127.0.0.1, over HTTP.
@@ -20,18 +21,28 @@ public final class SidecarRates {
         // Just ECB and Coinbase: both are keyless and public, which keeps this
         // example runnable by anyone rather than by whoever has the API keys.
         opts.sources = "ecb,coinbase";
+        // OPENRATE_READY_TIMEOUT_SECONDS shortens the readiness wait so the
+        // failure path can be demonstrated without sitting out the full
+        // minute — see the run-examples.sh header.
+        String readySeconds = System.getenv("OPENRATE_READY_TIMEOUT_SECONDS");
+        if (readySeconds != null && !readySeconds.isEmpty()) {
+            opts.ratesTimeout = java.time.Duration.ofSeconds(Long.parseLong(readySeconds));
+        }
 
         System.out.println("starting openrate (this fetches — it needs a network)…");
 
         // try-with-resources: the child process is stopped on every path out,
         // including a failure mid-example.
         //
-        // start() waits for /healthz AND for the currency list to fill. Waiting
-        // only for /healthz is the trap: openrate answers 200 the moment it
-        // binds, while its first fetch is still in flight, and every conversion
-        // in that window returns "unknown or unreachable currency pair" — which
-        // reads as a wrong currency code rather than as "not ready yet". This
-        // example printed exactly that before OpenRate learned to wait.
+        // start() waits for /healthz AND THEN for /readyz. Waiting only for
+        // /healthz is the trap: that is a liveness probe, answered 200 the
+        // moment the listener binds while the first fetch is still in flight,
+        // and every conversion in that window returns "unknown or unreachable
+        // currency pair" — which reads as a wrong currency code rather than as
+        // "not ready yet". This example printed exactly that before OpenRate
+        // learned to wait. /readyz answers the question actually being asked,
+        // and its 503 names the source that is failing, so a startup that
+        // never succeeds says why.
         try (OpenRate rates = OpenRate.start(opts)) {
             System.out.println("sidecar: " + rates.baseUrl());
 
@@ -56,6 +67,14 @@ public final class SidecarRates {
             //    API's documented behaviour, not this SDK's invention.
             System.out.println("bad amount: " + oneLine(rates.get("/api/v1/convert?from=USD&to=ZAR&amount=NaN"), 200));
             System.out.println("unknown currency: " + oneLine(rates.convert("USD", "XYZ", 1), 200));
+        } catch (OpenRateException e) {
+            // Print the message rather than a stack trace. When startup times
+            // out, that message is the whole point of /readyz: it carries the
+            // server's own reason and the per-source error behind it, e.g.
+            //   openrate has no rates after 8s: no rates yet: no source has
+            //   returned a usable quote (ecb: … connection refused)
+            System.err.println("FAIL: " + e.getMessage());
+            System.exit(1);
         }
         System.out.println("sidecar stopped");
         System.out.println("done");

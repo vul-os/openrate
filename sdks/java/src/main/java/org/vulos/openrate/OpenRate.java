@@ -54,6 +54,17 @@ public final class OpenRate implements AutoCloseable {
         public boolean ui = false;
         /** Extra environment for the child process. */
         public Map<String, String> env;
+        /**
+         * Per-IP API requests/minute for the child; {@code 0} disables the
+         * limiter, and that is the default here.
+         *
+         * <p>The child listens on loopback and serves exactly one client: this
+         * process. The limiter is anti-scraping for a public deployment and
+         * there is no stranger here to throttle — while a legitimate batch of
+         * conversions would sail past the 120/min default and take a 429 from
+         * our own sidecar. Set it to 120 to put the binary's default back.
+         */
+        public Integer ratelimit;
         /** How long to wait for /healthz (default 30s: the first fetch can be slow). */
         public Duration timeout;
         /**
@@ -65,9 +76,11 @@ public final class OpenRate implements AutoCloseable {
          * moment it binds, while its first fetch is still in flight, and every
          * conversion in that window comes back
          * {@code {"error":"unknown or unreachable currency pair"}}. That looks
-         * exactly like a wrong currency code. Waiting for a non-empty currency
-         * list is the readiness check the HTTP API does not expose as its own
-         * endpoint.
+         * exactly like a wrong currency code.
+         *
+         * <p>{@code /readyz} is the readiness probe that settles it: 200 once
+         * the snapshot holds currencies, 503 with a JSON body naming every
+         * source and its last error until then.
          */
         public boolean waitForRates = true;
         /** How long to wait for the first rates (default 60s). */
@@ -88,7 +101,11 @@ public final class OpenRate implements AutoCloseable {
     }
 
     /**
-     * Spawn {@code openrate} and wait for {@code /healthz}.
+     * Spawn {@code openrate}, wait for {@code /healthz} to say it is listening
+     * and then for {@code /readyz} to say it holds rates.
+     *
+     * <p>The two waits are different questions and the second one is the one
+     * that matters to a caller: see {@link Options#waitForRates}.
      *
      * <p>Unlike llmux's Java SDK, this is <b>not a process-wide singleton</b>:
      * you get an instance you own and close. Several engines with different
@@ -112,6 +129,12 @@ public final class OpenRate implements AutoCloseable {
         if (opts.sources != null) {
             environment.put("OPENRATE_SOURCES", opts.sources);
         }
+        // See Options.ratelimit: a loopback child with one client has no
+        // stranger to throttle, and the 120/min default would 429 a legitimate
+        // batch of our own conversions. Set before Options.env, so a caller who
+        // puts OPENRATE_RATELIMIT there by hand still overrides it.
+        environment.put("OPENRATE_RATELIMIT",
+                Integer.toString(opts.ratelimit != null ? opts.ratelimit : 0));
         if (opts.env != null) {
             environment.putAll(opts.env);
         }
@@ -236,67 +259,245 @@ public final class OpenRate implements AutoCloseable {
     }
 
     /**
-     * Poll {@code /api/v1/meta} until the currency list is non-empty.
+     * Poll {@code GET /readyz} until the server says it can serve a conversion.
      *
-     * <p>See {@link Options#waitForRates}. This is a readiness check built on a
-     * liveness endpoint plus an observation, because openrate publishes no
-     * readiness endpoint of its own — the direct path's refresher does, as the
-     * {@code "ready"} method.
+     * <p>See {@link Options#waitForRates}. 200 is ready; 503 is not ready yet
+     * and carries a JSON body with the reason and the per-source outcomes, so
+     * a timeout here reports the cause rather than the elapsed time. Anything
+     * else — a refused connection, a socket dropped mid-flight — is kept as
+     * text and polled through, because the child is allowed to still be coming
+     * up.
+     *
+     * <p>A fixed 200 ms interval is deliberate. {@code /readyz} sits outside
+     * {@code /api/}, which is the only prefix {@code guard()} rate-limits, so
+     * polling it cannot spend the budget the first real call needs. This
+     * replaces polling {@code /api/v1/meta} for a non-empty currency list,
+     * which could and did.
      */
     private void waitForRates(Duration timeout) {
         long deadline = System.nanoTime() + timeout.toNanos();
+        HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + "/readyz"))
+                .timeout(Duration.ofSeconds(5))
+                .GET()
+                .build();
         String last = "no rates yet";
         while (System.nanoTime() < deadline) {
             if (!proc.isAlive()) {
                 throw new OpenRateException("the openrate binary exited while fetching its first rates");
             }
             try {
-                String meta = get("/api/v1/meta");
-                if (hasCurrencies(meta)) {
+                // BodyHandlers.ofString, not discarding: the 503 IS the answer,
+                // and throwing its body away leaves nothing but a bare timeout.
+                HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+                if (res.statusCode() == 200) {
                     return;
                 }
-                last = "the currency list is still empty";
-            } catch (RuntimeException e) {
+                if (res.statusCode() == 503) {
+                    last = notReadyReason(res.body());
+                } else if (res.statusCode() == 404) {
+                    // Not a transient state: this binary predates /readyz.
+                    // Failing now beats polling a route that will never exist.
+                    throw new OpenRateException(
+                            "this openrate binary has no /readyz — it predates the readiness "
+                                    + "endpoint. Rebuild it (`go build -o bin/openrate ./cmd/openrate`), "
+                                    + "or set waitForRates = false and accept converting "
+                                    + "against a possibly empty book.");
+                } else {
+                    last = "unexpected status " + res.statusCode() + " from /readyz";
+                }
+            } catch (OpenRateException e) {
+                throw e; // A verdict, not a transport hiccup — do not poll on.
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
                 last = String.valueOf(e.getMessage());
             }
             try {
-                Thread.sleep(250);
+                Thread.sleep(200);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
         throw new OpenRateException(
-                "openrate is listening but holds no rates after " + timeout + " (" + last + ")."
-                        + " Every source fetch failed — the usual cause is no outbound network."
-                        + " Set Options.waitForRates = false to start anyway.");
+                "openrate has no rates after " + human(timeout) + ": " + last
+                        + ". Set waitForRates = false to start anyway.");
     }
 
     /**
-     * True if the meta document's {@code currencies} array has anything in it.
+     * The human cause carried by a {@code /readyz} 503: its {@code reason},
+     * plus {@code name: last_error} for every source that has one.
      *
-     * <p>Deliberately not a JSON parse: this SDK has no JSON dependency, and
-     * "is this array empty" needs one about as much as it needs a compiler.
+     * <p>{@code last_error} is {@code omitempty} on the server, so a source
+     * that has not been tried yet has no such key at all — it is skipped
+     * rather than reported as {@code ecb: null}. When no source has failed
+     * yet the reason stands alone.
      */
-    static boolean hasCurrencies(String metaJson) {
-        int at = metaJson.indexOf("\"currencies\"");
-        if (at < 0) {
-            return false;
+    static String notReadyReason(String readyJson) {
+        if (readyJson == null) {
+            return "not ready";
         }
-        int open = metaJson.indexOf('[', at);
+        int open = readyJson.indexOf('{');
         if (open < 0) {
-            return false;
+            return readyJson.trim().isEmpty() ? "not ready" : oneLine(readyJson);
         }
-        for (int i = open + 1; i < metaJson.length(); i++) {
-            char c = metaJson.charAt(i);
-            if (c == ']') {
-                return false;
-            }
-            if (!Character.isWhitespace(c)) {
-                return true;
+        int lo = open + 1;
+        int hi = readyJson.length();
+
+        String reason = stringAt(readyJson, valueSpan(readyJson, lo, hi, "reason"));
+        StringBuilder failures = new StringBuilder();
+        int[] sources = valueSpan(readyJson, lo, hi, "sources");
+        if (sources != null && readyJson.charAt(sources[0]) == '[') {
+            int i = sources[0] + 1;
+            while (i < sources[1] - 1) {
+                if (readyJson.charAt(i) != '{') {
+                    i++;
+                    continue;
+                }
+                int end = valueEnd(readyJson, i);
+                String name = stringAt(readyJson, valueSpan(readyJson, i + 1, end - 1, "name"));
+                String err = stringAt(readyJson, valueSpan(readyJson, i + 1, end - 1, "last_error"));
+                if (name != null && err != null && !err.isEmpty()) {
+                    failures.append(failures.length() == 0 ? "" : "; ").append(name).append(": ").append(err);
+                }
+                i = end;
             }
         }
-        return false;
+        if (reason == null || reason.isEmpty()) {
+            reason = "not ready";
+        }
+        return failures.length() == 0 ? reason : reason + " (" + failures + ")";
+    }
+
+    // ------------------------------------------------------------------ JSON
+    //
+    // Enough JSON to read /readyz, and no more. This SDK has no JSON dependency
+    // on purpose — every document it returns is handed to the caller as a
+    // string, for the parser they already have — but a readiness message is the
+    // one thing the SDK has to read for itself, and a substring hunt for
+    // "last_error" would happily match one quoted inside another source's error
+    // text. So: a scanner that knows where strings end, skips whole values, and
+    // matches keys only at the depth it was asked about.
+
+    /** [start,end) of the value of {@code key} among the members in [lo,hi), or null. */
+    private static int[] valueSpan(String json, int lo, int hi, String key) {
+        int i = lo;
+        while (i < hi) {
+            if (json.charAt(i) != '"') {
+                i++;
+                continue;
+            }
+            int nameEnd = stringEnd(json, i);
+            int colon = skipWs(json, nameEnd, hi);
+            if (colon >= hi || json.charAt(colon) != ':') {
+                i = nameEnd;
+                continue;
+            }
+            int start = skipWs(json, colon + 1, hi);
+            int end = valueEnd(json, start);
+            if (key.equals(unescape(json, i + 1, nameEnd - 1))) {
+                return new int[] {start, end};
+            }
+            i = end; // Skip the whole value: nested keys are not ours.
+        }
+        return null;
+    }
+
+    /** The span's contents as a string, or null when it is absent or not a string. */
+    private static String stringAt(String json, int[] span) {
+        if (span == null || span[0] >= span[1] || json.charAt(span[0]) != '"') {
+            return null;
+        }
+        return unescape(json, span[0] + 1, span[1] - 1);
+    }
+
+    /** Index just past the value that starts at {@code start}. */
+    private static int valueEnd(String json, int start) {
+        char c = json.charAt(start);
+        if (c == '"') {
+            return stringEnd(json, start);
+        }
+        if (c == '{' || c == '[') {
+            int depth = 0;
+            for (int i = start; i < json.length(); i++) {
+                char d = json.charAt(i);
+                if (d == '"') {
+                    i = stringEnd(json, i) - 1;
+                } else if (d == '{' || d == '[') {
+                    depth++;
+                } else if (d == '}' || d == ']') {
+                    if (--depth == 0) {
+                        return i + 1;
+                    }
+                }
+            }
+            return json.length();
+        }
+        int i = start;
+        while (i < json.length() && ",}] \t\r\n".indexOf(json.charAt(i)) < 0) {
+            i++;
+        }
+        return i;
+    }
+
+    /** Index just past the closing quote of the string opening at {@code start}. */
+    private static int stringEnd(String json, int start) {
+        for (int i = start + 1; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '\\') {
+                i++;
+            } else if (c == '"') {
+                return i + 1;
+            }
+        }
+        return json.length();
+    }
+
+    private static int skipWs(String json, int i, int hi) {
+        while (i < hi && Character.isWhitespace(json.charAt(i))) {
+            i++;
+        }
+        return i;
+    }
+
+    /** The characters between two quotes, with JSON escapes resolved. */
+    private static String unescape(String json, int from, int to) {
+        StringBuilder out = new StringBuilder(to - from);
+        for (int i = from; i < to; i++) {
+            char c = json.charAt(i);
+            if (c != '\\' || i + 1 >= to) {
+                out.append(c);
+                continue;
+            }
+            char e = json.charAt(++i);
+            switch (e) {
+                case 'n': out.append('\n'); break;
+                case 't': out.append('\t'); break;
+                case 'r': out.append('\r'); break;
+                case 'b': out.append('\b'); break;
+                case 'f': out.append('\f'); break;
+                case 'u':
+                    if (i + 4 < to) {
+                        out.append((char) Integer.parseInt(json.substring(i + 1, i + 5), 16));
+                        i += 4;
+                    }
+                    break;
+                default: out.append(e); break; // " \ / and anything malformed
+            }
+        }
+        return out.toString();
+    }
+
+    /** A server error is one line in an exception message, however it arrived. */
+    private static String oneLine(String s) {
+        return s.replaceAll("\\s+", " ").trim();
+    }
+
+    /** {@code PT30S} is not what a person wants to read in a timeout message. */
+    private static String human(Duration d) {
+        long ms = d.toMillis();
+        return ms % 1000 == 0 ? (ms / 1000) + "s" : ms + "ms";
     }
 
     // ---------------------------------------------------------------- lookup

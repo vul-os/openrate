@@ -60,11 +60,43 @@ which reads as *you passed a bad currency code*, not as *the server is not ready
 yet*. The first version of the example did exactly this and printed error
 objects for every call while still exiting 0.
 
-So `OpenRate.start()` waits for `/healthz` **and then** polls `/api/v1/meta`
-until the currency list is non-empty. Turn it off with
-`Options.waitForRates = false` if you want to start against a cold server on
-purpose. The direct path has a real readiness primitive for this — the
-refresher's `"ready"` method — which the HTTP API does not expose.
+So `OpenRate.start()` waits for `/healthz` **and then** for `/readyz`, which is
+the server's own readiness probe: `200` once the snapshot holds currencies, and
+until then `503` with a body that says why.
+
+```json
+{"ready":false,"currencies":0,
+ "reason":"no rates yet: no source has returned a usable quote",
+ "sources":[{"name":"ecb","edges":0,
+             "last_error":"… dial tcp 127.0.0.1:1: connect: connection refused"}]}
+```
+
+That body is why the wait is worth having: a startup that never succeeds fails
+with the cause rather than with the elapsed time.
+
+```
+openrate has no rates after 60s: no rates yet: no source has returned a usable
+quote (ecb: … dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+Turn the wait off with `Options.waitForRates = false` if you want to start
+against a cold server on purpose.
+
+Earlier versions polled `/api/v1/meta` until its currency list was non-empty,
+because openrate had no readiness endpoint. That workaround had a sting:
+`/api/v1/meta` is under `/api/`, the only prefix the server rate-limits, so
+polling it spent the budget the first real call needed. `/readyz` and
+`/healthz` both sit outside `/api/` and are never limited, which is why the
+poll here is a flat 200 ms rather than a backoff.
+
+### The child runs with its rate limiter off
+
+`Options.ratelimit` defaults to `0`, passed to the child as
+`OPENRATE_RATELIMIT=0`. The child listens on loopback and serves exactly one
+client: your process. The limiter is anti-scraping for a public deployment and
+there is no stranger here to throttle — while a legitimate batch of conversions
+would sail straight past the `120`/min default and take a `429` from your own
+sidecar. Set `Options.ratelimit = 120` to put the binary's default back.
 
 ### The sidecar fetches, and that is not configurable
 
