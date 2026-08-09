@@ -140,7 +140,26 @@ closes of handles that never existed, and calls on closed handles are all clean
 errors, because a host language's garbage collector will eventually free things
 in an order nobody planned.
 
-All entry points are safe to call from multiple threads.
+All entry points are safe to call from multiple threads, including
+`openrate_close()` concurrently with a call on the handle it is closing. That
+race resolves one of exactly two ways and never a third: the call completes and
+the close then tears the object down, or the close wins and the call returns the
+ordinary `handle 7 is not open`. Nothing this library started can outlive the
+handle that authorized it — in particular `openrate_call(h, "start")` racing
+`openrate_close(h)` cannot leave a refresh loop running, whichever order they
+land in, and `openrate_refresher_new()` racing the close of its engine either
+returns a fully-owned refresher or fails, never a handle nobody can close.
+
+Those are not free properties and they were not free here: both were real
+defects, both were invisible to `-race` because neither was a data race, and
+they are held down by `abi/lifecycle_test.go`, which runs each race twelve
+thousand times and asserts what a host can actually observe —
+`openrate_open_handles()` back where it started, and the library's request count
+frozen once the last close returned.
+
+`openrate_close()` is terminal, and it waits: when it returns, any background
+loop on that handle has been cancelled *and* has exited. `"stop"` is the
+reversible one — a stopped refresher can be started again; a closed one cannot.
 
 ### Two kinds of handle, and why
 
@@ -241,6 +260,20 @@ rather than two tickers feeding one engine. `ready` blocks until the engine
 holds at least one currency — it does **not** fetch, so something must be
 refreshing or it simply waits until the timeout. `timeout_ms` of 0 or absent
 means no deadline of the caller's own.
+
+`meta`'s `sources` covers every **open** refresher over that engine. Closing a
+refresher drops it out: its last status can never change again, and it would be
+reported under a handle you can no longer address.
+
+Every millisecond field — `interval_ms`, `fetch_timeout_ms`, `timeout_ms` — is
+bounded by 9223372036854, which is everything a duration can hold (about 292
+years). The two config fields **refuse** anything larger, with `*err` set;
+`timeout_ms` on a request is clamped, since a 292-year deadline is
+indistinguishable from the one you asked for. The bound is not pedantry: the
+multiply into nanoseconds wraps, and the interesting values do not wrap into
+something you would notice. `interval_ms` of 288230376151711745 comes out as
+exactly 1ms, so the most conservative cadence a host can ask for became a loop
+hammering every configured source a thousand times a second.
 
 ### Version
 
@@ -369,7 +402,7 @@ descend into it, so nothing here can add a dependency or a cgo requirement to
 the library everyone else consumes. (A build tag would not have achieved that —
 a package whose every file is tag-excluded is a hard error, not a skip.) The
 cost is that the root's `go test ./...` does not run these tests either, so CI
-runs them through `scripts/go-test-gate.sh` with a floor and thirteen required
+runs them through `scripts/go-test-gate.sh` with a floor and nineteen required
 test names.
 
 | What | Where |
@@ -381,6 +414,7 @@ test names.
 | Version agrees across `/VERSION`, Go and the header | `abi/version_test.go` |
 | Every `//export` is declared in the hand-written header | same file |
 | Handles are never recycled, 50 cycles | `abi/module_test.go` |
+| Close racing start, and close racing construction, 12,000 times | `abi/lifecycle_test.go` |
 | 40 checks through a really-dlopen'd library | `test/smoke.c` |
 | …and four mutations proving the smoke test can fail | `scripts/check-ffi.sh --selftest` |
 
