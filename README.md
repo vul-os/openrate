@@ -114,6 +114,34 @@ Add a `Refresher` only when — and exactly when — the process should fetch, a
 `serve.New` (below) only when it should also answer HTTP. Full guide:
 [docs/library.md](docs/library.md).
 
+## Use it from another language
+
+Not Go? There are two ways in, and the honest answer for which one you want
+depends on your runtime.
+
+**In-process.** `ffi/` builds a C shared library — integer handles, JSON in and
+JSON out, six functions — so Python, Ruby, Node, the JVM, Rust and anything else
+with an FFI can call openrate directly. It keeps the Engine/Refresher split
+intact: `openrate_new` builds an engine and nothing else, and a refresher is a
+separate, explicit construction, so a host that never asks for one cannot make
+the library open a socket.
+
+```c
+uint64_t eng = openrate_new("{\"base\":\"ZAR\"}", &err);
+char *out = openrate_call(eng, "convert",
+                          "{\"from\":\"USD\",\"to\":\"ZAR\",\"amount\":100}", &err);
+```
+
+**Sidecar.** Run the binary below and talk to its JSON API over loopback. Fewer
+moving parts, no Go runtime in your process, no fork hazard.
+
+Measured on an idle M-series Mac, in-process costs 3.7 µs per conversion against
+33.5 µs over loopback — about 9x, or 30 µs saved per call. Whether that matters
+is the question, and **[`ffi/README.md`](ffi/README.md)** leads with the reasons
+it might not: the Go runtime and its signal handlers move into your process, the
+library is not fork-safe (Python `multiprocessing`, uWSGI, Unicorn), building it
+needs cgo and a per-target C toolchain, and the artifact is 6–8 MB.
+
 ## Run it as a server instead
 
 Importing the library is the primary way in; running the binary is the
@@ -298,6 +326,9 @@ serve               the optional HTTP shell: JSON API, rate limiting, hardening
 serve/web           serve/web/ui.html — the embedded UI; compiled out entirely under -tags noui
 serve/interest      policy-rate endpoints, /api/v1/interest/*
 serve/ratelimit     the per-IP rate limiter
+ffi                 the C shared library other languages load (its own Go module,
+                    named openrate-ffi so the internal/ wall applies to it too)
+embedtest           a second module that proves the library is embeddable from outside
 internal/rates,     the interest-rate engine's own stack (rates, sources, store,
   ratesources,        quality) — serve-only, not part of the importable surface
   ratestore,
@@ -321,6 +352,7 @@ build:
 | `go test ./site/gen` | site/docs is generated and link-clean; the landing's §02 arithmetic is what its own printed digits produce, residual included | coverage floors on every scan |
 | `go test ./fx` | a pair's rate is the product of its legs bit-for-bit, and the *displayed* legs agree only within display rounding | fails if the fixture drifts to values where rounding happens to land |
 | `node scripts/check-shots.mjs --selftest` | every capture the landing displays is its display box's shape, and at least 2x sampled | 5 deliberate breakages (crop, blur, 404, stale attrs, empty selector) |
+| `bash scripts/check-ffi.sh --selftest` | the C ABI really loads, converts, and refuses a stale library; the shared library carries no console bytes | 4 deliberate defects, each rebuilt via `go build -overlay` and required to be caught |
 
 ## Documentation
 
