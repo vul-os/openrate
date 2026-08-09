@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Library-first: `Engine` computes, `Refresher` fetches, `serve` is optional.**
+  The root package used to have exactly one embedding path, `Start`, which
+  bound a loopback listener and began fetching from the network before it
+  returned — none of that optional, none of it skippable. It is now three
+  separate, explicit types: `NewEngine` builds an inert value that starts no
+  goroutine and opens no socket (see `Convert`, `Rates`, `Load`);
+  `NewRefresher` is the only thing that touches the network, and only once
+  `Refresh` or `Run` is called; `serve.New` answers HTTP from an `Engine` it
+  does not own. `Start` still works — it is now built on top of these three —
+  but is deprecated in favour of composing them directly. See
+  [docs/library.md](docs/library.md).
+- **The pure core and the sources are now importable on their own.**
+  `internal/graph` and `internal/quality` moved to `fx` (so it is
+  `fx.Assessment`, not `quality.Assessment`), and `internal/sources` moved to
+  `fxsource`. Both packages import nothing outside the standard library and
+  read no environment variable — `fxsource.Build` is pure; the one
+  `os.Getenv` in the module is behind the explicit `fxsource.FromEnv`/
+  `FromEnvSpec` opt-in.
+- **`internal/store` is deleted**, replaced by `Refresher`, which is
+  constructed explicitly instead of started implicitly.
+- **The HTTP layer moved under `serve/`**: `internal/api` → `serve`,
+  `internal/ratesapi` → `serve/interest`, `internal/ratelimit` →
+  `serve/ratelimit`, `web/` → `serve/web`. The interest-rate stack itself
+  (`rates`, `ratesources`, `ratestore`, `ratequality`) and `redact` stay
+  under `internal/` and serve-only — there is no importable
+  `Engine`/`Refresher` equivalent for interest rates yet, only the
+  deprecated `Start(Options{Interest: true})`.
+- **The web console can be compiled out.** A build tagged `noui` removes
+  `serve/web/ui.html` and its bundled `THIRD-PARTY-NOTICES.txt` from the
+  binary entirely, rather than merely not serving them, saving 66,256 bytes
+  on this checkout's `cmd/openrate` build. More importantly for embedders: a
+  program that imports `openrate` for `NewEngine`/`NewRefresher` and never
+  touches `serve` links zero bytes of the console regardless of the tag —
+  Go's linker drops the embed when nothing calls the handler that references
+  it. See [docs/library.md](docs/library.md#the-noui-build-tag) for the
+  measured host-program sizes.
+- Test count: 213 → 254.
+
 ## [0.1.1] - 2026-08-09
 
 ### Added
