@@ -265,10 +265,21 @@ and on linux/arm64 today, the sidecar is not a workaround — it is the mode.
 
 You are waiting on liveness instead of readiness. See
 [the same symptom under *Running the server*](#the-process-is-up-and-healthz-says-ok-but-nothing-converts).
-Every package now waits on `/readyz` for you inside whatever function starts
-the sidecar, so if you are seeing this you are either on an older package or
-you have hand-rolled the wait. Wait for a `200` from `/readyz`, and on timeout
-print the sources' `last_error` values from the `503` body.
+Every package ships the readiness wait, but **they differ on whether it is
+automatic**, and that difference is the usual cause of this symptom:
+
+| Package | Where readiness happens |
+|---|---|
+| python, php, ruby, elixir, java, kotlin, dotnet | **inside the start call** — it does not return until `/readyz` says yes |
+| node, deno, bun | `start()` waits for the listener only; **you must `await waitForRates()`** |
+| rust | `Sidecar::wait_ready` — an explicit call |
+| swift | `waitReady(timeout:)` — an explicit call |
+| go, c, cpp | example code, which does the wait explicitly and shows how |
+
+So if you are seeing this, you are on one of the packages whose readiness wait
+is a separate call and you have not made it (or you hand-rolled the wait
+against `/healthz`). Wait for a `200` from `/readyz`, and on timeout print the
+sources' `last_error` values from the `503` body.
 
 ### The sidecar is listening but the client cannot reach it
 

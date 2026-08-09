@@ -121,15 +121,15 @@ Add a `Refresher` only when — and exactly when — the process should fetch, a
 ## Use it from fifteen languages
 
 openrate ships a package for **bun, C, C++, Deno, .NET, Elixir, Go, Java,
-Kotlin, Node, PHP, Python, Ruby, Rust and Swift** — fifteen — and each one
-gives you the same **two ways in**, behind one API, so choosing again later is
-a constructor change rather than a rewrite.
+Kotlin, Node, PHP, Python, Ruby, Rust and Swift** — fifteen. All fifteen give
+you the sidecar; all but Elixir also give you an in-process path, behind the
+same API, so choosing again later is a constructor change rather than a rewrite.
 
 | | What it is | The right default for |
 |---|---|---|
-| **Sidecar** | openrate runs as its own process on `127.0.0.1`; the package starts it, waits until it is *ready*, and stops it for you | .NET · Elixir · Java · Kotlin · Node · PHP · Python |
-| **Direct** | the engine runs *inside* your process, over a C shared library — no port, no process, no socket | bun · C · C++ · Deno · Go · Rust · Swift |
-| *depends* | Ruby, where the answer turns on whether your server forks — [its README makes the call](sdks/ruby/README.md) | Ruby |
+| **Sidecar** | openrate runs as its own process on `127.0.0.1`; the package starts it, waits until it is *ready*, and stops it for you | .NET · bun · Deno · Elixir · Java · Kotlin · Node · PHP · Python |
+| **Direct** | the engine runs *inside* your process, over a C shared library — no port, no process, no socket | C · C++ · Go |
+| *depends* | Ruby, where the answer turns on whether your server forks; Rust and Swift, whose packages present both as equally supported | Ruby · Rust · Swift |
 
 Elixir is the one language with no direct mode, deliberately: a crash inside a
 NIF takes the BEAM down with it. Go is the one with no FFI at all — it imports
@@ -387,8 +387,8 @@ serve/ratelimit     the per-IP rate limiter
 ffi                 the C shared library other languages load (its own Go module,
                     named openrate-ffi so the internal/ wall applies to it too)
 sdks                fifteen language packages (bun, c, cpp, deno, dotnet, elixir, go,
-                    java, kotlin, node, php, python, ruby, rust, swift), each offering
-                    both direct and sidecar modes; sdks/README.md is the index
+                    java, kotlin, node, php, python, ruby, rust, swift). All offer the
+                    sidecar; all but elixir also offer direct. sdks/README.md is the index
 embedtest           a second module that proves the library is embeddable from outside
 internal/rates,     the interest-rate engine's own stack (rates, sources, store,
   ratesources,        quality) — serve-only, not part of the importable surface

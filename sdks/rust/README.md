@@ -338,9 +338,10 @@ sdks/rust/
   tests/handles.rs handle accounting — own binary AND a mutex, see its header
 ```
 
-`cargo test` runs 28 tests. The gated ones **say which way they went** rather
-than reporting a silent pass — run with `--nocapture` to see `direct tests RAN`
-or `direct tests SKIPPED`.
+`cargo test` runs 27 test functions — 16 unit, 9 in `tests/direct.rs`, 2 in
+`tests/handles.rs` — plus 3 doc-tests, so 30 results in total. The gated ones
+**say which way they went** rather than reporting a silent pass — run with
+`--nocapture` to see `direct tests RAN` or `direct tests SKIPPED`.
 
 ## Dependencies
 

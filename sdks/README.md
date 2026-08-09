@@ -16,11 +16,11 @@ no `openrate_stream` — the omission is deliberate, not a gap.
 | [go](go/) | package import — **no FFI, no shared library** | ✓ | **direct** |
 | [c](c/) | ✓ links `libopenrate` | ✓ | **direct** |
 | [cpp](cpp/) | ✓ header-only RAII (`openrate.hpp`) | ✓ | **direct** |
-| [rust](rust/) | ✓ `libloading` | ✓ | direct |
-| [swift](swift/) | ✓ SwiftPM, C interop | ✓ | direct |
-| [deno](deno/) | ✓ `Deno.dlopen` | ✓ | direct |
-| [bun](bun/) | ✓ `bun:ffi` | ✓ | direct |
-| [node](node/) | ✓ koffi | ✓ | sidecar for servers |
+| [rust](rust/) | ✓ `libloading` | ✓ | either — see README |
+| [swift](swift/) | ✓ SwiftPM, C interop | ✓ | either — see README |
+| [deno](deno/) | ✓ `Deno.dlopen` | ✓ | **sidecar** |
+| [bun](bun/) | ✓ `bun:ffi` | ✓ | **sidecar** |
+| [node](node/) | ✓ koffi | ✓ | **sidecar** |
 | [python](python/) | ✓ `ctypes` | ✓ | **sidecar** |
 | [java](java/) | ✓ FFM (JDK 22+) | ✓ | **sidecar** |
 | [kotlin](kotlin/) | ✓ over the Java binding | ✓ | **sidecar** |
@@ -59,10 +59,14 @@ gets `{"error":"unknown or unreachable currency pair"}` for every call — and
 exits 0. That false green is what `GET /readyz` exists to remove: it returns 200
 only once the snapshot has currencies, and its 503 carries each source's
 `last_error`, so a stuck start prints `ecb: connection refused` rather than a
-bare timeout. Every sidecar package here polls it. `/readyz` sits outside
-`/api/`, so unlike the `/api/v1/meta` poll it replaces, readiness polling never
-touches the rate limiter. In-process the equivalent is `Refresher.Ready(ctx)`,
-with no polling at all.
+bare timeout. Every sidecar package here polls it — but **not all of them do it
+for you**. In python, php, ruby, elixir, java, kotlin and dotnet the start call
+itself does not return until `/readyz` says yes. In node, deno, bun, rust and
+swift it is a separate call you must make (`waitForRates()`, `wait_ready`,
+`waitReady`); `start()` waits for the listener only. Check your language's page
+before assuming. `/readyz` sits outside `/api/`, so unlike the `/api/v1/meta`
+poll it replaces, readiness polling never touches the rate limiter. In-process
+the equivalent is `Refresher.Ready(ctx)`, with no polling at all.
 
 **The JSON API rate-limits `/api/` to 120 requests/minute per IP.** That is
 anti-scraping for a public deployment and wrong for a loopback sidecar serving

@@ -115,10 +115,14 @@ fetching never touches Bun's event loop. Wait for rates by polling
 `engine.meta().currencies.length` from a `Bun.sleep` loop rather than calling
 `refresher.ready()`, which does the same wait with the loop frozen.
 
-(Bun *could* run a blocking refresh on a `node:worker_threads` Worker — unlike
-Node, where a thread that has entered a Go c-shared library never terminates and
-hangs the process at exit, measured in `../node/README.md`. This SDK does not
-ship one, because `start()` solves the same problem with no thread at all.)
+(A `node:worker_threads` Worker is the obvious other answer, and this SDK does
+not ship one — `start()` solves the same problem with no thread at all. **Do not
+assume a Worker would work here.** On Node it does not: a thread that has
+entered a Go c-shared library never terminates, so the worker answers and then
+hangs the process at exit, measured in [`../node/README.md`](../node/README.md).
+Bun's `worker_threads` is a different implementation and **has not been measured
+against this library**, so whether it has the same defect is unknown. Treat it
+as unverified rather than as a supported route.)
 
 ### Handles and memory
 

@@ -256,12 +256,12 @@ because ARC may also end a lifetime at last use rather than at scope exit.
 swift test
 ```
 
-21 tests, all passing on the machine above, in ~0.02s. Gated tests **say which
+24 tests, all passing on the machine above, in ~0.02s. Gated tests **say which
 way they went** rather than reporting a silent pass:
 
 ```
 libopenrate found at …/dist/ffi/libopenrate-darwin-arm64.dylib — direct tests RAN
-✔ Test run with 21 tests passed after 0.009 seconds.
+✔ Test run with 24 tests passed after 0.013 seconds.
 ```
 
 **swift-testing, not XCTest — forced rather than chosen.** XCTest ships with

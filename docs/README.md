@@ -43,7 +43,7 @@ library-vs-sidecar question before you write any code.
 
 | Document | Purpose |
 |---|---|
-| [`sdks/README.md`](../sdks/README.md) | **The language index** — fifteen packages (bun, C, C++, Deno, .NET, Elixir, Go, Java, Kotlin, Node, PHP, Python, Ruby, Rust, Swift), each offering both the sidecar and the in-process path, with the right default for that language |
+| [`sdks/README.md`](../sdks/README.md) | **The language index** — fifteen packages (bun, C, C++, Deno, .NET, Elixir, Go, Java, Kotlin, Node, PHP, Python, Ruby, Rust, Swift). All fifteen offer the sidecar; all but Elixir also offer an in-process path (Elixir has none, deliberately — a NIF cannot be killed or timed out). The index names the right default for each language |
 | [`ffi/README.md`](../ffi/README.md) | The C ABI reference: every function, the memory rules, the measured numbers |
 | [`SECURITY.md`](../SECURITY.md) | Disclosure policy |
 | [`CHANGELOG.md`](../CHANGELOG.md) | Release history |
