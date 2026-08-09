@@ -34,7 +34,7 @@ final class Openrate
     /**
      * Start the sidecar (idempotent). Returns the base URL (http://host:port).
      *
-     * @param array{port?:int,base?:string,sources?:string,refresh?:string,ui?:bool,env?:array<string,string>,timeout?:float} $opts
+     * @param array{port?:int,base?:string,sources?:string,refresh?:string,ui?:bool,ratelimit?:int,env?:array<string,string>,timeout?:float} $opts
      */
     public static function start(array $opts = []): string
     {
@@ -47,6 +47,13 @@ final class Openrate
 
         $env = self::inheritedEnv();
         $env['OPENRATE_ADDR'] = $addr;
+        // The binary defaults to 120 API requests/minute per IP, which is
+        // anti-scraping for a PUBLIC deployment. This sidecar is on loopback and
+        // serves exactly one client — us — and that budget is small enough that
+        // the SDK's own startup health polling can exhaust it and hand the first
+        // real call an HTTP 429. Default it off here and let a caller who wants
+        // it back pass ['ratelimit' => 120].
+        $env['OPENRATE_RATELIMIT'] = (string) ($opts['ratelimit'] ?? 0);
         if (isset($opts['base'])) {
             $env['OPENRATE_BASE'] = $opts['base'];
         }

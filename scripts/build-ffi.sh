@@ -89,6 +89,20 @@ build_one() {
     if [ -f "${lib%.*}.h" ] && [ "${lib%.*}.h" != "$hdr" ]; then
       mv "${lib%.*}.h" "$hdr"
     fi
+    # `-buildmode=c-shared` stamps a BARE install name on a dylib
+    # ("libopenrate.dylib", no prefix). dyld only consults an executable's
+    # -rpath entries for dependencies recorded as "@rpath/...", so a consumer
+    # that LINKS against this library — rather than dlopen'ing it by path —
+    # dies at startup with `Library not loaded: libopenrate.dylib` however many
+    # -Wl,-rpath flags it passed. dlopen callers never notice, which is why it
+    # went unseen: the C smoke test and the bench both dlopen by absolute path.
+    if [ "$goos" = "darwin" ] && command -v install_name_tool >/dev/null 2>&1; then
+      if ! install_name_tool -id "@rpath/${name}.${ext}" "$lib" 2>&1 | sed 's/^/    /'; then
+        echo "    FAILED (install_name_tool)"
+        failed+=("$goos/$goarch")
+        return 1
+      fi
+    fi
     local size
     size="$(wc -c < "$lib" | tr -d ' ')"
     echo "    built ${lib#"$root"/} (${size} bytes)"

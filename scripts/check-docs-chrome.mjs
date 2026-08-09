@@ -45,10 +45,11 @@
  * is missing is the failure mode this file is written against.
  *
  *   node scripts/check-docs-chrome.mjs            # check what ships
- *   node scripts/check-docs-chrome.mjs --selftest # break it fourteen ways, require fourteen failures
+ *   node scripts/check-docs-chrome.mjs --selftest # break it seventeen ways, require seventeen failures
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -257,7 +258,54 @@ export function check(files) {
     }
   }
 
-  /* 5 ── reduced motion is honoured, on both pages' shared stylesheet. */
+  /* 5 ── every fenced language the corpus uses is in the vendored bundle.
+   *
+   * highlight.js here is a CUSTOM build carrying only the grammars the docs
+   * actually fence — that is what keeps it at 34 KB instead of 1.2 MB — and
+   * the failure mode of a custom build is silent: hljs falls back to
+   * plaintext, the block renders flat grey, and it reads as a palette problem
+   * rather than a missing grammar. It happened here: docs/c-abi.md and
+   * docs/quickstart.md added `c` and `python` fences to a bundle that had
+   * neither.
+   *
+   * So the bundle is EVALUATED, not grepped: a regex over minified source
+   * would answer a question about the file's text rather than about what the
+   * browser will actually be able to highlight. */
+  const bundle = byName["assets/vendor/highlight.min.js"];
+  if (bundle === undefined) fail("site/assets/vendor/highlight.min.js is missing — every code block would render unhighlighted, and the fence-language scan verified NOTHING");
+  else {
+    let hljs = null;
+    try {
+      const sandbox = { window: {} };
+      sandbox.window.window = sandbox.window;
+      runInNewContext(bundle, sandbox.window);
+      hljs = sandbox.window.hljs;
+    } catch (e) {
+      fail(`site/assets/vendor/highlight.min.js could not be evaluated (${e.message}) — it would not run in a browser either`);
+    }
+    if (hljs && typeof hljs.getLanguage !== "function") fail("the vendored highlight.js bundle does not expose window.hljs.getLanguage — nothing would be highlighted");
+    else if (hljs) {
+      const fences = new Map();          // language -> first file that fences it
+      for (const f of files) {
+        if (!/^docs\/.*\.md$/.test(f.name) && !f.name.endsWith(".html")) continue;
+        // ```lang in markdown, and class="language-lang" in the landing's
+        // hand-written code plates.
+        for (const m of f.text.matchAll(/^\s*(?:```|~~~)([A-Za-z0-9+#_-]+)/gm)) if (!fences.has(m[1])) fences.set(m[1], f.name);
+        for (const m of f.text.matchAll(/class="language-([A-Za-z0-9+#_-]+)"/g)) if (!fences.has(m[1])) fences.set(m[1], f.name);
+      }
+      if (fences.size < 3) fail(`only ${fences.size} fenced languages were found across the corpus (floor 3) — the fence scan is broken and verified nothing`);
+      for (const [lang, where] of fences) {
+        if (!hljs.getLanguage(lang)) {
+          fail(
+            `site/${where} fences \`${lang}\`, which the vendored highlight.js bundle does not carry — that block renders as flat plaintext. ` +
+            `Rebuild the bundle with the ${lang} grammar (see site/assets/vendor/highlight.min.js.LICENSE), or stop fencing it.`
+          );
+        }
+      }
+    }
+  }
+
+  /* 6 ── reduced motion is honoured, on both pages' shared stylesheet. */
   if (!/@media\s*\(prefers-reduced-motion:\s*reduce\)/.test(css)) {
     fail("site/assets/site.css has no `prefers-reduced-motion: reduce` block — the docs animate scroll, reveals and the guilloché");
   }
@@ -299,6 +347,9 @@ function selftest() {
     ["a sidebar link points at a slug DOCS does not serve", edit("docs.html", (t) => t.replace('data-slug="api"', 'data-slug="apu"')), /DOCS does not list/],
     ["a page is filed under a different group in the markup than in DOCS", edit("docs.html", (t) => t.replace('{"slug":"c-abi","title":"Other languages","group":"Embedding"}', '{"slug":"c-abi","title":"Other languages","group":"Help"}')), /sidebar link sits under "Embedding"/],
     ["the groups are flattened away", edit("docs.html", (t) => t.replace(/<section class="nav-group" data-group="[^"]+">/g, "<div>").replace(/<\/section>/g, "</div>")), /group scan is broken|has been flattened/],
+    ["a doc fences a language the bundle does not carry", edit("docs/quickstart.md", (t) => t.replace("```python", "```rust")), /vendored highlight\.js bundle does not carry/],
+    ["the highlight bundle is emptied of a grammar the docs use", edit("assets/vendor/highlight.min.js", (t) => t.replace(/registerLanguage\("c"/g, 'registerLanguage("czz"').replace(/"c",/g, '"czz",')), /fences `c`|does not carry/],
+    ["the highlight bundle stops being loadable", edit("assets/vendor/highlight.min.js", (t) => "throw new Error('boom');" + t), /could not be evaluated/],
     ["the reduced-motion block is dropped", edit("assets/site.css", (t) => t.replace("@media (prefers-reduced-motion: reduce)", "@media (min-width: 1px)")), /prefers-reduced-motion/],
     ["the site walker stops finding files", [base[0]], /verified almost nothing/],
   ];
