@@ -4,7 +4,7 @@ Two ways to use openrate from Ruby, both supported:
 
 | mode | what it is | file |
 | --- | --- | --- |
-| **Sidecar** | the gem spawns the `openrate` binary on a loopback port, waits for `/healthz`, and shuts it down at exit | `lib/openrate.rb` |
+| **Sidecar** | the gem spawns the `openrate` binary on a loopback port, waits for `/readyz`, and shuts it down at exit | `lib/openrate.rb` |
 | **Direct** | `libopenrate` loaded into the Ruby process with `fiddle` — no child process, no port | `lib/openrate/ffi.rb` |
 
 **Which one to pick.** Ruby's FFI story here is good: `fiddle` is stdlib, and
@@ -28,6 +28,7 @@ Openrate.convert("USD", "ZAR", 100)   # => {"from"=>"USD", "result"=>1842.0, ...
 Openrate.rates("ZAR")                 # the all-pairs snapshot
 Openrate.meta                         # sources, freshness, currency list
 Openrate.base_url                     # "http://127.0.0.1:<port>"
+Openrate.ready?                       # GET /readyz — has it got rates yet?
 ```
 
 The sidecar starts lazily on first use, is reused (singleton), and is terminated
@@ -38,7 +39,8 @@ ruby sdks/ruby/examples/sidecar_convert.rb
 ```
 
 ```
-sidecar : http://127.0.0.1:52415
+sidecar : http://127.0.0.1:57477
+probes  : healthy? true (up), ready? true (has rates)
 meta    : base ZAR, 30 currencies from 1 source(s)
 source  : ecb        29 edges
 convert : 100 EUR = 115.3500 USD (rate 1.153500, 1 hop, ecb)
@@ -52,11 +54,38 @@ A sidecar always has a refresher — `openrate serve` is the program whose job i
 to fetch. `Openrate.start(sources: "ecb")` narrows which sources it uses; it
 cannot make it fetch nothing.
 
+### Up is not the same as ready
+
+`Openrate.start` returns when the child is **ready**, not when it is listening.
+`/healthz` answers 200 the instant the listener binds, with an empty book until
+the first fetch lands — wait on that and every conversion comes back
+`unknown or unreachable currency pair`, which reads like a bad currency code and
+is not. So the gem polls **`/readyz`**, which is 503 until the snapshot has
+currencies in it and says why:
+
+```
+could not start the sidecar: openrate has no rates after 8.0s: no rates yet: no
+source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/…":
+proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+`timeout:` therefore has to cover the first fetch (default 30s). `Openrate.ready?`
+and `Openrate.wait_ready(timeout: 30.0)` ask the same question of a server you
+did not start; `Openrate.healthy?` is liveness only.
+
+The poll is a fixed 150 ms with no backoff, which is fine because `/readyz` sits
+outside `/api/` and the per-IP limiter never sees it. And readiness means *some*
+rates, not *all* sources: with several sources racing, the book flips ready when
+the first one lands, so a pair a slower source would have supplied can still be
+missing. Name one source if you need to depend on it.
+
 One default worth knowing about: the binary rate-limits the JSON API to **120
 requests a minute per IP**, which is anti-scraping for a public deployment and
-wrong for a loopback sidecar with exactly one client. It is small enough that
-a legitimate batch of conversions can exhaust it and hand a later real
-call an HTTP 429. (Only /api/ paths are limited; /healthz is not.) `Openrate.start` therefore
+wrong for a loopback sidecar with exactly one client. There is no stranger here
+to throttle, and the budget is small enough that a legitimate batch of
+conversions can exhaust it and hand a later real call an HTTP 429.
+(Readiness polling is not the reason: only /api/ paths are limited, and neither
+/healthz nor /readyz is under /api/.) `Openrate.start` therefore
 passes `OPENRATE_RATELIMIT=0`; pass `ratelimit: 120` to put it back.
 
 ### Binary resolution
@@ -239,7 +268,7 @@ no build at all today. The `openrate` binary the sidecar spawns has no such gap.
 
 | file | mode | what it shows |
 | --- | --- | --- |
-| `examples/sidecar_convert.rb` | sidecar | spawn, wait for the first fetch, convert, cross-rate, snapshot, HTTP error, guaranteed stop |
+| `examples/sidecar_convert.rb` | sidecar | spawn, wait for `/readyz`, convert, cross-rate, snapshot, HTTP error, guaranteed stop |
 | `examples/direct_convert.rb` | direct | version probe, empty engine, `load`, convert, cross-rate, `rates`/`meta`, an engine refusing `refresh`, opt-in refresher, handle-count check |
 | `examples/fork_probe.rb` | direct | reproduces the fork hazard, shows which methods hide it, and the macOS TLS crash |
 

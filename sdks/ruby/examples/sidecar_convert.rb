@@ -2,14 +2,15 @@
 # frozen_string_literal: true
 
 # SIDECAR (out-of-process) — the gem spawns the `openrate` binary on a loopback
-# port, waits for /healthz, and shuts it down at exit. You never run a server by
+# port, waits for /readyz, and shuts it down at exit. You never run a server by
 # hand.
 #
 #   ruby sdks/ruby/examples/sidecar_convert.rb
 #
 # Environment:
-#   OPENRATE_BINARY   path to the openrate binary (default: bundled bin/, then PATH)
-#   OPENRATE_SOURCES  comma-separated FX sources (default here: ecb)
+#   OPENRATE_BINARY        path to the openrate binary (default: bundled bin/, then PATH)
+#   OPENRATE_SOURCES       comma-separated FX sources (default here: ecb)
+#   OPENRATE_READY_TIMEOUT seconds to wait for the first rate (default 30)
 #
 # This is the shape to use inside Unicorn, clustered Puma, Resque, or anything
 # else that forks. sdks/ruby/README.md has the measurements behind that.
@@ -23,21 +24,25 @@ $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "openrate"
 
 sources = ENV.fetch("OPENRATE_SOURCES", "ecb")
+ready_timeout = Float(ENV.fetch("OPENRATE_READY_TIMEOUT", "30"))
 
-base = Openrate.start(sources: sources, ui: false, timeout: 60.0)
+# `start` returns only once /readyz says a conversion will succeed, so there is
+# no "wait for the book" step here and no window in which this example could
+# convert against an empty one. If no rate ever arrives it raises, naming the
+# source that failed rather than timing out silently.
+begin
+  base = Openrate.start(sources: sources, ui: false, timeout: ready_timeout)
+rescue Openrate::Error => e
+  warn "could not start the sidecar: #{e.message}"
+  exit 1
+end
 puts "sidecar : #{base}"
+puts "probes  : healthy? #{Openrate.healthy?} (up), ready? #{Openrate.ready?} (has rates)"
 
 # begin/ensure, so a failure below still stops the child rather than leaving an
 # orphaned server holding a port.
 begin
-  # The server answers /healthz before its first fetch completes, so wait for
-  # the book rather than racing it.
-  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 60.0
   meta = Openrate.meta
-  while meta["currencies"].to_a.empty? && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-    sleep 0.25
-    meta = Openrate.meta
-  end
 
   puts "meta    : base #{meta['default_base']}, #{meta['currencies'].size} currencies " \
        "from #{meta['sources'].size} source(s)"

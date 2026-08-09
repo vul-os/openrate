@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 # openrate as a managed sidecar: the gem spawns the `openrate` binary on a
-# loopback port, waits for it to answer /healthz, and terminates it at exit.
-# You never run a server by hand.
+# loopback port, waits for it to be READY — /readyz, not /healthz, so the first
+# conversion has rates to work with — and terminates it at exit. You never run a
+# server by hand.
 #
 #   require "openrate"
 #
@@ -32,20 +33,27 @@ module Openrate
     # Start the sidecar (idempotent). Returns the base URL (http://host:port).
     #
     # Options mirror the binary's flags: :port, :base, :sources, :refresh, :ui,
-    # :ratelimit, :env, :timeout (seconds, default 15).
+    # :ratelimit, :env, :timeout (seconds, default 30).
+    #
+    # It returns when the child is READY, not merely listening: /readyz is 503
+    # until the snapshot has currencies in it, so :timeout has to cover the
+    # first fetch. A server that comes up and never gets a rate raises with the
+    # reason /readyz gave — "ecb: connection refused" — instead of a bare
+    # deadline.
     def start(port: nil, base: nil, sources: nil, refresh: nil, ui: false, ratelimit: 0,
-              env: nil, timeout: 15.0)
+              env: nil, timeout: 30.0)
       @mutex.synchronize do
         return @base if running?
 
         port ||= free_port
         addr = "127.0.0.1:#{port}"
         # OPENRATE_RATELIMIT: the binary defaults to 120 API requests/minute
-        # per IP, which is anti-scraping for a PUBLIC deployment. This sidecar
-        # is on loopback and serves exactly one client — us — and that budget is
-        # small enough that a legitimate batch of conversions can exhaust it
-        # and hand a later call an HTTP 429. Default it off; pass
-        # ratelimit: 120 to put it back.
+        # per IP, which is anti-scraping for a PUBLIC deployment. This child
+        # listens on loopback and serves exactly one client — us — so there is
+        # no stranger here to throttle, while a legitimate batch of conversions
+        # would sail past 120/min and take a 429 from our own sidecar. Default
+        # it off; pass ratelimit: 120 to put it back. (Readiness polling is not
+        # the reason: /readyz is outside /api/ and the limiter never sees it.)
         child_env = {
           "OPENRATE_ADDR" => addr,
           "OPENRATE_UI" => ui ? "true" : "false",
@@ -59,7 +67,7 @@ module Openrate
         @pid = Process.spawn(child_env, binary_path, in: :in, out: :out, err: :err)
         @base = "http://#{addr}"
         begin
-          wait_healthy(@base, timeout)
+          poll_ready(@base, timeout)
         rescue StandardError
           stop_locked
           raise
@@ -94,6 +102,27 @@ module Openrate
       get("/meta")
     end
 
+    # GET /healthz — liveness. True the moment the process is listening, which
+    # is BEFORE it has any rates. Do not convert on the strength of it.
+    def healthy?
+      probe("/healthz")
+    end
+
+    # GET /readyz — readiness. True once a conversion would actually succeed.
+    #
+    # A managed sidecar is already ready by the time `start` returns; this is
+    # for the other case, a server you were merely pointed at, which can be up
+    # and still empty.
+    def ready?
+      probe("/readyz")
+    end
+
+    # Block until /readyz says ready, or raise with the reason it gave. Same
+    # poll `start` uses, not a second implementation of readiness.
+    def wait_ready(timeout: 30.0)
+      poll_ready(base_url, timeout)
+    end
+
     # One GET against the JSON API. `path` is relative to /api/v1.
     def get(path, **params)
       uri = URI("#{api_base_url}#{path}")
@@ -125,6 +154,18 @@ module Openrate
     end
 
     private
+
+    # One probe request against a non-/api/ path. Neither /healthz nor /readyz
+    # is rate-limited, so this costs the caller nothing.
+    def probe(path)
+      uri = URI("#{base_url}#{path}")
+      res = Net::HTTP.start(uri.host, uri.port, open_timeout: 1, read_timeout: 2) do |http|
+        http.get(uri.request_uri)
+      end
+      res.code.to_i == 200
+    rescue StandardError
+      false
+    end
 
     def running?
       !@pid.nil? && process_alive?(@pid)
@@ -193,24 +234,67 @@ module Openrate
       port
     end
 
-    def wait_healthy(base, timeout)
+    # Poll GET /readyz until the server can actually answer a conversion.
+    #
+    # Not /healthz. /healthz answers the instant the listener binds, before any
+    # source has been fetched, so a caller that waits on it converts against an
+    # empty book and gets "unknown or unreachable currency pair" for every pair
+    # — a false green wearing a bad-currency-code costume.
+    #
+    # 150 ms fixed, and no backoff: /readyz sits outside /api/, so the per-IP
+    # limiter never sees it and there is no budget to spend by polling.
+    #
+    # On timeout the caller gets the cause, not a deadline: whatever the last
+    # 503 body said, or the transport error if the server never answered.
+    def poll_ready(base, timeout)
       deadline = monotonic + timeout
-      last = nil
-      uri = URI("#{base}/healthz")
-      while monotonic < deadline
+      uri = URI("#{base}/readyz")
+      detail = nil     # from the last 503 body
+      transport = nil
+      loop do
         begin
-          res = Net::HTTP.start(uri.host, uri.port, open_timeout: 1, read_timeout: 1) do |http|
+          res = Net::HTTP.start(uri.host, uri.port, open_timeout: 1, read_timeout: 2) do |http|
             http.get(uri.request_uri)
           end
           return if res.code.to_i == 200
+
+          transport = nil
+          detail = not_ready_detail(res)
         rescue StandardError => e
-          last = e
+          # Not listening yet (or gone). Keep the text: it is the difference
+          # between "the child died" and "the child is slow".
+          transport = e
+          detail = nil
         end
-        # 200 ms, not 50 ms: /healthz goes through the same per-IP limiter as
-        # the API, so a tight poll spends a budget the caller wanted.
-        sleep 0.2
+        break if monotonic >= deadline
+
+        sleep 0.15
       end
-      raise Error, "openrate did not become healthy within #{timeout}s: #{last}"
+
+      raise Error, "openrate has no rates after #{timeout}s: #{detail}" if detail
+
+      raise Error, "openrate never answered /readyz within #{timeout}s: #{transport}"
+    end
+
+    # One actionable line out of a /readyz 503: the reason, plus every source
+    # that has an error to report. `last_error` is omitempty, so a source that
+    # has not been tried yet has no key at all — those are skipped rather than
+    # printed as "ecb: ", and if nothing failed the reason stands alone.
+    def not_ready_detail(res)
+      body = begin
+        JSON.parse(res.body.to_s)
+      rescue JSON::ParserError, TypeError
+        nil
+      end
+      return "HTTP #{res.code}" unless body.is_a?(Hash)
+
+      reason = body["reason"].to_s.empty? ? "not ready" : body["reason"].to_s
+      failed = Array(body["sources"]).filter_map do |source|
+        next unless source.is_a?(Hash) && !source["last_error"].to_s.empty?
+
+        "#{source['name'] || '?'}: #{source['last_error']}"
+      end
+      failed.empty? ? reason : "#{reason} (#{failed.join('; ')})"
     end
 
     def monotonic
