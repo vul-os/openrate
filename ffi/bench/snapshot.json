@@ -1,0 +1,17 @@
+{
+  "built_at": "2026-08-09T12:00:00Z",
+  "edges": [
+    {"from": "EUR", "to": "USD", "rate": 1.09, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "GBP", "rate": 0.85, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "JPY", "rate": 171.2, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "CHF", "rate": 0.94, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "AUD", "rate": 1.64, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "CAD", "rate": 1.49, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "SEK", "rate": 11.42, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "NOK", "rate": 11.68, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "PLN", "rate": 4.27, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "EUR", "to": "ZAR", "rate": 20.1, "source": "bench", "time": "2026-08-09T11:00:00Z"},
+    {"from": "USD", "to": "ZAR", "rate": 18.44, "source": "bench2", "time": "2026-08-09T11:30:00Z"},
+    {"from": "USD", "to": "BTC", "rate": 0.0000091, "source": "bench2", "time": "2026-08-09T11:45:00Z"}
+  ]
+}
