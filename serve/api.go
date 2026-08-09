@@ -30,11 +30,30 @@ type rateView struct {
 	Path    []string         `json:"path"`
 	Sources []string         `json:"sources"`
 	Quality fx.Assessment    `json:"quality"`
-	Legs    []fx.Leg         `json:"legs"`   // each hop's actual rate + source (the calculation)
+	Legs    []legView        `json:"legs"`   // each hop's actual rate + source (the calculation)
 	Quotes  []fx.SourceQuote `json:"quotes"` // per-source direct quotes behind the number
 }
 
-func viewOf(c fx.Conversion) rateView {
+// legView ages each leg for the wire. fx.Leg carries the quote's timestamp,
+// which is the more useful thing for a library caller to hold; the API has
+// always published the age instead, so the conversion happens here — on the
+// time, never on the rate, which is copied across untouched.
+type legView struct {
+	From   string  `json:"from"`
+	To     string  `json:"to"`
+	Rate   float64 `json:"rate"`
+	Source string  `json:"source"`
+	AgeSec float64 `json:"age_sec"`
+}
+
+func viewOf(c fx.Conversion, now time.Time) rateView {
+	var legs []legView
+	for _, l := range c.Legs {
+		legs = append(legs, legView{
+			From: l.From, To: l.To, Rate: l.Rate, Source: l.Source,
+			AgeSec: now.Sub(l.Time).Seconds(),
+		})
+	}
 	return rateView{
 		Rate:    c.Rate,
 		Hops:    c.Hops,
@@ -43,7 +62,7 @@ func viewOf(c fx.Conversion) rateView {
 		Path:    c.Path,
 		Sources: c.Sources,
 		Quality: c.Quality,
-		Legs:    c.Legs,
+		Legs:    legs,
 		Quotes:  c.Quotes,
 	}
 }
@@ -66,7 +85,7 @@ func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
 			// to a pair whose rate is not representable.
 			continue
 		}
-		rates[ccy] = viewOf(c)
+		rates[ccy] = viewOf(c, now)
 	}
 	s.writeJSON(w, map[string]any{
 		"base":     base,
@@ -94,7 +113,8 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	c, err := fx.Describe(s.engine.Snapshot(), from, to, amount, s.now().UTC())
+	now := s.now().UTC()
+	c, err := fx.Describe(s.engine.Snapshot(), from, to, amount, now)
 	if err != nil {
 		// Non-finite amounts and unrepresentable products both parse fine but
 		// make the JSON encoder fail mid-write, leaving the client with a 200
@@ -112,7 +132,7 @@ func (s *Server) handleConvert(w http.ResponseWriter, r *http.Request) {
 		"to":     c.To,
 		"amount": c.Amount,
 		"result": c.Result,
-		"rate":   viewOf(c),
+		"rate":   viewOf(c, now),
 	})
 }
 

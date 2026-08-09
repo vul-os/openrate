@@ -248,3 +248,58 @@ func TestServeAcceptsAnyEngineImplementation(t *testing.T) {
 		t.Errorf("2 USD→ZAR = %v, want 37", body.Result)
 	}
 }
+
+// TestLegWireShapeIsStable pins the exact keys of a leg on the wire. The
+// refactor broke this once: fx.Leg carries the quote's `time`, the API has
+// always published an `age_sec` instead, and returning the library type
+// directly silently changed both. Every consumer reading legs[].age_sec would
+// have got nothing, with a 200 and valid JSON to hide it.
+func TestLegWireShapeIsStable(t *testing.T) {
+	// An hour after the quotes, so a leg's age is a number this test can pin
+	// rather than the zero any broken computation would also produce.
+	const ageSec = 3600
+	mux := http.NewServeMux()
+	serve.New(populatedEngine(t, testEdges, 3), serve.Options{
+		Now: func() time.Time { return apiTestTime.Add(ageSec * time.Second) },
+	}).Routes(mux)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/v1/convert?from=EUR&to=ZAR&amount=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var body struct {
+		Rate struct {
+			Hops int              `json:"hops"`
+			Legs []map[string]any `json:"legs"`
+		} `json:"rate"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Rate.Hops != 2 || len(body.Rate.Legs) != 2 {
+		t.Fatalf("EUR→ZAR should triangulate through USD: hops %d, %d legs — the fixture is not exercising multiple legs",
+			body.Rate.Hops, len(body.Rate.Legs))
+	}
+	want := map[string]bool{"from": true, "to": true, "rate": true, "source": true, "age_sec": true}
+	for i, leg := range body.Rate.Legs {
+		for k := range leg {
+			if !want[k] {
+				t.Errorf("leg %d carries an unexpected key %q (the wire shape is from/to/rate/source/age_sec)", i, k)
+			}
+		}
+		for k := range want {
+			if _, ok := leg[k]; !ok {
+				t.Errorf("leg %d is missing %q", i, k)
+			}
+		}
+		// The key being present is not enough: it has to carry the leg's real
+		// age. A hard-coded or forgotten computation shows up as 0 here.
+		if age, ok := leg["age_sec"].(float64); !ok || age != ageSec {
+			t.Errorf("leg %d age_sec = %v, want %d (the quote is an hour old on this clock)", i, leg["age_sec"], ageSec)
+		}
+	}
+}
