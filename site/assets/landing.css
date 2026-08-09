@@ -458,6 +458,12 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 /* consequence chain */
 .chain { display: flex; flex-direction: column; gap: 9px; font-family: var(--mono); font-size: 12px; }
 .chain .step { display: flex; align-items: center; gap: 10px; color: var(--text-4); }
+/* The one place --text-5 still paints a glyph, and the only one it is allowed
+   to: a leading · that opens each row of a list that is already a list. It
+   carries no information, and index.html marks every one of them
+   aria-hidden so nothing announces it. scripts/check-contrast.mjs holds both
+   halves of that claim together — the exception is only valid while the
+   aria-hidden attributes are actually there. */
 .chain .step i { font-style: normal; color: var(--text-5); flex: none; width: 12px; }
 .chain .step b { color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 .chain .out { display: flex; align-items: center; gap: 12px; margin-top: 6px; padding-top: 13px; border-top: 1px solid var(--line); }
@@ -499,12 +505,21 @@ h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
    that scrolls sideways inside the page is a figure a reader never finishes. */
 .recon { margin-top: clamp(20px, 3vw, 30px); padding-top: 18px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; }
 .recon-row { display: flex; flex-direction: column; gap: 5px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.recon-row .rk { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-4); }
-.recon-row .rk small { display: block; font-size: 11px; letter-spacing: .05em; text-transform: none; color: var(--text-5); }
+/* The pair key steps up to --text-3 and its note down to --text-4, rather than
+   --text-4 over --text-5. Both lines are prose a reader has to read, and on
+   --paper (this plate's surface) --text-5 measured 2.25:1 dark / 2.42:1 light
+   — the worst text in the whole page. --text-4 measures 4.53:1 / 5.35:1 there,
+   and moving the key up a tier keeps the two lines distinguishable by weight
+   as well as by case. */
+.recon-row .rk { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+.recon-row .rk small { display: block; font-size: 11px; letter-spacing: .05em; text-transform: none; color: var(--text-4); }
 .recon-row .rv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; font-size: clamp(12.5px, 1.4vw, 15px); color: var(--text-3); overflow-wrap: anywhere; }
 .recon-row .rv .leg { font-weight: 600; color: var(--text); }
 .recon-row .rv .prod { font-weight: 600; color: var(--teal); }
-.recon-row .op { font-style: normal; color: var(--text-5); }
+/* × and = are the arithmetic, not punctuation between decorations: with the
+   operators invisible the row is three numbers in a line and says nothing.
+   --text-5 measured 2.25:1 on --paper; this measures 4.53:1. */
+.recon-row .op { font-style: normal; color: var(--text-4); }
 .recon-row .rr { font-size: 11.5px; letter-spacing: .04em; color: var(--text-4); overflow-wrap: anywhere; }
 .recon-row .rr .rate { color: var(--text-2); font-weight: 500; }
 /* A zero residual is not good news to be coloured green — it is one pair's

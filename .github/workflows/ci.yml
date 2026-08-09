@@ -102,6 +102,29 @@ jobs:
           go vet -tags noui ./...
           go test -tags noui ./...
 
+      # Pinned rather than relying on whatever the runner image happens to
+      # carry: both gates below are plain ESM with no dependencies, and the
+      # only thing that could break them is a Node old enough to lack
+      # String.replaceAll.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Two site gates that need no browser and no network. Both are
+      # mutation-tested by their own --selftest, and the selftest runs FIRST:
+      # a checker that cannot fail is not evidence, and this repo has shipped
+      # that shape before.
+      - name: Site — muted text tiers measured against WCAG AA
+        run: |
+          node scripts/check-contrast.mjs --selftest
+          node scripts/check-contrast.mjs --report
+
+      - name: Site — docs chrome, and no outbound origin anywhere in site/
+        run: |
+          node scripts/check-docs-chrome.mjs --selftest
+          node scripts/check-docs-chrome.mjs
+
   # openrate is a library first and a server second, and every part of that
   # claim is invisible to the job above. `go test ./...` runs INSIDE the module,
   # where internal/ is reachable, nothing distinguishes a package the pure core
