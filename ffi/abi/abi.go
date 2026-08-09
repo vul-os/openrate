@@ -1,0 +1,250 @@
+// Package abi is the language-neutral half of openrate's C ABI: a handle
+// registry, a method dispatcher, and the JSON shapes that cross the boundary.
+//
+// It contains no cgo. That is deliberate — everything with behaviour lives
+// here, where it is testable by `go test ./...` on a machine with no C
+// toolchain, and the cgo layer above it (package main in ../) is a thin
+// translation of C strings to Go strings and back. A bug that matters is
+// therefore reachable by a normal Go test, and the part that can only be
+// exercised through a real shared library stays small enough to read.
+//
+// # The design this must not break
+//
+// openrate's central property is that an Engine computes and a Refresher
+// fetches, and that the two are constructed separately, so a host that builds
+// only an Engine sends no packets — ever, not "unless configured". The ABI
+// preserves that shape rather than papering over it: openrate_new builds an
+// Engine and nothing else, and a Refresher is a second, explicit construction
+// with its own handle and its own lifetime. There is no "start everything"
+// entry point, because there is no such thing in the library.
+//
+// # Handles
+//
+// Handles are uint64 keys into a registry guarded by a mutex, never pointers
+// cast to integers. A host that uses a handle after closing it, or invents one,
+// gets an error string back rather than a segfault in someone else's address
+// space.
+package abi
+
+import (
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/vul-os/openrate"
+)
+
+// object is one live thing behind a handle. Both kinds answer openrate_call,
+// which is what keeps the C surface to a single dispatch function.
+type object interface {
+	// kindName is used in error messages, so "convert on a refresher" says
+	// which kind of handle the caller actually passed.
+	kindName() string
+	call(method string, req []byte) ([]byte, error)
+	// close releases whatever the object started. It must be idempotent-safe
+	// from the registry's point of view: the registry only calls it once.
+	close()
+}
+
+var (
+	mu      sync.Mutex
+	next    uint64 = 1
+	objects        = map[uint64]object{}
+)
+
+// register stores obj and returns its handle. Handles start at 1 so that 0 is
+// always invalid, which is what openrate_new returns on failure.
+func register(obj object) uint64 {
+	h := reserve()
+	install(h, obj)
+	return h
+}
+
+// reserve allocates a handle without publishing anything under it. It exists
+// for an object that needs to know its own handle — a refresher, which the
+// engine that owns it must be able to unregister — so the handle can be built
+// into the object BEFORE the object becomes reachable, rather than written into
+// it afterwards while another thread could already be closing it.
+func reserve() uint64 {
+	mu.Lock()
+	defer mu.Unlock()
+	h := next
+	next++
+	return h
+}
+
+func install(h uint64, obj object) {
+	mu.Lock()
+	defer mu.Unlock()
+	objects[h] = obj
+}
+
+func lookup(h uint64) (object, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	obj, ok := objects[h]
+	if !ok {
+		return nil, fmt.Errorf("openrate: handle %d is not open (never created, or already closed)", h)
+	}
+	return obj, nil
+}
+
+// take removes a handle and returns what was behind it, or ok=false if the
+// handle was not open. Removal happens under the lock so two concurrent closes
+// cannot both run the teardown.
+func take(h uint64) (object, bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	obj, ok := objects[h]
+	if ok {
+		delete(objects, h)
+	}
+	return obj, ok
+}
+
+// OpenHandles reports how many handles are currently live. It exists for tests
+// — a leak here is a leak in the host's address space that nothing else would
+// notice.
+func OpenHandles() int {
+	mu.Lock()
+	defer mu.Unlock()
+	return len(objects)
+}
+
+// New builds an Engine and returns its handle.
+//
+// configJSON may be empty or "null". Fields:
+//
+//	{"base": "ZAR", "quiet": false}
+//
+// base is the presentation default (see [openrate.EngineOptions]); quiet
+// silences the library's slog output, which a host embedding this in another
+// language's process usually wants, since it lands on that process's stderr.
+//
+// This constructs an Engine. It starts no goroutine, opens no socket, reads no
+// environment variable and sends no packet.
+func New(configJSON string) (uint64, error) {
+	var cfg engineConfig
+	if err := decodeConfig(configJSON, &cfg); err != nil {
+		return 0, err
+	}
+	e := openrate.NewEngine(openrate.EngineOptions{
+		Base:   cfg.Base,
+		Logger: logger(cfg.Quiet),
+	})
+	return register(&engineObj{e: e, now: time.Now}), nil
+}
+
+// NewRefresher builds a Refresher over the Engine behind engineHandle and
+// returns its own, separate handle.
+//
+// configJSON fields:
+//
+//	{"sources": "ecb,coinbase", "interval_ms": 3600000,
+//	 "fetch_timeout_ms": 50000, "quiet": false}
+//
+// sources is a comma-separated spec resolved by [fxsource.Build], which is
+// pure: it never consults the environment, so no API key a host happens to
+// carry can widen the set. An empty spec means openrate's compiled-in defaults.
+//
+// Constructing a Refresher still sends no packet. Fetching begins when the
+// caller invokes the "refresh" or "start" method on this handle.
+func NewRefresher(engineHandle uint64, configJSON string) (uint64, error) {
+	obj, err := lookup(engineHandle)
+	if err != nil {
+		return 0, err
+	}
+	eo, ok := obj.(*engineObj)
+	if !ok {
+		return 0, fmt.Errorf("openrate: handle %d is a %s, not an engine; a refresher is built over an engine",
+			engineHandle, obj.kindName())
+	}
+	h := reserve()
+	ro, err := newRefresherObj(eo.e, h, configJSON)
+	if err != nil {
+		return 0, err
+	}
+	install(h, ro)
+	eo.adopt(ro)
+	return h, nil
+}
+
+// Call dispatches one unary method against a handle and returns the response
+// JSON. It returns an error for an unknown handle, a method the handle's kind
+// does not have, malformed request JSON, or a failure from the library itself
+// (an unknown currency pair, say). There is no partial success: on error the
+// response is empty and the error string is the whole story.
+func Call(h uint64, method, requestJSON string) (string, error) {
+	obj, err := lookup(h)
+	if err != nil {
+		return "", err
+	}
+	out, err := obj.call(method, []byte(requestJSON))
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// Close releases a handle. Closing an engine also stops and releases every
+// refresher built over it, so a host cannot leak a running ticker by closing
+// things in the wrong order. Closing an unknown or already-closed handle is a
+// no-op, not an error — a double free from the host must not be fatal.
+func Close(h uint64) {
+	obj, ok := take(h)
+	if !ok {
+		return
+	}
+	obj.close()
+}
+
+// decodeConfig accepts the empty string and "null" as "no configuration", so a
+// C caller may pass NULL for a config it has nothing to say about.
+func decodeConfig(s string, into any) error {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	if err := json.Unmarshal([]byte(trimmed), into); err != nil {
+		return fmt.Errorf("openrate: config is not valid JSON: %w", err)
+	}
+	return nil
+}
+
+// decodeRequest is decodeConfig for a call's request document. It is a separate
+// function only so the error message names the right thing.
+func decodeRequest(b []byte, into any) error {
+	trimmed := strings.TrimSpace(string(b))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	if err := json.Unmarshal([]byte(trimmed), into); err != nil {
+		return fmt.Errorf("openrate: request is not valid JSON: %w", err)
+	}
+	return nil
+}
+
+// logger returns the library default, or a discarding one when the host asked
+// for quiet. The library's own default writes to slog.Default(), which in a
+// hosted process is that process's stderr — worth being able to switch off, and
+// worth NOT switching off by default, so a refresh failure is still visible.
+func logger(quiet bool) *slog.Logger {
+	if quiet {
+		return slog.New(slog.DiscardHandler)
+	}
+	return nil
+}
+
+// marshal is the one place a response becomes bytes. Compact, not indented: the
+// HTTP API indents for a human reading curl output, and an FFI response is read
+// by a parser.
+func marshal(v any) ([]byte, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("openrate: encoding the response failed: %w", err)
+	}
+	return b, nil
+}
