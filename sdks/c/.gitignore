@@ -1,0 +1,5 @@
+# Built examples
+direct_convert
+sidecar_convert
+*.o
+*.dSYM/
