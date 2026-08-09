@@ -84,7 +84,7 @@ build_one() {
 
   # -trimpath keeps the building machine's paths out of the artifact.
   if env "${envv[@]}" \
-      go build -trimpath -buildmode=c-shared -o "$lib" "$root/ffi" 2>&1 | sed 's/^/    /'; then
+      go build -C "$root/ffi" -trimpath -buildmode=c-shared -o "$lib" . 2>&1 | sed 's/^/    /'; then
     # The header cgo emits lands next to the library with a matching stem.
     if [ -f "${lib%.*}.h" ] && [ "${lib%.*}.h" != "$hdr" ]; then
       mv "${lib%.*}.h" "$hdr"

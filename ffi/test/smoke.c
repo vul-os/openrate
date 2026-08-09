@@ -45,6 +45,12 @@
 
 #include "openrate.h"
 
+/*
+ * The exact number of checks a complete run performs. Asserted at the end; see
+ * the note there.
+ */
+#define EXPECTED_CHECKS 40
+
 /* ------------------------------------------------------------------ */
 /* Tiny test harness                                                    */
 /* ------------------------------------------------------------------ */
@@ -362,19 +368,38 @@ int main(int argc, char **argv) {
   openrate_free_(NULL);
   ok(1, "openrate_free(NULL) is safe");
 
+  /*
+   * Handles are never recycled. openrate and llmux share this convention
+   * because it is what makes use-after-close READABLE: if a freed number could
+   * come back, a stale handle in one part of a host program would silently
+   * reach an object another part had just created, and nothing would report a
+   * problem. Checked here rather than only in Go, because it is a promise made
+   * to C callers.
+   */
+  uint64_t first = openrate_new_("{\"quiet\":true}", &err);
+  openrate_close_(first);
+  uint64_t second = openrate_new_("{\"quiet\":true}", &err);
+  ok(first != 0 && second != 0 && first != second,
+     "a closed handle's number is retired, not handed out again");
+  openrate_close_(second);
+
   /* --- verdict --------------------------------------------------------- */
   printf("\nsmoke: %d checks, %d failure(s)\n", checks, failures);
 
   /*
-   * Coverage floor. A smoke test that stopped executing its body — an early
-   * return, a #if that excluded everything — would print "0 failures" and exit
-   * 0, which is the exact shape of a green tick over nothing.
+   * Coverage floor, and an EXACT one. A smoke test that stopped executing its
+   * body — an early return, a #if that excluded everything, a branch that
+   * skipped a section — would print "0 failures" and exit 0, which is the exact
+   * shape of a green tick over nothing. An exact count also catches the
+   * opposite mistake: a check silently duplicated or deleted while the suite
+   * still looks healthy. Update EXPECTED_CHECKS deliberately when adding one.
    */
-  if (checks < 35) {
+  if (checks != EXPECTED_CHECKS) {
     fprintf(stderr,
-            "smoke: only %d checks ran; at least 35 are expected. This run did not "
-            "exercise the ABI, whatever its exit code says.\n",
-            checks);
+            "smoke: %d checks ran, expected exactly %d. Either a section did not execute — in "
+            "which case this run did not test what it claims to, whatever its exit code says — "
+            "or checks were added without updating EXPECTED_CHECKS.\n",
+            checks, EXPECTED_CHECKS);
     return 3;
   }
   return failures == 0 ? 0 : 1;

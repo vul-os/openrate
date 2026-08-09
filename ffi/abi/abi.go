@@ -2,11 +2,17 @@
 // registry, a method dispatcher, and the JSON shapes that cross the boundary.
 //
 // It contains no cgo. That is deliberate — everything with behaviour lives
-// here, where it is testable by `go test ./...` on a machine with no C
+// here, where it is testable by a normal `go test` on a machine with no C
 // toolchain, and the cgo layer above it (package main in ../) is a thin
 // translation of C strings to Go strings and back. A bug that matters is
-// therefore reachable by a normal Go test, and the part that can only be
+// therefore reachable by an ordinary Go test, and the part that can only be
 // exercised through a real shared library stays small enough to read.
+//
+// This is a separate module (see ../go.mod), so the repository root's
+// `go test ./...` does NOT run these tests. CI runs them explicitly through
+// scripts/go-test-gate.sh, with a floor and a list of required test names, for
+// the same reason it does that for embedtest: a suite nobody notices has
+// stopped running is worse than no suite.
 //
 // # The design this must not break
 //

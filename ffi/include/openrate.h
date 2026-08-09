@@ -25,15 +25,19 @@
  * allocator. openrate_free(NULL) is safe.
  *
  * Every fallible entry point takes a `char** err`. It is set to NULL before the
- * work starts and, on failure only, to a malloc'd UTF-8 message. Passing NULL
- * for err is allowed: the return value still reports the failure.
+ * work starts and, on failure only, to a malloc'd message. The message is PLAIN
+ * UTF-8 TEXT, not JSON — do not try to parse it. Passing NULL for err is
+ * allowed: the return value still reports the failure.
  *
  * ---------------------------------------------------------------------------
  * Handles
  * ---------------------------------------------------------------------------
  * A handle is a uint64 key into a registry inside the library, never a pointer.
- * 0 is never a valid handle. Using a closed or invented handle is a clean error,
- * not a crash in your address space.
+ * 0 is never a valid handle, and a closed handle's number is RETIRED rather than
+ * recycled. That is what makes use-after-close readable: a stale handle can only
+ * ever produce "handle N is not open", never silent access to whatever object
+ * happened to be created next. Using a closed or invented handle is a clean
+ * error, not a crash in your address space.
  *
  * There are two kinds, and the difference is openrate's whole design:
  *
@@ -65,9 +69,11 @@
  * Streaming
  * ---------------------------------------------------------------------------
  * There is deliberately no openrate_stream(). openrate answers from a snapshot
- * it already holds; it has no incremental operation to stream. llmux, which
- * shares this ABI shape, does have one and does define openrate_stream's
- * counterpart. See ffi/README.md.
+ * it already holds; there is no incremental operation to stream, so an empty
+ * callback entry point added for symmetry would be a promise with nothing behind
+ * it. llmux, which shares this ABI shape, DOES define llmux_stream, because chat
+ * streaming is its main event. The omission is stated in ffi/README.md rather
+ * than left as a gap a reader has to notice.
  */
 
 #ifndef OPENRATE_H

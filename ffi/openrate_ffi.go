@@ -6,16 +6,17 @@
 //
 // It is built with `go build -buildmode=c-shared` (see scripts/build-ffi.sh)
 // and is deliberately thin. Every decision — what a handle is, what a method
-// does, what JSON goes over the boundary — lives in ffi/abi, which contains no
-// cgo and is therefore covered by the ordinary `go test ./...` run. What is
-// left here is the part that can only be written in cgo: turning a `char*` into
-// a Go string, and a Go string into a `malloc`'d `char*` the caller frees.
+// does, what JSON goes over the boundary — lives in ./abi, which contains no
+// cgo and is covered by ordinary Go tests. What is left here is the part that
+// can only be written in cgo: turning a `char*` into a Go string, and a Go
+// string into a `malloc`'d `char*` the caller frees.
 //
 // # The contract, in one paragraph
 //
-// Handles are uint64 keys into a Go-side registry; 0 is never valid. Every
-// entry point that can fail takes a `char** err`; on failure it returns 0 or
-// NULL and writes a `malloc`'d UTF-8 message there. Everything this library
+// Handles are uint64 keys into a Go-side registry; 0 is never valid, and a
+// closed handle's number is retired rather than recycled. Every entry point
+// that can fail takes a `char** err`; on failure it returns 0 or NULL and
+// writes a `malloc`'d, plain-UTF-8 (not JSON) message there. Everything this library
 // returns — results and error strings alike — is freed with openrate_free, and
 // with nothing else: it comes from C.CString, so the host's allocator is not
 // necessarily the one that made it.
@@ -37,7 +38,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/vul-os/openrate/ffi/abi"
+	"github.com/vul-os/openrate-ffi/abi"
 )
 
 // main exists because -buildmode=c-shared requires a main package. It never

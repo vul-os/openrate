@@ -59,7 +59,7 @@ echo
 
 lib="$work/libopenrate.$ext"
 echo "==> building the shared library"
-CGO_ENABLED=1 go build -buildmode=c-shared -o "$lib" "$root/ffi" || fail "the shared library did not build"
+CGO_ENABLED=1 go build -C "$root/ffi" -buildmode=c-shared -o "$lib" . || fail "the shared library did not build"
 echo "    $(wc -c < "$lib" | tr -d ' ') bytes"
 
 smoke="$work/smoke"
@@ -141,7 +141,7 @@ mutate() {
   printf '{"Replace":{"%s":"%s"}}\n' "$src" "$dst" > "$dir/overlay.json"
 
   local mlib="$dir/libopenrate.$ext"
-  if ! CGO_ENABLED=1 go build -overlay "$dir/overlay.json" -buildmode=c-shared -o "$mlib" "$root/ffi" >"$dir/build.log" 2>&1; then
+  if ! CGO_ENABLED=1 go build -C "$root/ffi" -overlay "$dir/overlay.json" -buildmode=c-shared -o "$mlib" . >"$dir/build.log" 2>&1; then
     fail "mutation '$desc' did not compile; a mutation that cannot be built proves nothing:
 $(cat "$dir/build.log")"
   fi

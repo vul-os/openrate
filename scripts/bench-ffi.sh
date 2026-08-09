@@ -34,11 +34,11 @@ dl_flags=()
 [ "$goos" = "linux" ] && dl_flags=(-ldl)
 
 echo "bench-ffi: building the shared library"
-CGO_ENABLED=1 go build -buildmode=c-shared -o "$work/libopenrate.$ext" "$root/ffi" \
+CGO_ENABLED=1 go build -C "$root/ffi" -buildmode=c-shared -o "$work/libopenrate.$ext" . \
   || fail "the shared library did not build"
 
 echo "bench-ffi: building the loopback server (openrate's real HTTP API)"
-go build -o "$work/loopback" "$root/ffi/bench/loopback" || fail "the loopback server did not build"
+go build -C "$root/ffi" -o "$work/loopback" ./bench/loopback || fail "the loopback server did not build"
 
 echo "bench-ffi: compiling the benchmark"
 "$cc" -std=c11 -O2 -Wall -Wextra -I "$root/ffi/include" -o "$work/bench" \
