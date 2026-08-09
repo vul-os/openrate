@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Five new guides**, taking the published set from nine pages to fourteen:
+  [docs/quickstart.md](docs/quickstart.md) (one starting point per audience),
+  [docs/deployment-modes.md](docs/deployment-modes.md) (library / CLI /
+  sidecar / C ABI, with the measured cost and size of each),
+  [docs/zero-network.md](docs/zero-network.md) (the Engine/Refresher split as
+  a counted guarantee, with the tests and their controls),
+  [docs/c-abi.md](docs/c-abi.md) (the map into `ffi/`, with the costs in one
+  screen) and [docs/troubleshooting.md](docs/troubleshooting.md).
+- **`scripts/check-contrast.mjs`** — recomputes every text tier's WCAG
+  contrast from the hex values that ship. `--selftest` breaks it eight ways.
+- **`scripts/check-docs-chrome.mjs`** — no `<footer>` on the docs page, the
+  sidebar pinned and the shell packed left, no origin under `site/` that a
+  browser would fetch, the sidebar's groups agreeing with the viewer's `DOCS`
+  array, and every fenced language present in the vendored highlighter.
+  `--selftest` breaks it seventeen ways. The suite's canonical chrome gate
+  remains `vulos-cloud/scripts/check-suite-chrome.mjs`; this mirrors exactly
+  one of its rules, and only because that gate cannot run in this repo's CI.
+
+### Fixed
+
+- **The two muted text tiers no longer carry text below WCAG AA**
+  (`OWNER-DECISIONS.md` §6). `--text-5` measured **2.04:1** at worst against
+  the page and was painting the docs' ordered-list markers, the `×` and `=` in
+  the reconciliation equation and its explanatory note; those are now
+  `--text-4`/`--text-3` at **4.53–5.83:1**. The one remaining use is a
+  decorative `·`, now `aria-hidden` in the markup so the exemption is
+  structural. Dead `.policy-card` rules deleted.
+- **Both pages overflowed a 320px viewport by 10px.** The header's own
+  contents — the wordmark plus three 44px controls — came to 330px. Neither
+  the tap-target floor nor the Vulos mark may give, so the gaps and the
+  wordmark's size do, below 380px.
+- **The landing displayed "33.5 MS" where it meant "33.5 µs".**
+  `text-transform: uppercase` maps `µ` to a capital Greek Mu, which renders as
+  an M — so the one performance claim on the page read as milliseconds.
+- **`c` and `python` code blocks rendered unhighlighted.** The vendored
+  highlight.js is a custom build and carried neither; rebuilt at 34,055 bytes
+  with both, and the new gate fails on any fence the bundle cannot serve.
+
+### Changed
+
+- **The docs viewer's sidebar is a real index**: five collapsible groups
+  remembered across navigation, the current page's headings nested underneath
+  it at the widths where the on-this-page rail is not drawn, search ranked
+  title → heading → prose with heading hits navigating into the page, full
+  keyboard control of the results (arrows, Enter, Escape, `/`), and the
+  sidebar's own scroll position preserved.
+
 ## [0.1.2] - 2026-08-09
 
 Every change below is **additive to the public API**. `Options` is unchanged
