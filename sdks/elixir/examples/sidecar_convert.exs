@@ -83,7 +83,10 @@ try do
   # 3. The all-pairs snapshot.
   {:ok, rates} = Openrate.rates("ZAR")
   sample = rates["rates"] |> Map.keys() |> Enum.sort() |> Enum.take(5) |> Enum.join(", ")
-  IO.puts("rates   : base #{rates["base"]}, #{map_size(rates["rates"])} currencies (#{sample}, …)")
+
+  IO.puts(
+    "rates   : base #{rates["base"]}, #{map_size(rates["rates"])} currencies (#{sample}, …)"
+  )
 
   # 4. The error path. Over HTTP an error is a status code and a JSON body,
   #    where the C ABI hands back a plain string in *err.

@@ -91,7 +91,7 @@ defmodule Openrate.HTTP do
             acc
 
           {size, _} ->
-            <<chunk::binary-size(size), "\r\n", tail::binary>> = tail
+            <<chunk::binary-size(^size), "\r\n", tail::binary>> = tail
             dechunk(tail, acc <> chunk)
 
           :error ->

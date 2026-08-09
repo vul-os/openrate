@@ -1,0 +1,14 @@
+# Mix build output and fetched dependencies. Never commit these: a concurrent
+# `git add -A` swept _build/ into this repository once already.
+/_build/
+/deps/
+/cover/
+/doc/
+erl_crash.dump
+*.ez
+*.beam
+.elixir_ls/
+
+# The bundled binary is built, not tracked:
+#   go build -o priv/bin/openrate ./cmd/openrate
+/priv/bin/
