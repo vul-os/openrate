@@ -19,6 +19,9 @@ var (
 	// ErrAmountOutOfRange means the amount and the rate are each finite but
 	// their product is not, so there is no representable answer to return.
 	ErrAmountOutOfRange = errors.New("amount out of range for this pair")
+	// ErrUnknownBase means a snapshot that does know some currencies does not
+	// know the one asked for as a presentation base.
+	ErrUnknownBase = errors.New("unknown base currency")
 )
 
 // SourceQuote is one source's direct quote for the pair, aged as of the moment

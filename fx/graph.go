@@ -93,6 +93,14 @@ func (s *Snapshot) Lookup(from, to string) (Pair, bool) {
 	return p, ok
 }
 
+// Has reports whether the snapshot knows this currency at all. Lookup cannot
+// answer that: it treats from == to as the identity and returns a rate of 1 for
+// any string, known or not.
+func (s *Snapshot) Has(ccy string) bool {
+	_, ok := s.matrix[ccy]
+	return ok
+}
+
 // DirectQuotes returns every source's directly-quoted rate for from->to (inverse
 // edges are folded in), used to assess cross-source agreement.
 func (s *Snapshot) DirectQuotes(from, to string) []Quote {
