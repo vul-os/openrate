@@ -20,8 +20,9 @@
 //
 //   - /healthz answers `ok` the instant the listener is up, BEFORE any source
 //     has been fetched. It is a liveness probe, not a readiness one. Readiness
-//     is "/api/v1/meta reports a non-empty currencies list", and that is what
-//     waitReady polls for. (The library's equivalent is Refresher.Ready.)
+//     is GET /readyz — 503 with a reason until a conversion would succeed, 200
+//     once it would — and that is what waitReady polls. (The library's
+//     equivalent is Refresher.Ready.)
 //   - GET /api/v1/rates with an unknown base answers 200 with an empty book,
 //     where the library returns ErrUnknownBase. That is the one deliberate
 //     difference between the two surfaces, and a client that only checks the
@@ -31,6 +32,12 @@
 //
 //	go build -o /tmp/openrate ./cmd/openrate
 //	go run ./sdks/go/examples/sidecar -bin /tmp/openrate
+//
+// To see the failure path — every source unreachable — point the child at a
+// dead proxy and give readiness a short budget:
+//
+//	HTTPS_PROXY=http://127.0.0.1:1 HTTP_PROXY=http://127.0.0.1:1 \
+//	  go run ./sdks/go/examples/sidecar -bin /tmp/openrate -ready-timeout 5s
 package main
 
 import (
@@ -61,6 +68,8 @@ func run() error {
 		"path to the openrate binary (or a name on PATH)")
 	sources := flag.String("sources", "ecb", "sources for the child to fetch")
 	base := flag.String("base", "EUR", "default presentation base currency")
+	readyTimeout := flag.Duration("ready-timeout", 45*time.Second,
+		"how long to wait for the child to hold rates (short values show the failure path)")
 	flag.Parse()
 
 	sc, err := startSidecar(*bin, *base, *sources)
@@ -80,9 +89,19 @@ func run() error {
 	// Liveness first — this returns almost immediately.
 	fmt.Println("healthz:  ", sc.mustHealthz(ctx))
 	// Then readiness, which is a different question with a different answer.
-	meta, err := sc.waitReady(ctx, 45*time.Second)
+	ready, err := sc.waitReady(ctx, *readyTimeout)
 	if err != nil {
 		return err
+	}
+	fmt.Printf("readyz:    ready=%t currencies=%d built_at=%s\n",
+		ready.Ready, ready.Currencies, ready.BuiltAt)
+
+	// /readyz counts the currencies and does not name the presentation base, so
+	// meta is still the place to ask for that. It is an ordinary API call here,
+	// not a readiness probe.
+	var meta metaResponse
+	if err := sc.getJSON(ctx, "/api/v1/meta", &meta); err != nil {
+		return fmt.Errorf("meta: %w", err)
 	}
 	fmt.Printf("meta:      base=%s currencies=%d built_at=%s\n",
 		meta.DefaultBase, len(meta.Currencies), meta.BuiltAt)
@@ -141,6 +160,20 @@ type metaResponse struct {
 	BuiltAt     string         `json:"built_at"`
 	Currencies  []string       `json:"currencies"`
 	Sources     []sourceStatus `json:"sources"`
+}
+
+// readyResponse is GET /readyz, on both the 200 and the 503. Same document
+// either way, which is what makes the 503 worth reading rather than discarding.
+//
+// Note "currencies" is a COUNT here and a []string in metaResponse, and there
+// is no default_base: /readyz answers "could I convert?", not "what am I
+// serving?". Reason is set only on the 503.
+type readyResponse struct {
+	Ready      bool           `json:"ready"`
+	Currencies int            `json:"currencies"`
+	BuiltAt    string         `json:"built_at"`
+	Reason     string         `json:"reason,omitempty"`
+	Sources    []sourceStatus `json:"sources"`
 }
 
 // conversion is GET /api/v1/convert.
@@ -208,6 +241,11 @@ func startSidecar(bin, base, sources string) (*sidecar, error) {
 	// -ui=false leaves only the JSON API. The embedded console is a nice thing
 	// to serve to humans and dead weight in a supervised sidecar.
 	cmd := exec.Command(bin, "-addr", addr, "-base", base, "-sources", sources, "-ui=false")
+	// The child listens on loopback and serves exactly one client: this process.
+	// openrate's 120/min limiter is anti-scraping for a public deployment and
+	// there is no stranger here to throttle — while a legitimate batch of
+	// conversions would sail past it and take a 429 from our own sidecar.
+	cmd.Env = append(os.Environ(), "OPENRATE_RATELIMIT=0")
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -270,8 +308,8 @@ func (s *sidecar) waitLive(timeout time.Duration) error {
 	return fmt.Errorf("openrate did not listen within %s: %w", timeout, last)
 }
 
-// waitReady polls /api/v1/meta until the engine holds at least one currency,
-// and returns an ERROR if it never does.
+// waitReady polls /readyz until it answers 200, and returns an ERROR if it
+// never does.
 //
 // This is the HTTP equivalent of Refresher.Ready, and it is a different
 // question from /healthz — which answers ok the instant the listener binds,
@@ -281,46 +319,94 @@ func (s *sidecar) waitLive(timeout time.Duration) error {
 // because that message reads like a bad currency code rather than like "this
 // server has no rates yet".
 //
-// The delay backs off from 100ms to a 2s ceiling. A fixed 200ms poll is 300
-// requests a minute, and `openrate serve` ships an anti-scraping rate limiter
-// at 120/minute per IP, so a long wait gets itself a 429 from the very server
-// it is waiting for. (The Rust SDK's first version did exactly that and failed
-// on its first run.) With backoff a 45-second wait is about 25 requests.
-func (s *sidecar) waitReady(ctx context.Context, timeout time.Duration) (*metaResponse, error) {
+// A fixed 150ms interval is right here. /readyz sits outside /api/, and the
+// server's guard() rate-limits /api/ paths only, so this loop cannot spend the
+// budget it is waiting to use. (The version before this one polled /api/v1/meta
+// — which IS limited — and needed exponential backoff to stay under 120/min.)
+//
+// Every non-200 answer is kept, not discarded, because the 503 body is the
+// whole diagnostic: a reason, plus each source's last_error. That is what turns
+// a bare "timed out" into "ecb: connection refused".
+func (s *sidecar) waitReady(ctx context.Context, timeout time.Duration) (*readyResponse, error) {
 	deadline := time.Now().Add(timeout)
-	var last metaResponse
-	delay := 100 * time.Millisecond
-	const maxDelay = 2 * time.Second
-	for time.Now().Before(deadline) {
-		var m metaResponse
-		if err := s.getJSON(ctx, "/api/v1/meta", &m); err != nil {
-			return nil, fmt.Errorf("meta: %w", err)
+	// Until something answers, the honest report is that nothing has.
+	last := "no answer from /readyz"
+	for {
+		r, cause, err := s.readyz(ctx)
+		if err != nil {
+			return nil, err
 		}
-		if len(m.Currencies) > 0 {
-			return &m, nil
+		if r != nil {
+			return r, nil
 		}
-		last = m
+		last = cause
+		if !time.Now().Before(deadline) {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(delay):
-			if delay *= 2; delay > maxDelay {
-				delay = maxDelay
-			}
+		case <-time.After(150 * time.Millisecond):
 		}
 	}
-	// Report the source errors rather than just "timed out": the reason is
-	// almost always one named source failing, and meta already knows which.
+	return nil, fmt.Errorf("openrate has no rates after %s: %s", timeout, last)
+}
+
+// readyz makes one GET /readyz. It returns the parsed document on a 200, and
+// otherwise a human-readable cause: the 503's reason and failing sources, or
+// the transport error from a listener that is not answering yet. Only a
+// genuinely un-pollable condition (a bad request) comes back as an error.
+func (s *sidecar) readyz(ctx context.Context) (*readyResponse, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.BaseURL+"/readyz", nil)
+	if err != nil {
+		return nil, "", err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		// Connection refused: the listener is not up yet. Keep the text and
+		// keep polling — it is the right thing to print if we never get past it.
+		return nil, err.Error(), nil
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "reading /readyz: " + err.Error(), nil
+	}
+	var r readyResponse
+	if jsonErr := json.Unmarshal(data, &r); jsonErr != nil {
+		return nil, fmt.Sprintf("%s from /readyz: %s", resp.Status, strings.TrimSpace(string(data))), nil
+	}
+	if resp.StatusCode == http.StatusOK {
+		return &r, "", nil
+	}
+	return nil, whyNotReady(resp.Status, &r), nil
+}
+
+// whyNotReady renders a not-ready answer as one line: the server's reason, then
+// every source that has actually failed.
+//
+//	no rates yet: no source has returned a usable quote (ecb: dial tcp …: connection refused)
+//
+// The brackets have to be able to disappear. last_error is omitempty, so a
+// source that has not been tried yet — the common case in the first second of a
+// poll — has no such field, and a formatter that assumes one prints "(ecb: )".
+func whyNotReady(status string, r *readyResponse) string {
 	var why []string
-	for _, src := range last.Sources {
+	for _, src := range r.Sources {
 		if src.LastError != "" {
 			why = append(why, src.Name+": "+src.LastError)
 		}
 	}
-	if len(why) > 0 {
-		return nil, fmt.Errorf("no rates within %s (%s)", timeout, strings.Join(why, "; "))
+	reason := r.Reason
+	if reason == "" {
+		// Not a shape openrate emits today, but a caller staring at a bare
+		// status code is exactly what this whole endpoint exists to prevent.
+		reason = "not ready (" + status + ")"
 	}
-	return nil, fmt.Errorf("no rates within %s", timeout)
+	if len(why) == 0 {
+		return reason
+	}
+	return fmt.Sprintf("%s (%s)", reason, strings.Join(why, "; "))
 }
 
 func (s *sidecar) mustHealthz(ctx context.Context) string {

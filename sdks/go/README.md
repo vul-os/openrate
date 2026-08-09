@@ -66,12 +66,13 @@ engine now:    30 currencies
 EUR->USD:      100.00 EUR = 115.3500 USD (rate 1.153500, 1 hop(s) via [EUR USD], grade C, 61h22m33s old)
 
 ==> sidecar (child process over HTTP)
-sidecar:   http://127.0.0.1:59849 pid 93248
+sidecar:   http://127.0.0.1:51577 pid 85815
 healthz:   200 OK "ok" (liveness only — no rates implied)
-meta:      base=EUR currencies=30 built_at=2026-08-09T13:24:32.167666Z
+readyz:    ready=true currencies=30 built_at=2026-08-09T21:01:27.922149Z
+meta:      base=EUR currencies=30 built_at=2026-08-09T21:01:27.922149Z
   ecb        ok, 29 edges
 convert:   100.00 EUR = 115.3500 USD (rate 1.153500, 1 hop(s) via [EUR USD], grade C)
-rates(EUR): 29 pairs, built_at 2026-08-09T13:24:32.167666Z
+rates(EUR): 29 pairs, built_at 2026-08-09T21:01:27.922149Z
 rates(XXX): HTTP 200 with 0 pairs — the library would have returned ErrUnknownBase.
 ```
 
@@ -92,33 +93,56 @@ answers `200` with `"rates": {}`. A caller checking only the status code reads
 "no rates available" as success. The example demonstrates this rather than
 describing it.
 
-**3. `/healthz` is liveness, not readiness — and only the library has a real
-readiness signal.** This one is a genuine point in favour of the library path,
-so it is worth stating rather than glossing.
+**3. `/healthz` is liveness, not readiness — each surface has its own readiness
+signal, and they are not the same call.**
 
 In-process, `Refresher.Ready(ctx)` blocks until the engine holds at least one
 currency, and does not itself fetch. It is an actual signal: openrate closes a
 channel the first time a non-empty snapshot lands.
 
-Over HTTP there is nothing equivalent. `/healthz` answers `ok` the instant the
-listener binds, before any source has been fetched, so the best a client can do
-is **poll `/api/v1/meta` until the currency list is non-empty** — which is what
-`examples/sidecar` does, and what every one of this suite's SDKs had to
-reimplement independently.
+Over HTTP the equivalent is **`GET /readyz`**: `200` once a conversion would
+succeed, `503` until then, with a `reason` and each source's `last_error` in the
+body. `/healthz` answers `ok` the instant the listener binds, before any source
+has been fetched, and is the wrong question to ask.
 
-The failure mode if you skip it is nasty, because it is a false green that
-disguises itself as user error: the sidecar starts, `/healthz` returns 200,
+The failure mode if you skip readiness is nasty, because it is a false green
+that disguises itself as user error: the sidecar starts, `/healthz` returns 200,
 every conversion answers `{"error":"unknown or unreachable currency pair"}`, and
 a program that only checks the status code **exits 0**. "Unknown pair" reads
 like a bad currency code, not like "the server has no rates yet". Fail loudly
 on an empty result; do not treat a well-formed empty answer as success.
 
-Two further traps in the polling itself, both hit by SDKs in this repo:
-`openrate serve`'s anti-scraping limiter is **120 requests per minute per IP**,
-so a 200 ms poll gets itself a `429` from the server it is waiting for — back
-off. And the meta document is **pretty-printed**, so a readiness check written
-against the compact C-ABI shape (`"currencies":[`) never matches the HTTP one
-(`"currencies": [`).
+`examples/sidecar` polls `/readyz` every 150 ms and, on timeout, prints what the
+last 503 said rather than a deadline:
+
+```text
+openrate has no rates after 5s: no rates yet: no source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+Three things to carry into your own client:
+
+- **Keep the 503's body.** It is the diagnostic. An HTTP helper that discards
+  bodies on non-2xx turns this back into a bare timeout.
+- **`last_error` is `omitempty`.** A source that has not been tried yet has no
+  such field — the common case in the first second — so the message must degrade
+  to the reason alone rather than printing `(ecb: )`.
+- **A fixed short interval is correct.** `/readyz` and `/healthz` sit outside
+  `/api/`, and `guard()` rate-limits `/api/` paths only, so a readiness loop
+  cannot spend the budget it is waiting to use. The version of this example
+  that polled `/api/v1/meta` — which *is* limited — needed exponential backoff
+  to stay under **120 requests per minute per IP**; that constraint is gone.
+  (`/api/v1/meta` is still the place to ask what the server is serving:
+  `/readyz` reports `currencies` as a count and does not name the default base.)
+
+Related: the example starts its child with **`OPENRATE_RATELIMIT=0`**. That
+child listens on loopback and serves exactly one client — the limiter is
+anti-scraping for a public deployment and there is no stranger here to throttle,
+while a legitimate batch of conversions would sail past 120/min and take a `429`
+from your own sidecar.
+
+One more shape trap: openrate's JSON is **pretty-printed** by `writeJSON`, and
+`/readyz`'s 503 path is not, so a single endpoint answers indented on success
+and compact on failure. Decode it; do not match substrings.
 
 One more, worth knowing when writing any client: openrate's `writeJSON` sets a
 `200` header and *then* encodes, so a mid-body encoding failure yields a
