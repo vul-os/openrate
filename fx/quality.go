@@ -1,16 +1,15 @@
-// Package quality turns a rate's provenance into an explainable accuracy grade.
-// An FX number is only as good as where it came from, how fresh it is, how many
-// hops it was triangulated through, and whether independent sources agree. We
-// surface all of that with every price so consumers can decide if it's good
-// enough for their use.
-package quality
+package fx
 
 import (
 	"math"
 	"time"
-
-	"github.com/vul-os/openrate/fx"
 )
+
+// The accuracy model turns a rate's provenance into an explainable grade. An FX
+// number is only as good as where it came from, how fresh it is, how many hops
+// it was triangulated through, and whether independent sources agree. We
+// surface all of that with every price so consumers can decide if it's good
+// enough for their use.
 
 // Assessment is the per-rate accuracy report attached to API responses.
 type Assessment struct {
@@ -62,7 +61,7 @@ var defunct = map[string]string{
 }
 
 // Assess builds the accuracy report for a pair from->to.
-func Assess(from, to string, p fx.Pair, quotes []fx.Quote, now time.Time) Assessment {
+func Assess(from, to string, p Pair, quotes []Quote, now time.Time) Assessment {
 	conf := 1.0
 
 	// Freshness from the oldest edge on the path.
@@ -155,7 +154,7 @@ func sourceClass(sources []string) (string, float64) {
 	return classNames[min], factor
 }
 
-func corroborate(quotes []fx.Quote) (Corroboration, float64) {
+func corroborate(quotes []Quote) (Corroboration, float64) {
 	// Distinct sources only.
 	seen := map[string]float64{}
 	for _, q := range quotes {

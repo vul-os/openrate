@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/vul-os/openrate/fx"
-	"github.com/vul-os/openrate/internal/quality"
 )
 
 // classOf asks the quality model how it would grade a path whose only source is
@@ -13,11 +12,11 @@ import (
 func classOf(name string) string {
 	now := time.Now().UTC()
 	p := fx.Pair{Rate: 1, Hops: 1, AsOf: now, Sources: []string{name}}
-	return quality.Assess("USD", "ZAR", p, nil, now).SourceClass
+	return fx.Assess("USD", "ZAR", p, nil, now).SourceClass
 }
 
 // Every source that can put an edge in the graph must have an authority rank in
-// internal/quality. A source with no rank is not an error anywhere — it silently
+// fx. A source with no rank is not an error anywhere — it silently
 // grades as "unknown" (x0.8), quietly downgrading every rate whose path touches
 // it, and ACCURACY.md's source-class table would not mention it either.
 //
@@ -31,7 +30,7 @@ func TestEveryRegisteredSourceHasAQualityRank(t *testing.T) {
 	for name := range constructors {
 		checked++
 		if cls := classOf(name); cls == "unknown" {
-			t.Errorf("source %q is registered in constructors but has no rank in internal/quality.sourceRank: "+
+			t.Errorf("source %q is registered in constructors but has no rank in fx.sourceRank: "+
 				"every rate routed through it would be graded %q. Add it to sourceRank and to ACCURACY.md's source-class table.",
 				name, cls)
 		}

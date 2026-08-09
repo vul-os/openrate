@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/vul-os/openrate/fx"
-	"github.com/vul-os/openrate/internal/quality"
 	"github.com/vul-os/openrate/internal/store"
 )
 
@@ -55,15 +54,15 @@ type legView struct {
 }
 
 type rateView struct {
-	Rate    float64            `json:"rate"`
-	Hops    int                `json:"hops"`
-	AsOf    time.Time          `json:"as_of"`
-	AgeSec  float64            `json:"age_sec"`
-	Path    []string           `json:"path"`
-	Sources []string           `json:"sources"`
-	Quality quality.Assessment `json:"quality"`
-	Legs    []legView          `json:"legs"`   // each hop's actual rate + source (the calculation)
-	Quotes  []quoteView        `json:"quotes"` // per-source direct quotes behind the number
+	Rate    float64       `json:"rate"`
+	Hops    int           `json:"hops"`
+	AsOf    time.Time     `json:"as_of"`
+	AgeSec  float64       `json:"age_sec"`
+	Path    []string      `json:"path"`
+	Sources []string      `json:"sources"`
+	Quality fx.Assessment `json:"quality"`
+	Legs    []legView     `json:"legs"`   // each hop's actual rate + source (the calculation)
+	Quotes  []quoteView   `json:"quotes"` // per-source direct quotes behind the number
 }
 
 // view builds a rate view; from/to scope the quality assessment (currency
@@ -84,7 +83,7 @@ func view(snap *fx.Snapshot, from, to string, p fx.Pair, now time.Time) rateView
 		AgeSec:  now.Sub(p.AsOf).Seconds(),
 		Path:    p.Path,
 		Sources: p.Sources,
-		Quality: quality.Assess(from, to, p, snap.DirectQuotes(from, to), now),
+		Quality: fx.Assess(from, to, p, snap.DirectQuotes(from, to), now),
 		Legs:    legs,
 		Quotes:  quotes,
 	}
