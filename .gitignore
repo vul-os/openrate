@@ -20,3 +20,7 @@ web/node_modules/
 
 # Release staging directory (built in CI; the SHA256SUMS manifest covers it)
 /release/
+
+# Shared-library build output (scripts/build-ffi.sh). Built per platform by
+# whoever has the toolchain; never committed.
+/dist/
