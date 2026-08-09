@@ -31,7 +31,15 @@ func (p *Polygon) Fetch(ctx context.Context) ([]fx.Edge, error) {
 		return nil, fmt.Errorf("polygon: OPENRATE_POLYGON_KEY not set")
 	}
 	url := "https://api.polygon.io/v2/snapshot/locale/global/markets/forex/tickers?apiKey=" + p.Key
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// Never ignore this error. The key is concatenated into the URL raw, so a key
+	// carrying a control character (a newline from a copy-paste `export`) fails
+	// url.Parse, leaves req nil, and Client.Do(nil) panics inside the Refresher's
+	// bare fetch goroutine — taking the process down. The message deliberately
+	// omits the parse error, which echoes the full URL and therefore the key.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("polygon: invalid request URL (check OPENRATE_POLYGON_KEY)")
+	}
 	resp, err := p.Client.Do(req)
 	if err != nil {
 		return nil, err
@@ -40,7 +48,10 @@ func (p *Polygon) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("polygon: status %d", resp.StatusCode)
 	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, fmt.Errorf("polygon: read body: %w", err)
+	}
 	var r struct {
 		Tickers []struct {
 			Ticker    string `json:"ticker"` // "C:EURUSD"

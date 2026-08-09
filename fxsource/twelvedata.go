@@ -38,7 +38,14 @@ func (t *TwelveData) Fetch(ctx context.Context) ([]fx.Edge, error) {
 		}
 	}
 	url := "https://api.twelvedata.com/exchange_rate?symbol=" + strings.Join(syms, ",") + "&apikey=" + t.Key
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// Never ignore this error: a key carrying a control character fails url.Parse,
+	// leaves req nil, and Client.Do(nil) panics inside the Refresher's bare fetch
+	// goroutine. The message omits the parse error, which echoes the full URL and
+	// therefore the key.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("twelvedata: invalid request URL (check OPENRATE_TWELVEDATA_KEY)")
+	}
 	resp, err := t.Client.Do(req)
 	if err != nil {
 		return nil, err
@@ -47,7 +54,10 @@ func (t *TwelveData) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("twelvedata: status %d", resp.StatusCode)
 	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, fmt.Errorf("twelvedata: read body: %w", err)
+	}
 
 	// Multi-symbol → map keyed by symbol; single → flat object.
 	type quote struct {

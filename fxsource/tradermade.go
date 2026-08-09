@@ -37,7 +37,14 @@ func (t *TraderMade) Fetch(ctx context.Context) ([]fx.Edge, error) {
 		}
 	}
 	url := "https://marketdata.tradermade.com/api/v1/live?currency=" + strings.Join(pairs, ",") + "&api_key=" + t.Key
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// Never ignore this error: a key carrying a control character fails url.Parse,
+	// leaves req nil, and Client.Do(nil) panics inside the Refresher's bare fetch
+	// goroutine. The message omits the parse error, which echoes the full URL and
+	// therefore the key.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tradermade: invalid request URL (check OPENRATE_TRADERMADE_KEY)")
+	}
 	resp, err := t.Client.Do(req)
 	if err != nil {
 		return nil, err
@@ -46,7 +53,10 @@ func (t *TraderMade) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("tradermade: status %d", resp.StatusCode)
 	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, fmt.Errorf("tradermade: read body: %w", err)
+	}
 	var r struct {
 		Quotes []struct {
 			Base  string  `json:"base_currency"`
