@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.vulos</groupId>
+  <artifactId>openrate</artifactId>
+  <version>0.1.2</version>
+  <packaging>jar</packaging>
+
+  <name>openrate</name>
+  <description>Currency and interest rates with provenance — embedded, or as a local sidecar.</description>
+  <url>https://vulos.org/projects/openrate/</url>
+
+  <licenses>
+    <license><name>MIT</name></license>
+    <license><name>Apache-2.0</name></license>
+  </licenses>
+
+  <properties>
+    <!--
+      The SIDECAR half (OpenRate, OpenRateException) targets Java 11 and is the
+      recommended way to use openrate from the JVM. The DIRECT half
+      (OpenRateDirect) needs java.lang.foreign, permanent from Java 22, so it is
+      compiled by a second execution of the compiler plugin at a higher release.
+      Two class-file versions in one artifact rather than a floor of 22 for
+      everybody: an 11 consumer that never touches OpenRateDirect never loads
+      it and never sees its version.
+
+      Building this module therefore needs a JDK 22+ toolchain even though the
+      output is usable from 11.
+    -->
+    <maven.compiler.release>11</maven.compiler.release>
+    <direct.release>22</direct.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <!--
+    No dependencies. The sidecar uses ProcessBuilder and java.net.http; the
+    direct path uses java.lang.foreign. Neither parses JSON, because neither
+    needs to: openrate's documents are handed to you as strings, for the parser
+    you already have.
+  -->
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <executions>
+          <execution>
+            <id>default-compile</id>
+            <configuration>
+              <excludes>
+                <exclude>org/vulos/openrate/OpenRateDirect.java</exclude>
+              </excludes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>compile-direct</id>
+            <phase>compile</phase>
+            <goals><goal>compile</goal></goals>
+            <configuration>
+              <release>${direct.release}</release>
+              <includes>
+                <include>org/vulos/openrate/OpenRateDirect.java</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

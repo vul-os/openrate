@@ -25,6 +25,13 @@ public final class SidecarRates {
 
         // try-with-resources: the child process is stopped on every path out,
         // including a failure mid-example.
+        //
+        // start() waits for /healthz AND for the currency list to fill. Waiting
+        // only for /healthz is the trap: openrate answers 200 the moment it
+        // binds, while its first fetch is still in flight, and every conversion
+        // in that window returns "unknown or unreachable currency pair" — which
+        // reads as a wrong currency code rather than as "not ready yet". This
+        // example printed exactly that before OpenRate learned to wait.
         try (OpenRate rates = OpenRate.start(opts)) {
             System.out.println("sidecar: " + rates.baseUrl());
 
@@ -32,7 +39,14 @@ public final class SidecarRates {
             System.out.println("meta: " + oneLine(rates.meta(), 300));
 
             // 2. A conversion, with full provenance attached to the rate.
-            System.out.println("USD->ZAR 100: " + oneLine(rates.convert("USD", "ZAR", 100), 320));
+            String converted = rates.convert("USD", "ZAR", 100);
+            System.out.println("USD->ZAR 100: " + oneLine(converted, 320));
+            if (converted.contains("\"error\"")) {
+                // A live example that quietly prints an error object and exits
+                // 0 is the false green this repo keeps finding.
+                System.err.println("FAIL: the sidecar was ready but the conversion still errored");
+                System.exit(1);
+            }
 
             // 3. The whole book against a base.
             System.out.println("rates(EUR): " + oneLine(rates.rates("EUR"), 300));

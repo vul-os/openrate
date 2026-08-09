@@ -1,0 +1,7 @@
+# Maven / javac output
+/target/
+/out/
+
+# The openrate binary staged for the sidecar example by run-examples.sh.
+# Built per platform; never committed.
+/bin/
