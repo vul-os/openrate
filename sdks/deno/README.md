@@ -152,7 +152,7 @@ read: it returns storage the library owns and must never be freed.
 import { Sidecar } from "./mod.ts";
 
 await using side = await Sidecar.start({ base: "ZAR", sources: "ecb", ui: false });
-await side.waitForRates();
+await side.waitForRates();          // start() waited for the LISTENER, not the rates
 const c = await side.convert("EUR", "ZAR", 100);
 ```
 
@@ -168,20 +168,74 @@ OPENRATE_BINARY=/tmp/openrate deno task example:sidecar
 
 ```
 deno       2.7.11 on darwin/aarch64
-sidecar    http://127.0.0.1:63567
-api        http://127.0.0.1:63567/api/v1
+sidecar    http://127.0.0.1:52104
+api        http://127.0.0.1:52104/api/v1
 
 rates       30 currencies after the startup refresh
 convert     100 EUR = 1871.36 ZAR
             path EUR -> ZAR, 1 hops, sources ecb
-            62.6h old, grade C
+            69.0h old, grade C
 rates       base USD -> 29 pairs
-meta        default base ZAR, sources [{"name":"ecb","edges":29,"last_ok":"2026-08-09T14:33:08.03972Z"}]
+meta        default base ZAR, sources [{"name":"ecb","edges":29,"last_ok":"2026-08-09T21:01:46.957746Z"}]
 error       openrate: HTTP 404 from …/convert?from=XXX&to=ZAR&amount=1: {"error":"unknown or unreachable currency pair"}
 ```
 
 (openrate's own log lines are interleaved on a real run; the child inherits
 stdio.)
+
+### Liveness, then readiness
+
+Two questions, two endpoints, and `Sidecar` keeps them apart:
+
+| | endpoint | answers | this SDK |
+|---|---|---|---|
+| liveness | `GET /healthz` | the listener is bound | `start()` |
+| readiness | `GET /readyz` | the snapshot has rates | `waitForRates()` |
+
+`/healthz` answers the instant the port opens, before the startup refresh has
+fetched anything, so **`start()` returning does not mean a conversion will
+work.** Skip `waitForRates()` and the first `convert()` gets a 404 reading
+`unknown or unreachable currency pair` — which looks exactly like a typo'd
+currency code rather than an empty book. Closing that false green is why the
+two calls are separate rather than merged.
+
+`waitForRates()` polls `/readyz` every 150 ms and, on timeout, **throws with
+what the server last said** instead of returning 0:
+
+```
+openrate has no rates after 3s: no rates yet: no source has returned a usable
+quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml":
+proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+Everything after the colon comes off the 503 body: its `reason`, then
+`name: last_error` for each source that has one. A source that has not failed
+carries no `last_error` and is not printed, so the message degrades to the
+reason alone rather than to `ecb: undefined`. If the server never answered at
+all, the transport error is printed instead.
+
+The interval is fixed and short on purpose. `/readyz` sits outside `/api/`, and
+the binary rate-limits only `/api/` paths, so polling readiness cannot spend the
+budget the first `convert()` needs. An earlier version of this SDK waited by
+polling `/api/v1/meta`, which *is* rate-limited — a probe that could 429 itself
+against its own sidecar.
+
+### The child's rate limit
+
+`start()` passes `OPENRATE_RATELIMIT=0` on top of the inherited environment
+(`clearEnv` is false, so the child still sees your API keys). The child listens
+on loopback and serves exactly one client — this process. The 120/min default is
+anti-scraping for a public deployment and there is no stranger here to throttle,
+while a legitimate batch of conversions would sail past it and take a 429 from
+our own sidecar. Pass `env: { OPENRATE_RATELIMIT: "120" }` to put it back.
+
+### If you are behind a proxy
+
+Deno's `fetch` honours `HTTP_PROXY`/`HTTPS_PROXY` **for loopback URLs too**, so
+with one of those set this process cannot reach its own sidecar and `start()`
+times out waiting for a server that is running fine. Export
+`NO_PROXY=127.0.0.1` — the child still uses the proxy for its upstreams, which
+is what you wanted.
 
 One deliberate difference between the transports, worth knowing before you port
 code between them: **an unknown `base` is an error in the library and a 200 with
