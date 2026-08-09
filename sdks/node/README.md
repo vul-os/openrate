@@ -203,7 +203,7 @@ rates have arrived — `refresher.ready()` does the same wait with the loop froz
 import { Sidecar } from "openrate";
 
 const side = await Sidecar.start({ base: "ZAR", sources: "ecb", ui: false });
-await side.waitForRates();
+await side.waitForRates();          // start() waited for the LISTENER, not the rates
 const c = await side.convert("EUR", "ZAR", 100);
 side.stop();
 ```
@@ -220,20 +220,65 @@ OPENRATE_BINARY=/tmp/openrate node examples/sidecar.ts
 
 ```
 node       v24.12.0 on darwin/arm64
-sidecar    http://127.0.0.1:60806
-api        http://127.0.0.1:60806/api/v1
+sidecar    http://127.0.0.1:50254
+api        http://127.0.0.1:50254/api/v1
 
 rates       30 currencies after the startup refresh
 convert     100 EUR = 1871.36 ZAR
             path EUR -> ZAR, 1 hops, sources ecb
-            62.3h old, grade C
+            69.0h old, grade C
 rates       base USD -> 29 pairs
-meta        default base ZAR, sources [{"name":"ecb","edges":29,"last_ok":"2026-08-09T14:17:50.169175Z"}]
+meta        default base ZAR, sources [{"name":"ecb","edges":29,"last_ok":"2026-08-09T20:57:45.39656Z"}]
 error       openrate: HTTP 404 from …/convert?from=XXX&to=ZAR&amount=1: {"error":"unknown or unreachable currency pair"}
 ```
 
 (openrate's own log lines are interleaved with that on a real run; the child
 inherits stdio.)
+
+### Liveness, then readiness
+
+Two questions, two endpoints, and `Sidecar` keeps them apart:
+
+| | endpoint | answers | this SDK |
+|---|---|---|---|
+| liveness | `GET /healthz` | the listener is bound | `start()` |
+| readiness | `GET /readyz` | the snapshot has rates | `waitForRates()` |
+
+`/healthz` answers the instant the port opens, before the startup refresh has
+fetched anything, so **`start()` returning does not mean a conversion will
+work.** Skip `waitForRates()` and the first `convert()` gets a 404 reading
+`unknown or unreachable currency pair` — which looks exactly like a typo'd
+currency code rather than an empty book. Closing that false green is why the
+two calls are separate rather than merged.
+
+`waitForRates()` polls `/readyz` every 150 ms and, on timeout, **throws with
+what the server last said** instead of returning 0:
+
+```
+openrate has no rates after 3s: no rates yet: no source has returned a usable
+quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml":
+proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+Everything after the colon comes off the 503 body: its `reason`, then
+`name: last_error` for each source that has one. A source that has not failed
+carries no `last_error` and is not printed, so the message degrades to the
+reason alone rather than to `ecb: undefined`. If the server never answered at
+all, the transport error is printed instead.
+
+The interval is fixed and short on purpose. `/readyz` sits outside `/api/`, and
+the binary rate-limits only `/api/` paths, so polling readiness cannot spend the
+budget the first `convert()` needs. An earlier version of this SDK waited by
+polling `/api/v1/meta`, which *is* rate-limited — a probe that could 429 itself
+against its own sidecar.
+
+### The child's rate limit
+
+`start()` passes `OPENRATE_RATELIMIT=0`. The child listens on loopback and
+serves exactly one client — this process. The 120/min default is anti-scraping
+for a public deployment and there is no stranger here to throttle, while a
+legitimate batch of conversions would sail past it and take a 429 from our own
+sidecar. Pass `env: { OPENRATE_RATELIMIT: "120" }` to put it back.
 
 One deliberate difference between the two transports, worth knowing before you
 port code between them: **an unknown `base` is an error in the library and a 200
@@ -290,7 +335,7 @@ Not footnotes. These are properties of `-buildmode=c-shared`;
 ```
 sdks/node/
   index.ts              the sidecar client + a re-export of direct mode
-  sidecar.ts            spawn, health poll, convert/rates/meta helpers
+  sidecar.ts            spawn, /healthz + /readyz waits, convert/rates/meta helpers
   direct.ts             the C ABI binding: Engine and Refresher
   examples/direct.ts    engine-only (offline) then a refresher (online)
   examples/sidecar.ts   the binary, over loopback

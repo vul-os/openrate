@@ -8,7 +8,9 @@
 //   go build -o /tmp/openrate ../../cmd/openrate
 //
 // A server refreshes on startup, so this example DOES use the network. If the
-// machine is offline it reports that and exits 0 rather than pretending.
+// machine is offline it reports WHICH source failed and how, then exits 0
+// rather than pretending. To watch that path without unplugging anything:
+//   HTTPS_PROXY=http://127.0.0.1:1 OPENRATE_READY_TIMEOUT_MS=3000 node examples/sidecar.ts
 
 import { Sidecar } from "../index.js";
 
@@ -29,13 +31,25 @@ try {
   console.log(`sidecar    ${side.baseURL}`);
   console.log(`api        ${side.apiBaseURL}\n`);
 
-  // waitForRates polls /api/v1/meta on a Node timer — the event loop is never
+  // waitForRates polls /readyz on a Node timer — the event loop is never
   // blocked, which is the whole difference from direct mode's refresher.ready().
-  const currencies = await side.waitForRates(20_000);
-  if (currencies === 0) {
-    console.log("rates       none arrived within 20s — the sidecar could not reach its sources (offline?)");
+  // start() only waited for the listener; converting before this line would ask
+  // an empty book and get "unknown or unreachable currency pair" for every pair.
+  const readyTimeoutMs = Number(process.env.OPENRATE_READY_TIMEOUT_MS ?? 20_000);
+  let currencies = 0;
+  try {
+    currencies = await side.waitForRates(readyTimeoutMs);
+  } catch (e) {
+    // The message carries the 503's reason and each source's last error, so
+    // this says WHICH source failed and how — not just "timed out".
+    console.log(`rates       ${e instanceof Error ? e.message : "non-Error thrown"}`);
     console.log("            openrate says so rather than inventing a number; that is the design.");
-  } else {
+    // And the exit code says it too. An example that prints a failure and exits
+    // 0 is the same false green as converting against an empty book: whatever
+    // runs this in CI sees success.
+    process.exitCode = 1;
+  }
+  if (currencies > 0) {
     console.log(`rates       ${String(currencies)} currencies after the startup refresh`);
 
     const c = (await side.convert("EUR", "ZAR", 100)) as Convert;
