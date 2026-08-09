@@ -7,6 +7,7 @@ package serve_test
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -166,4 +167,51 @@ func TestReadyzEncodesTheSameWayReadyOrNot(t *testing.T) {
 		t.Errorf("indentation differs by status — a client parsing one shape breaks on the other\n503: %q\n200: %q",
 			notReady, ready)
 	}
+}
+
+// A body json cannot encode must not surface as a successful empty response.
+//
+// The security review reproduced this: two sources quoting the same pair at
+// 16.5 and 1e-306 make quality's spread-in-basis-points +Inf, json.Marshal
+// refuses it, and the old writeJSON had already sent 200 + Content-Type before
+// the encoder ran — so the encoder's error was discarded and the client got a
+// 200 with a zero-length body. /api/v1/rates builds every pair into one map, so
+// a single poisoned pair emptied the table for every base.
+//
+// It is also the exact hazard slipscan's OpenRate client carries defensive
+// decoding for, quoting openrate's own `_ = enc.Encode(v)`. Encoding into a
+// buffer first makes that defence unnecessary rather than merely documented.
+func TestAnUnencodableBodyIsAFailureNotAnEmptySuccess(t *testing.T) {
+	s := serve.New(openrate.NewEngine(openrate.EngineOptions{}), serve.Options{
+		// Reached through the /readyz path, which returns Status verbatim.
+		Status: func() []fxsource.Status {
+			return []fxsource.Status{{Name: "poison", LastError: string([]byte{0xff, 0xfe})}}
+		},
+		Extra: []serve.Routable{unencodable{}},
+	})
+	defer func() { _ = s.Close() }()
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/unencodable", nil))
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("an unencodable body returned %d with %d bytes. A 200 with an empty body "+
+			"is indistinguishable from 'no data' and is what this guards against.",
+			rec.Code, rec.Body.Len())
+	}
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 — the server could not represent its own answer", rec.Code)
+	}
+	if rec.Body.Len() == 0 {
+		t.Error("the failure response is itself empty, which leaves the caller no better off")
+	}
+}
+
+// unencodable mounts one route whose body json.Encode always rejects.
+type unencodable struct{}
+
+func (unencodable) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/unencodable", func(w http.ResponseWriter, r *http.Request) {
+		serve.WriteJSONForTest(w, map[string]any{"spread_bps": math.Inf(1)})
+	})
 }

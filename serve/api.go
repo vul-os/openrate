@@ -6,6 +6,7 @@ package serve
 // especially across weekends when the fiat market is closed.
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -222,11 +223,30 @@ func (s *Server) writeJSONStatus(w http.ResponseWriter, code int, v any) {
 	if s.cors != "*" {
 		w.Header().Set("Vary", "Origin")
 	}
+	// Encode into a buffer BEFORE the status line goes out. Encoding straight
+	// to the ResponseWriter writes the header first and then discards the
+	// encoder's error, so a value json cannot represent — a +Inf that reached
+	// a quality figure, say — published a 200 with an empty body. A client
+	// cannot tell that apart from "no data", and slipscan's OpenRate client
+	// carries defensive decoding specifically because of this shape.
+	//
+	// A body that cannot be encoded is a server fault, so it is a 500 with a
+	// diagnosable message rather than a successful-looking void.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"response could not be encoded"}` + "\n"))
+		return
+	}
 	if code != http.StatusOK {
 		w.Header().Set("Cache-Control", "no-store")
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	if code != http.StatusOK {
 		w.WriteHeader(code)
 	}
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	_ = enc.Encode(v)
+	_, _ = w.Write(buf.Bytes())
 }
