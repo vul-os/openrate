@@ -2,11 +2,14 @@
 //
 // openrate's claim is that it is embeddable: a host program can take the
 // library and nothing else. The only mechanical proof of that is to stand
-// outside the module and try. Go forbids importing another module's
-// .../internal/... packages, so if this module compiles, the public API really
-// was sufficient. A test living inside the openrate module could not prove
-// that: it can reach internal/ freely, so it would pass whether the wall
-// existed or not.
+// outside and try, so that if this module compiles, the public API really was
+// sufficient. A test living inside the openrate module could not prove that:
+// it can reach internal/ freely, so it would pass whether the wall existed or
+// not.
+//
+// "Outside" means outside the import PATH, not outside the module. Go does not
+// key the internal/ rule on module boundaries — see the next paragraph, which
+// is the whole reason this file carries a warning.
 //
 // THE MODULE PATH IS LOAD-BEARING AND MUST STAY OUTSIDE github.com/vul-os/openrate/.
 // The internal/ rule is applied to the import PATH, not to the module
