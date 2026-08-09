@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 
 namespace OpenRate
@@ -61,6 +62,10 @@ namespace OpenRate
             /// and every conversion in that window returns
             /// <c>{"error":"unknown or unreachable currency pair"}</c> — which
             /// reads as a wrong currency code, not as "not ready yet".</para>
+            ///
+            /// <para>Readiness is a separate endpoint: <c>GET /readyz</c>
+            /// answers 200 once the snapshot holds currencies and 503 with the
+            /// per-source failures until then.</para>
             /// </summary>
             public bool WaitForRates { get; set; } = true;
             /// <summary>How long to wait for the first rates (default 60s).</summary>
@@ -79,7 +84,15 @@ namespace OpenRate
         {
             _proc = proc;
             BaseUrl = baseUrl;
-            _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            // No proxy. HttpClient's default reads HTTP_PROXY from the
+            // environment and does not bypass loopback, so on a machine behind
+            // a corporate proxy every call to our own child would be posted to
+            // that proxy instead. The child is on 127.0.0.1; nothing is in the
+            // path but the loopback interface.
+            _http = new HttpClient(new HttpClientHandler { UseProxy = false })
+            {
+                Timeout = TimeSpan.FromSeconds(30),
+            };
             _exitHandler = (_, _) => Terminate();
             AppDomain.CurrentDomain.ProcessExit += _exitHandler;
         }
@@ -99,6 +112,12 @@ namespace OpenRate
             psi.ArgumentList.Add("-addr");
             psi.ArgumentList.Add(addr);
             psi.ArgumentList.Add("-ui=" + (opts.Ui ? "true" : "false"));
+            // The child listens on loopback and serves exactly one client: this
+            // process. openrate's limiter is anti-scraping for a public
+            // deployment, and there is no stranger here to throttle — while a
+            // legitimate batch of conversions sails past the 120/min default and
+            // takes a 429 from our own sidecar. Set Options.Env to put it back.
+            psi.Environment["OPENRATE_RATELIMIT"] = "0";
             if (opts.Base != null) { psi.Environment["OPENRATE_BASE"] = opts.Base; }
             if (opts.Sources != null) { psi.Environment["OPENRATE_SOURCES"] = opts.Sources; }
             if (opts.Env != null)
@@ -227,17 +246,26 @@ namespace OpenRate
         }
 
         /// <summary>
-        /// Poll /api/v1/meta until the currency list is non-empty. See
-        /// <see cref="Options.WaitForRates"/>: this is a readiness check built
-        /// on a liveness endpoint, because openrate publishes no readiness
-        /// endpoint of its own. The direct path's refresher does — its
-        /// <c>ready</c> method.
+        /// Poll <c>GET /readyz</c> until it answers 200. See
+        /// <see cref="Options.WaitForRates"/> for why 200 from <c>/healthz</c>
+        /// is not the same question.
+        ///
+        /// <para>A 503 carries a JSON body naming every source and why it has
+        /// not produced a quote, so the timeout below can say
+        /// <c>ecb: connection refused</c> instead of "timed out". That is why
+        /// this does not go through <see cref="Get"/>, which is shaped for
+        /// bodies you asked for rather than bodies attached to a failure.</para>
+        ///
+        /// <para>A fixed 150 ms interval is correct: <c>/readyz</c> sits
+        /// outside <c>/api/</c>, which is the only prefix openrate's rate
+        /// limiter looks at, so polling it cannot spend the budget the first
+        /// real conversion needs.</para>
         /// </summary>
         private void WaitForRates(TimeSpan timeout)
         {
             DateTime deadline = DateTime.UtcNow + timeout;
-            string last = "no rates yet";
-            while (DateTime.UtcNow < deadline)
+            string last = "/readyz never answered";
+            while (true)
             {
                 if (_proc.HasExited)
                 {
@@ -245,43 +273,91 @@ namespace OpenRate
                 }
                 try
                 {
-                    if (HasCurrencies(Get("/api/v1/meta")))
+                    using HttpResponseMessage resp =
+                        _http.GetAsync(BaseUrl + "/readyz").GetAwaiter().GetResult();
+                    string body = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    if (resp.StatusCode == HttpStatusCode.OK)
                     {
                         return;
                     }
-                    last = "the currency list is still empty";
+                    last = WhyNotReady(body) ?? $"HTTP {(int)resp.StatusCode}: {body.Trim()}";
                 }
                 catch (Exception e)
                 {
+                    // Not listening yet, or listening and then gone. Either way
+                    // the transport message is the most specific thing known.
                     last = e.Message;
                 }
-                Thread.Sleep(250);
+                if (DateTime.UtcNow >= deadline)
+                {
+                    break;
+                }
+                Thread.Sleep(150);
             }
             throw new OpenRateException(
-                $"openrate is listening but holds no rates after {timeout} ({last}). "
-                + "Every source fetch failed — the usual cause is no outbound network. "
+                $"openrate has no rates after {Seconds(timeout)}: {last}. "
                 + "Set Options.WaitForRates = false to start anyway.");
         }
 
         /// <summary>
-        /// True if the meta document's <c>currencies</c> array has anything in
-        /// it. Deliberately not a JSON parse: this SDK has no JSON dependency,
-        /// and "is this array empty" does not need one.
+        /// The human-readable half of a <c>/readyz</c> 503: its <c>reason</c>,
+        /// followed by <c>name: last_error</c> for every source that has one.
+        /// Returns null if the body is not the document we expect, so the
+        /// caller can fall back to printing it raw.
+        ///
+        /// <para>This parses rather than scans. <c>last_error</c> holds a Go
+        /// <c>net/http</c> error with the URL embedded <i>in quotes</i> —
+        /// <c>Get \"https://…\": dial tcp …</c> — and a substring scan to the
+        /// next quote returns <c>Get \</c>, the useless half. A source that has
+        /// not been tried yet has no <c>last_error</c> key at all
+        /// (<c>omitempty</c>), which is why nothing here prints a placeholder
+        /// for a missing one.</para>
         /// </summary>
-        internal static bool HasCurrencies(string metaJson)
+        internal static string? WhyNotReady(string readyJson)
         {
-            int at = metaJson.IndexOf("\"currencies\"", StringComparison.Ordinal);
-            if (at < 0) { return false; }
-            int open = metaJson.IndexOf('[', at);
-            if (open < 0) { return false; }
-            for (int i = open + 1; i < metaJson.Length; i++)
+            string? reason;
+            var errors = new List<string>();
+            try
             {
-                char c = metaJson[i];
-                if (c == ']') { return false; }
-                if (!char.IsWhiteSpace(c)) { return true; }
+                using JsonDocument doc = JsonDocument.Parse(readyJson);
+                JsonElement root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object) { return null; }
+                reason = root.TryGetProperty("reason", out JsonElement r)
+                    && r.ValueKind == JsonValueKind.String
+                        ? r.GetString()
+                        : null;
+                if (root.TryGetProperty("sources", out JsonElement srcs)
+                    && srcs.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (JsonElement s in srcs.EnumerateArray())
+                    {
+                        if (s.ValueKind != JsonValueKind.Object) { continue; }
+                        if (!s.TryGetProperty("last_error", out JsonElement e)
+                            || e.ValueKind != JsonValueKind.String
+                            || string.IsNullOrEmpty(e.GetString()))
+                        {
+                            continue;
+                        }
+                        string name = s.TryGetProperty("name", out JsonElement n)
+                            && n.ValueKind == JsonValueKind.String
+                                ? n.GetString() ?? "?"
+                                : "?";
+                        errors.Add($"{name}: {e.GetString()}");
+                    }
+                }
             }
-            return false;
+            catch (JsonException)
+            {
+                return null;
+            }
+
+            if (errors.Count == 0) { return reason; }
+            string joined = string.Join("; ", errors);
+            return reason == null ? joined : $"{reason} ({joined})";
         }
+
+        private static string Seconds(TimeSpan t) =>
+            t.TotalSeconds.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "s";
 
         // ---------------------------------------------------------------- lookup
 

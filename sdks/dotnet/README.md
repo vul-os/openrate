@@ -67,10 +67,33 @@ which reads as *you passed a bad currency code*, not as *the server is not ready
 yet*. The first version of this example printed exactly that for every call and
 still exited 0.
 
-So `Sidecar.Start()` waits for `/healthz` **and then** polls `/api/v1/meta`
-until the currency list is non-empty. `Options.WaitForRates = false` turns it
-off. The direct path has a real readiness primitive — the refresher's `Ready()`
-— which the HTTP API does not expose.
+Readiness is its own endpoint. `Sidecar.Start()` waits for `/healthz`, then
+polls **`GET /readyz`** until it answers `200` — which it does once the snapshot
+actually holds currencies. `Options.WaitForRates = false` turns that second wait
+off; `Options.RatesTimeout` bounds it.
+
+Until then `/readyz` is a `503` carrying the diagnosis, so a timeout here names
+the source and quotes what it said rather than shrugging:
+
+```
+openrate has no rates after 5s: no rates yet: no source has returned a usable
+quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml":
+proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+The poll runs on a fixed 150 ms interval. It can afford to: openrate's
+anti-scraping limiter applies to `/api/` paths only, and `/readyz` is not one,
+so waiting cannot spend the budget the first conversion needs. (An earlier
+version of this SDK polled `/api/v1/meta`, which *is* under `/api/`.)
+
+### The sidecar runs with the rate limiter off
+
+`Start()` passes `OPENRATE_RATELIMIT=0` to the child. It listens on loopback and
+serves exactly one client — this process. The limiter is anti-scraping for a
+public deployment and there is no stranger here to throttle, while a legitimate
+batch of conversions would sail past the 120/min default and take a `429` from
+your own sidecar. Put it back with
+`Options.Env = new Dictionary<string, string> { ["OPENRATE_RATELIMIT"] = "120" }`.
 
 ### The sidecar fetches, and that is not configurable
 

@@ -59,12 +59,16 @@ elif [ "${which}" != "sidecar" ]; then
 fi
 
 # --- the openrate binary -----------------------------------------------------
+#
+# Always rebuilt, never reused. A cached binary here is a trap: the sidecar
+# wrapper waits on `GET /readyz`, and a bin/openrate from before that endpoint
+# existed answers 404 — which surfaces as "openrate has no rates after 60s",
+# sixty seconds later, blaming the network. `go build` is incremental, so the
+# rebuild costs about a second.
 bin="${here}/bin/openrate"
-if [ ! -x "${bin}" ]; then
-  echo "run-examples: building the openrate binary…"
-  mkdir -p "${here}/bin"
-  ( cd "${root}" && go build -o "${bin}" ./cmd/openrate )
-fi
+echo "run-examples: building the openrate binary…"
+mkdir -p "${here}/bin"
+( cd "${root}" && go build -o "${bin}" ./cmd/openrate )
 
 # --- build -------------------------------------------------------------------
 dotnet build "${here}/examples/Examples.csproj" -v q -c Release -o "${tmp}/out" \

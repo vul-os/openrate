@@ -22,20 +22,41 @@ namespace OpenRate.Examples
         {
             Console.WriteLine("starting openrate (this fetches — it needs a network)…");
 
+            try
+            {
+                return Task.FromResult(Run());
+            }
+            catch (OpenRateException e)
+            {
+                // Startup failed. The point of /readyz is that this message
+                // names the source that failed and what it said, rather than
+                // being a bare timeout — so print it, not a stack trace.
+                Console.Error.WriteLine($"FAIL: {e.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
+        private static int Run()
+        {
             // `using` stops the child process on every path out, including a
             // failure mid-example.
             //
-            // Start() waits for /healthz AND for the currency list to fill.
-            // Waiting only for /healthz is the trap: openrate answers 200 the
-            // moment it binds, and conversions in that window come back
-            // "unknown or unreachable currency pair", which reads as a bad
-            // currency code rather than as "not ready yet".
+            // Start() waits for /healthz AND then for /readyz. Waiting only for
+            // /healthz is the trap: openrate answers it 200 the moment it
+            // binds, and conversions in that window come back "unknown or
+            // unreachable currency pair", which reads as a bad currency code
+            // rather than as "not ready yet". /readyz answers 200 only once the
+            // snapshot actually holds currencies.
             using var rates = Sidecar.Start(new Sidecar.Options
             {
                 Base = "ZAR",
                 // Both keyless and public, so this example is runnable by
                 // anyone rather than by whoever holds the API keys.
                 Sources = "ecb,coinbase",
+                // Settable from outside so the failure path is observable
+                // without waiting a minute for it:
+                //   OPENRATE_READY_TIMEOUT=5 HTTPS_PROXY=http://127.0.0.1:1 …
+                RatesTimeout = ReadyTimeout(),
             });
 
             Console.WriteLine($"sidecar: {rates.BaseUrl}");
@@ -48,7 +69,7 @@ namespace OpenRate.Examples
                 // An example that prints an error object and exits 0 is the
                 // false green this repo keeps finding.
                 Console.Error.WriteLine("FAIL: the sidecar was ready but the conversion still errored");
-                return Task.FromResult(1);
+                return 1;
             }
 
             Console.WriteLine($"rates(EUR): {DirectRates.OneLine(rates.Rates("EUR"), 280)}");
@@ -58,7 +79,20 @@ namespace OpenRate.Examples
             Console.WriteLine($"unknown currency: {DirectRates.OneLine(rates.Convert("USD", "XYZ"), 160)}");
 
             Console.WriteLine("done");
-            return Task.FromResult(0);
+            return 0;
+        }
+
+        /// <summary>
+        /// $OPENRATE_READY_TIMEOUT in seconds, or null for the SDK's default.
+        /// </summary>
+        private static TimeSpan? ReadyTimeout()
+        {
+            string? s = Environment.GetEnvironmentVariable("OPENRATE_READY_TIMEOUT");
+            if (string.IsNullOrEmpty(s)) { return null; }
+            return double.TryParse(s, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out double secs)
+                ? TimeSpan.FromSeconds(secs)
+                : null;
         }
     }
 }
