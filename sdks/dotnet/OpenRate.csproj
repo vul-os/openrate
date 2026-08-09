@@ -13,12 +13,19 @@
     <RepositoryUrl>https://github.com/vul-os/openrate</RepositoryUrl>
     <PackageTags>currency;exchange-rates;fx;forex;interest-rates</PackageTags>
     <!--
-      No AllowUnsafeBlocks, and that is worth noticing rather than assuming.
-      openrate's C ABI has no callback — there is deliberately no
-      openrate_stream — so `char**` is expressed as `out IntPtr` and the whole
-      binding is safe code. llmux's .NET SDK, which shares this ABI's shape,
-      DOES need unsafe, because llmux_stream takes a function pointer.
+      LibraryImport requires this UNCONDITIONALLY: the source generator emits
+      pointer-using marshalling stubs even for a signature that declares none,
+      and refuses to compile without it (SYSLIB1062). It was worth finding out
+      by building rather than by asserting — the first version of this file
+      claimed the binding needed no unsafe, and the compiler disagreed.
+
+      What IS true, and is the honest form of that claim: openrate's C ABI has
+      no callback, so nothing in OpenRateDirect.cs uses a pointer, a function
+      pointer or a fixed buffer. `char**` is expressed as `out IntPtr`. Only
+      the generated stubs are unsafe. llmux's .NET SDK writes unsafe code of
+      its own, because llmux_stream takes a function pointer.
     -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <!-- Keep the examples out of the library compilation. -->

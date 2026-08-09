@@ -42,10 +42,16 @@ namespace OpenRate
         //
         // LibraryImport (source-generated, .NET 7+) rather than DllImport.
         //
-        // Note what is NOT here: no `unsafe`, and no function pointers. openrate
-        // has no callback, so `char**` is expressed as `out IntPtr` and the
-        // whole binding is safe code. llmux's .NET binding does need unsafe,
-        // because llmux_stream takes a callback.
+        // Note what is NOT here: no pointers, no function pointers, no fixed
+        // buffers. openrate has no callback — there is deliberately no
+        // openrate_stream — so `char**` is expressed as `out IntPtr` and none
+        // of the code below is unsafe. llmux's .NET binding writes unsafe code
+        // of its own, because llmux_stream takes a function pointer.
+        //
+        // The project still sets AllowUnsafeBlocks, because LibraryImport
+        // requires it unconditionally: the generator emits pointer-using stubs
+        // regardless of the declared signature (SYSLIB1062). That is a fact
+        // about the generator, not about this file.
         //
         // Every string return is IntPtr, never string. A `string` return
         // compiles, runs, and leaks: the marshaller copies the C string and has
