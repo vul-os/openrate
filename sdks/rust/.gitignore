@@ -1,0 +1,6 @@
+# Build output and the lockfile: this is a library crate, and llmux/sdks/rust
+# ignores both for the same reason — consumers resolve their own versions.
+/target/
+/Cargo.lock
+# Bundled binary for local dev of the sidecar examples.
+/bin/

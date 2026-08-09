@@ -1,0 +1,23 @@
+[package]
+name = "openrate"
+version = "0.1.0"
+edition = "2021"
+description = "Currency conversion with provenance — embedded in-process over the C ABI, or as a supervised sidecar."
+license = "MIT OR Apache-2.0"
+homepage = "https://openrate.to"
+repository = "https://github.com/vul-os/openrate"
+keywords = ["currency", "exchange-rate", "fx", "forex", "conversion"]
+categories = ["api-bindings", "finance"]
+
+[dependencies]
+# The one dependency, and only the direct path needs it. `dlopen`/`LoadLibrary`
+# are platform primitives std does not expose; libloading is the standard safe
+# wrapper. It pulls in `cfg-if` and, on Windows, `windows-targets` — nothing
+# else.
+libloading = "0.8"
+
+# No HTTP crate, and no JSON crate either. The sidecar client in `http` is a few
+# hundred lines of std::net, and openrate's contract is JSON documents that the
+# caller parses with whatever it already uses — so this crate does not impose
+# serde_json on a consumer that prefers simd-json, or a TLS stack on one that
+# only ever talks to 127.0.0.1.
