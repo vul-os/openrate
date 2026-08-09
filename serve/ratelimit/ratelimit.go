@@ -6,11 +6,52 @@ package ratelimit
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+// How much of a client address identifies "one client" for rate-limiting.
+//
+// ipv4BucketBits is /32 — the whole address — because a single IPv4 address is
+// the smallest thing an operator hands out and is routinely shared by a whole
+// CGNAT'd or office-NAT'd population. Aggregating IPv4 any coarser would limit
+// unrelated people together.
+//
+// ipv6BucketBits is /64 because IPv6 does not work that way: SLAAC gives every
+// LAN a /64 and every host on it as many addresses as it cares to generate, so
+// one machine owns 2^64 addresses of its own. Bucketing IPv6 per /128 — what
+// this limiter did before — means the limit never binds on a v6 client: 1000
+// requests from one /64 at rpm=1 all passed.
+//
+// /64 rather than /56 or /48: a /64 is the smallest unit a single party can be
+// assumed to control entirely, and the largest unit that is unlikely to span
+// unrelated customers. Providers that assign each VM a fragment of a shared /64
+// (DigitalOcean hands out a /124 per droplet) already put strangers in one
+// bucket at /64; going to /56 or /48 would sweep in whole neighbouring
+// allocations and rate-limit bystanders for an attacker's traffic. The residual
+// is accepted knowingly: a client holding a /56 still gets 256 buckets, which is
+// a bounded 256× budget rather than the unbounded one /128 gave it.
+const (
+	ipv4BucketBits = 32
+	ipv6BucketBits = 64
+)
+
+// maxBuckets caps the live bucket map. The 15-minute idle sweep alone does not
+// bound it: an attacker cycling source prefixes (or a botnet) mints keys far
+// faster than the sweeper reclaims them, so the map is a memory-exhaustion
+// vector keyed by attacker-chosen input. At ~130 bytes per entry this ceiling is
+// on the order of 10 MB, and it is far more distinct client prefixes than a
+// single openrate deployment legitimately serves.
+const maxBuckets = 65536
+
+// evictionSample is how many buckets are examined to choose an eviction victim.
+// A full scan at the cap would be O(maxBuckets) work on every request of a key
+// flood — a DoS of its own — so a small random sample is taken instead (Go
+// randomises map iteration order, which is where the sample comes from).
+const evictionSample = 8
 
 type bucket struct {
 	tokens float64
@@ -21,11 +62,16 @@ type bucket struct {
 type Limiter struct {
 	mu      sync.Mutex
 	buckets map[string]*bucket
-	rate    float64
-	burst   float64
-	now     func() time.Time
-	trusted []*net.IPNet  // proxies whose X-Forwarded-For we honor
-	done    chan struct{} // closed by Stop to terminate the GC goroutine
+	// overflow is the shared fallback bucket used when the map is at maxBuckets
+	// and no entry can be evicted without handing someone a fresh budget. See
+	// Allow.
+	overflow   *bucket
+	maxBuckets int
+	rate       float64
+	burst      float64
+	now        func() time.Time
+	trusted    []*net.IPNet  // proxies whose X-Forwarded-For we honor
+	done       chan struct{} // closed by Stop to terminate the GC goroutine
 }
 
 // New builds a limiter allowing rpm requests/minute with the given burst.
@@ -65,12 +111,13 @@ func newWithClock(rpm, burst int, now func() time.Time, trustedProxies ...string
 		burst = 1
 	}
 	l := &Limiter{
-		buckets: map[string]*bucket{},
-		rate:    float64(rpm) / 60.0,
-		burst:   float64(burst),
-		now:     now,
-		trusted: parseProxies(trustedProxies),
-		done:    make(chan struct{}),
+		buckets:    map[string]*bucket{},
+		maxBuckets: maxBuckets,
+		rate:       float64(rpm) / 60.0,
+		burst:      float64(burst),
+		now:        now,
+		trusted:    parseProxies(trustedProxies),
+		done:       make(chan struct{}),
 	}
 	go l.gc()
 	return l
@@ -111,19 +158,71 @@ func parseProxies(specs []string) []*net.IPNet {
 }
 
 // Allow reports whether a request from key may proceed, consuming one token.
+//
+// key is normalized to a bucket first (see bucketKey): an IP address is bucketed
+// by prefix, so a client cannot mint a fresh budget by moving within its own
+// allocation, and anything that is not an IP is used verbatim.
+//
+// The bucket map is capped at maxBuckets. At the cap a victim is chosen from a
+// small random sample — but ONLY among buckets that are refilled to full, whose
+// state is byte-for-byte what a newly created bucket would hold. That is the
+// whole eviction policy and the reason for it: evicting a full bucket gives its
+// owner nothing, so eviction can never be used to clear an over-budget
+// attacker's own bucket and reset their allowance. A plain LRU would have
+// exactly that flaw — an attacker over budget on one key sprays fresh keys until
+// their own drained bucket falls off the end, then returns to it with a full
+// allowance. Sampling means the choice is not attacker-steerable either.
+//
+// When nothing in the sample is full, the request is charged to a single shared
+// overflow bucket instead of growing the map. Under a sustained key flood that
+// makes newly-seen clients share one budget — a real degradation, and the
+// deliberate trade for a hard memory ceiling that cannot be turned into free
+// allowance.
 func (l *Limiter) Allow(key string) bool {
+	k := bucketKey(key)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
-	b, ok := l.buckets[key]
-	if !ok {
-		l.buckets[key] = &bucket{tokens: l.burst - 1, last: now}
-		return true
+	if b, ok := l.buckets[k]; ok {
+		return l.take(b, now)
 	}
-	b.tokens += now.Sub(b.last).Seconds() * l.rate
-	if b.tokens > l.burst {
-		b.tokens = l.burst
+	if len(l.buckets) >= l.maxBuckets && !l.evictOne(now) {
+		if l.overflow == nil {
+			l.overflow = &bucket{tokens: l.burst, last: now}
+		}
+		return l.take(l.overflow, now)
 	}
+	l.buckets[k] = &bucket{tokens: l.burst - 1, last: now}
+	return true
+}
+
+// bucketKey collapses a client address to the identity the limiter counts
+// against. An IPv4-mapped IPv6 address (::ffff:1.2.3.4) is unmapped, so it lands
+// in the same bucket as the plain 1.2.3.4 rather than a second one, and the
+// result is masked to the per-family prefix above. Masking also drops any zone
+// (netip.PrefixFrom does not carry one), so a varying fe80::1%zone cannot mint
+// buckets either. A key that is not an IP at all — a caller using Limiter for
+// something else, or a RemoteAddr that did not parse — is returned unchanged.
+func bucketKey(key string) string {
+	addr, err := netip.ParseAddr(key)
+	if err != nil {
+		return key
+	}
+	addr = addr.Unmap()
+	bits := ipv6BucketBits
+	if addr.Is4() {
+		bits = ipv4BucketBits
+	}
+	p, err := addr.Prefix(bits)
+	if err != nil { // unreachable: bits is always valid for the family
+		return addr.String()
+	}
+	return p.String()
+}
+
+// take refills b to now and consumes a token if one is available.
+func (l *Limiter) take(b *bucket, now time.Time) bool {
+	b.tokens = l.tokensAt(b, now)
 	b.last = now
 	if b.tokens < 1 {
 		return false
@@ -132,14 +231,67 @@ func (l *Limiter) Allow(key string) bool {
 	return true
 }
 
+// tokensAt is b's token count refilled to now, capped at burst. It does not
+// mutate b, so callers deciding *about* a bucket (eviction, sweeping) can ask
+// without destroying the last-used time they are about to read.
+func (l *Limiter) tokensAt(b *bucket, now time.Time) float64 {
+	t := b.tokens + now.Sub(b.last).Seconds()*l.rate
+	if t > l.burst {
+		t = l.burst
+	}
+	return t
+}
+
+// full reports whether b has refilled to capacity, i.e. whether deleting it
+// would change any answer this limiter gives. It is the safety condition on
+// every eviction path in this package.
+func (l *Limiter) full(b *bucket, now time.Time) bool {
+	return l.tokensAt(b, now) >= l.burst
+}
+
+// evictOne deletes the least-recently-used FULL bucket among a bounded random
+// sample and reports whether it deleted anything. Caller holds l.mu.
+func (l *Limiter) evictOne(now time.Time) bool {
+	var (
+		victim string
+		oldest time.Time
+		found  bool
+		seen   int
+	)
+	for k, b := range l.buckets {
+		if seen >= evictionSample {
+			break
+		}
+		seen++
+		if !l.full(b, now) {
+			continue // evicting it would hand its owner a fresh allowance
+		}
+		if !found || b.last.Before(oldest) {
+			victim, oldest, found = k, b.last, true
+		}
+	}
+	if !found {
+		return false
+	}
+	delete(l.buckets, victim)
+	return true
+}
+
 // sweep evicts per-IP buckets that have been idle for more than 15 minutes
 // relative to now. It is called periodically by gc and is directly testable.
+//
+// Idleness alone is not sufficient: a bucket is only removed once it has also
+// refilled to full, so the sweeper cannot hand back an allowance either. With
+// any ordinary configuration 15 idle minutes refills far more than burst and the
+// two conditions coincide, but a limiter configured with a large burst and a
+// slow rate (rpm=1, burst=1000) has drained buckets that are still idle, and
+// dropping those would let a client reset its budget by pausing.
 func (l *Limiter) sweep(now time.Time) {
 	cutoff := now.Add(-15 * time.Minute)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for k, b := range l.buckets {
-		if b.last.Before(cutoff) {
+		if b.last.Before(cutoff) && l.full(b, now) {
 			delete(l.buckets, k)
 		}
 	}
