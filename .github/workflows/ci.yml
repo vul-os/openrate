@@ -189,6 +189,120 @@ jobs:
       - name: G7 — importing the library links no UI bytes
         run: bash scripts/check-embed-linkage.sh
 
+  # The C ABI (ffi/) is what every non-Go language loads. It is a THIRD Go
+  # module — github.com/vul-os/openrate-ffi, deliberately outside the parent
+  # import prefix so Go's internal/ rule applies to it — which means the root
+  # module's ./... does not build it, vet it or test it. Everything about it
+  # therefore has to be run from here, or it is not run at all.
+  #
+  # Both operating systems, because the artifact differs (.so vs .dylib), the
+  # loader differs, and the smoke test's socket census reads file descriptors,
+  # which is exactly the kind of thing that is correct on one platform and
+  # quietly wrong on the other.
+  ffi:
+    name: C ABI — build, dlopen, smoke test, mutation matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt & vet the ffi module
+        working-directory: ffi
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-formatted:"
+            echo "$unformatted"
+            gofmt -d $unformatted
+            exit 1
+          fi
+          go vet ./...
+
+      # The ffi module has no `require` beyond openrate itself, and must not
+      # grow one: a third-party dependency here would be a dependency inside
+      # every language binding that loads the shared library.
+      - name: The C ABI stays stdlib-only
+        working-directory: ffi
+        run: |
+          if [ -f go.sum ] && [ -s go.sum ]; then
+            echo "::error::ffi/go.sum is non-empty — the C ABI has acquired a third-party dependency."
+            cat go.sum
+            exit 1
+          fi
+          # Standard-library packages have no Module, so listing the modules a
+          # build pulls in is the exact question. (Do not grep the package list
+          # instead: net/http's dependencies include vendor/golang.org/x/net/...,
+          # which look like third-party paths and are not.)
+          mods="$(go list -deps -f '{{if .Module}}{{.Module.Path}}{{end}}' ./... | sort -u | grep -v '^$')"
+          echo "$mods"
+          extra="$(echo "$mods" | grep -v '^github.com/vul-os/openrate$' | grep -v '^github.com/vul-os/openrate-ffi$' || true)"
+          if [ -n "$extra" ]; then
+            echo "::error::the C ABI depends on modules other than openrate itself:"
+            echo "$extra"
+            exit 1
+          fi
+          echo "stdlib only, plus openrate itself"
+
+      # Run through the gate, not bare: this suite lives in a module the root
+      # ./... skips, which makes it precisely the kind of thing that can stop
+      # executing while the step still shows a green tick. The floor and the
+      # required names are what turn "it ran" into a claim.
+      - name: The ABI's Go-side suite — wire parity, version, packet count
+        working-directory: ffi
+        run: |
+          bash ../scripts/go-test-gate.sh \
+            --min 16 \
+            --require TestTheInternalWallHoldsForTheABI \
+            --require TestHandlesAreNeverReused \
+            --require TestZeroPacketsThroughTheABI \
+            --require TestEngineConstructionThroughTheABIStartsNoGoroutine \
+            --require TestWireParityWithTheHTTPAPI \
+            --require TestWireParityCheckCanFail \
+            --require TestMetaReportsRefresherStatusLikeTheHTTPAPI \
+            --require TestVersionMatchesTheVERSIONFile \
+            --require TestHeaderDeclaresTheSameVersion \
+            --require TestHeaderDeclaresEveryExportedSymbol \
+            --require TestRefresherFetchesOnlyWhenAskedThroughTheABI \
+            --require TestTheBackgroundLoopIsOptInAndStoppable \
+            --require TestAnEngineHandleIsNotARefresherHandle \
+            -- -race ./...
+
+      - name: ShellCheck the FFI scripts
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck scripts/build-ffi.sh scripts/check-ffi.sh scripts/bench-ffi.sh
+
+      # Builds the real shared library, dlopens it from a C program that links
+      # nothing, runs 40 checks through it — and then breaks the library four
+      # ways and requires the same C program to reject each one. A smoke test
+      # that passes is only evidence if it is capable of failing.
+      - name: dlopen the library, drive it from C, and prove the test can fail
+        run: bash scripts/check-ffi.sh --selftest
+
+      # The benchmark is documentation, and documentation that no longer
+      # compiles is worse than none. A short run keeps it honest without
+      # pretending CI runners produce publishable timings — the numbers in
+      # ffi/README.md are from a quiet machine, and say which one.
+      - name: The in-process vs loopback benchmark still runs
+        run: bash scripts/bench-ffi.sh 2000
+
+      # Reports what this runner could and could not build. Cross targets
+      # without a toolchain are printed as skipped, never omitted.
+      - name: Build the shared library for every target this runner can
+        run: bash scripts/build-ffi.sh
+
   # The landing page's product captures were blurry and silently cropped for a
   # release, because the capture's aspect (1.33) and the display box's (0.92)
   # disagreed and `object-fit: cover` resolved the disagreement by discarding the
