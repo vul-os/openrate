@@ -180,11 +180,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	}
 	if n == 0 {
 		body["reason"] = "no rates yet: no source has returned a usable quote"
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Access-Control-Allow-Origin", s.cors)
-		w.Header().Set("Cache-Control", "no-store")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(body)
+		s.writeJSONStatus(w, http.StatusServiceUnavailable, body)
 		return
 	}
 	s.writeJSON(w, body)
@@ -210,6 +206,14 @@ func (s *Server) base(r *http.Request) string {
 func upper(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
 func (s *Server) writeJSON(w http.ResponseWriter, v any) {
+	s.writeJSONStatus(w, http.StatusOK, v)
+}
+
+// writeJSONStatus is writeJSON with an explicit code. Every JSON body this
+// server emits goes through here so the encoding cannot drift by status: the
+// first cut of /readyz hand-rolled its 503 and shipped an indented 200 next to
+// a compact 503, which every substring-scanning client then had to tolerate.
+func (s *Server) writeJSONStatus(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", s.cors)
 	// When the allowed origin is a specific host (not the wildcard), the CORS
@@ -217,6 +221,10 @@ func (s *Server) writeJSON(w http.ResponseWriter, v any) {
 	// cached response for one origin could be served to another.
 	if s.cors != "*" {
 		w.Header().Set("Vary", "Origin")
+	}
+	if code != http.StatusOK {
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(code)
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

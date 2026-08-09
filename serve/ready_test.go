@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -132,5 +133,37 @@ func TestReadyzIsNotRateLimited(t *testing.T) {
 	if !limited {
 		t.Fatal("control failed: /api/ never returned 429 at RateLimit=2, so this test " +
 			"would pass even with the limiter applied to /readyz")
+	}
+}
+
+// The first cut of /readyz hand-rolled its 503 and shipped an indented 200 next
+// to a compact 503. Nothing broke, but every substring-scanning client had to
+// tolerate both shapes. Pin that the two bodies are encoded identically.
+func TestReadyzEncodesTheSameWayReadyOrNot(t *testing.T) {
+	shape := func(e *openrate.Engine) (string, string) {
+		t.Helper()
+		s := serve.New(e, serve.Options{})
+		t.Cleanup(func() { _ = s.Close() })
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+		return rec.Header().Get("Content-Type"), rec.Body.String()
+	}
+
+	notReadyCT, notReady := shape(openrate.NewEngine(openrate.EngineOptions{}))
+
+	e := openrate.NewEngine(openrate.EngineOptions{})
+	g := fx.NewGraph()
+	g.Replace("test", []fx.Edge{{From: "EUR", To: "ZAR", Rate: 19.5, Source: "test", Time: time.Now()}})
+	e.Load(g.Materialize(time.Now()))
+	readyCT, ready := shape(e)
+
+	if notReadyCT != readyCT {
+		t.Errorf("Content-Type differs by readiness: 503 %q vs 200 %q", notReadyCT, readyCT)
+	}
+	// Indentation is the thing that actually drifted.
+	indented := func(b string) bool { return strings.Contains(b, "\n  \"") }
+	if indented(notReady) != indented(ready) {
+		t.Errorf("indentation differs by status — a client parsing one shape breaks on the other\n503: %q\n200: %q",
+			notReady, ready)
 	}
 }
