@@ -75,11 +75,13 @@ refresh:   {"sources":[{"name":"ecb","edges":29,"last_ok":"2026-08-09T13:45:00.0
 EUR->USD:  result=115.35 rate=1.1535 hops=1 grade=C
 
 ==> sidecar (child process over HTTP)
-sidecar:   http://127.0.0.1:52487
+sidecar:   http://127.0.0.1:51493
 healthz:   "ok"  (liveness only — no rates implied)
-ready:     after 724.324ms
+ready:     after 618.718291ms
+readyz:    {"built_at":"2026-08-09T21:01:21.22507Z","currencies":30,"ready":true,"sources":[{"name":"ecb","edges":29,"last_ok":"2026-08-09T21:01:21.22507Z"}]}
+meta:      {"built_at":"2026-08-09T21:01:21.22507Z","currencies":["AUD","BRL","CAD","CHF","CNY","CZK","DKK","EUR","GBP","HKD","HUF","IDR","ILS","INR","ISK","JPY","KRW","MXN","MYR","NOK","NZD","PHP","PLN","RON","…
 EUR->USD:  result=115.35 rate=1.1535 hops=1 grade=C
-rates EUR: 24292 bytes
+rates EUR: 24291 bytes
 rates XXX: HTTP 200, empty book = true   (the C ABI returns "unknown base currency")
 bogus:     HTTP 404: {"error":"unknown or unreachable currency pair"}
 stopping:  Drop kills and reaps the child
@@ -147,6 +149,7 @@ Probe the version at startup with `Engine::open_checked("0.1.2", …)`.
 
 ```rust
 let sc = openrate::sidecar::Sidecar::start(Default::default())?;
+// start() means "listening". This is the line that means "has rates".
 sc.wait_ready(std::time::Duration::from_secs(45))?;
 let json = sc.convert("EUR", "USD", 100.0)?;
 // Drop stops and reaps the child.
@@ -158,32 +161,71 @@ and on a panic. Rust has no `defer`, and an SDK that leaves a serving openrate
 behind after a failed request is a bug that only surfaces as a port conflict
 later.
 
+### `start` is liveness, `wait_ready` is readiness — you need both
+
+`Sidecar::start` returns as soon as the child is **listening**, because
+`/healthz` answers `ok` the instant the listener binds, before any source has
+been fetched. Converting there gets you
+`{"error":"unknown or unreachable currency pair"}` for every pair — a false
+green that reads like a bad currency code.
+
+`wait_ready` polls **`GET /readyz`**, which is the server's own answer to
+"would a conversion succeed?": `200` once the engine holds rates, `503` until
+then, with the reason and each source's outcome in the body. On timeout the
+error is that body, not a bare deadline:
+
+```text
+openrate has no rates after 5s: no rates yet: no source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+It polls on a fixed 150 ms interval. `/readyz` is outside `/api/`, and the
+server rate-limits `/api/` paths only, so a readiness loop cannot spend the
+budget it is waiting to use.
+
+The returned body is `/readyz`, not `/api/v1/meta`: it reports `currencies` as
+a **count** and has no `default_base`. Call `sc.meta()` for those — `meta` is
+still an API method, it is only its old job as a readiness probe that is gone.
+
+### The child runs with `OPENRATE_RATELIMIT=0`
+
+`Sidecar::start` sets it on the child's environment. The child listens on
+loopback and serves exactly one client: this process. The limiter is
+anti-scraping for a public deployment and there is no stranger here to throttle
+— while a legitimate batch of conversions would sail past the 120/min default
+and take a `429` from our own sidecar. (Readiness polling is not the reason:
+neither `/healthz` nor `/readyz` is under `/api/`, so neither is limited.)
+
 ## Four things that bit this SDK, so they will bite yours
 
 Every one of these was found by running the examples, not by reading the code.
 They are the reason each has a test with a **verbatim captured** fixture rather
 than hand-written JSON.
 
-**1. The HTTP API pretty-prints. The C ABI does not.**
-`GET /api/v1/meta` answers with two-space indentation, so `"currencies": [`.
-`openrate_call(h, "meta", …)` returns `"currencies":[`. The first `wait_ready`
-checked for the compact form and timed out after 45 seconds against a server
-that had been serving 30 currencies the whole time — **and its unit test passed**,
-because the fixture was hand-written compact JSON. `sidecar::compact()` now
+**1. The HTTP API pretty-prints. The C ABI does not — and one endpoint does
+both.** `GET /api/v1/meta` answers with two-space indentation, so
+`"currencies": [`. `openrate_call(h, "meta", …)` returns `"currencies":[`. The
+first `wait_ready` checked for the compact form and timed out after 45 seconds
+against a server that had been serving 30 currencies the whole time — **and its
+unit test passed**, because the fixture was hand-written compact JSON. Readiness
+is a status code now, but the split did not go away: `/readyz` writes its `200`
+through the pretty-printing encoder and its `503` through a plain one, so the
+ready body is indented and the not-ready body is compact. `sidecar::compact()`
 normalises whitespace outside string literals, and the tests use responses
 captured from the running binary.
 
-**2. `openrate serve` rate-limits its own readiness poll.**
-The anti-scraping limiter is on by default at **120 requests per minute per IP**.
-A readiness loop at 200 ms is 300 a minute, so it gets
-`HTTP 429 {"error":"rate limited — slow down."}` a few seconds in. `wait_ready`
-backs off 100 ms → 2 s, about 25 requests over a 45-second wait.
+**2. A `503` body is a diagnostic, not an error to discard.**
+The whole point of `/readyz` over `/healthz` is that not-ready comes with a
+`reason` and per-source outcomes. An HTTP helper that throws the body away on a
+non-2xx turns that back into a bare timeout; `HttpError::Status(code, body)`
+keeps it, and `wait_ready` reads it. Note `last_error` is `omitempty`: a source
+that has not been tried yet has no such key, so the message has to degrade to
+the reason alone rather than printing `(ecb: )`.
 
 **3. Error strings embed quoted URLs.**
 `last_error` values are Go `net/http` errors like
-`Get \"https://…\": dial tcp: i/o timeout`. A scanner that reads to the first
-`"` stops after `Get \` — the useless half. `read_json_string` honours
-backslash escapes.
+`Get \"https://…\": proxyconnect tcp: … connection refused`. A scanner that
+reads to the first `"` stops after `Get \` — the useless half. `read_json_string`
+honours backslash escapes.
 
 **4. `convert` nests its provenance, and an unknown base disagrees across
 surfaces.** `result` is top level but `rate`, `hops`, `path` and `quality` are

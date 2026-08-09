@@ -8,8 +8,9 @@
 //! **Liveness is not readiness.** `/healthz` answers `ok` the instant the
 //! listener binds, *before* any source has been fetched. [`Sidecar::start`]
 //! waits for that and no more. Readiness — "the engine actually holds rates" —
-//! is [`Sidecar::wait_ready`], which polls `/api/v1/meta` for a non-empty
-//! currency list. A client that treats `/healthz` as readiness will ask for a
+//! is [`Sidecar::wait_ready`], which polls `/readyz`: `200` when a conversion
+//! would succeed, `503` with a `reason` and the per-source outcomes when it
+//! would not. A client that treats `/healthz` as readiness will ask for a
 //! conversion and be told the pair is unknown.
 //!
 //! **`Drop` stops the child.** [`Sidecar`] owns the process and kills it when
@@ -34,9 +35,10 @@ pub enum Error {
     Spawn(std::io::Error),
     /// The child never started listening.
     NotLive(String),
-    /// The child listened but never acquired any rates. Carries the per-source
-    /// errors from `/api/v1/meta`, because "timed out" on its own is useless
-    /// and meta already knows which source failed and why.
+    /// The child listened but never acquired any rates. Carries the tail of the
+    /// message — `after 30s: <reason> (ecb: …)` — built from the last `503` from
+    /// `/readyz`, because "timed out" on its own is useless and that 503 already
+    /// says which source failed and why.
     NotReady(String),
     /// An HTTP request failed.
     Http(HttpError),
@@ -53,7 +55,7 @@ impl std::fmt::Display for Error {
             ),
             Error::Spawn(e) => write!(f, "failed to spawn openrate: {e}"),
             Error::NotLive(s) => write!(f, "openrate never started listening: {s}"),
-            Error::NotReady(s) => write!(f, "openrate is listening but has no rates: {s}"),
+            Error::NotReady(s) => write!(f, "openrate has no rates {s}"),
             Error::Http(e) => write!(f, "{e}"),
             Error::Io(e) => write!(f, "io: {e}"),
         }
@@ -141,6 +143,12 @@ impl Sidecar {
         if let Some(s) = &opts.sources {
             cmd.arg("-sources").arg(s);
         }
+        // The child listens on loopback and serves exactly one client: this
+        // process. openrate's 120/min limiter is anti-scraping for a public
+        // deployment and there is no stranger here to throttle — while a
+        // legitimate batch of conversions would sail past it and take a 429
+        // from our own sidecar.
+        cmd.env("OPENRATE_RATELIMIT", "0");
         // The child's logs are the operator's, not ours to swallow.
         cmd.stdin(Stdio::null())
             .stdout(Stdio::inherit())
@@ -180,47 +188,48 @@ impl Sidecar {
         Err(Error::NotLive(last))
     }
 
-    /// Blocks until `/api/v1/meta` reports at least one currency, and returns
-    /// that meta document.
+    /// Blocks until `GET /readyz` answers `200`, and returns that body.
     ///
     /// This is the HTTP equivalent of the library's `Refresher.ready`, and it
-    /// is a different question from `/healthz`. On timeout the error carries
-    /// the per-source failures, because the cause is almost always one named
-    /// source and meta already knows which.
+    /// is a different question from `/healthz`. `200` means the engine holds
+    /// currencies and a conversion would succeed; `503` means it does not, and
+    /// carries a `reason` plus the per-source outcomes. On timeout the error
+    /// repeats that reason and names each source that has failed, because the
+    /// cause is almost always one named source and the 503 already knows which.
     ///
-    /// # Why this backs off instead of polling on a fixed interval
+    /// The body is *not* `/api/v1/meta`: it reports `"currencies"` as a **count**
+    /// and has no `default_base`. Call [`Sidecar::meta`] if you want those.
     ///
-    /// `openrate serve` ships an anti-scraping rate limiter on by default:
-    /// **120 API requests per minute per IP**. A readiness loop polling every
-    /// 200 ms issues 300 requests a minute and is therefore rate-limited *by
-    /// the server it is waiting for*, which surfaces as
-    /// `HTTP 429 {"error":"rate limited — slow down."}` a few seconds in. The
-    /// first version of this function did exactly that and failed on its first
-    /// run against a real binary.
+    /// # Why a fixed interval and no backoff
     ///
-    /// So the delay starts at 100 ms and doubles to a 2 s ceiling: about 25
-    /// requests over a 45-second wait, comfortably inside the budget, and still
-    /// fast to notice a source that lands immediately.
+    /// `/readyz` sits outside `/api/`, and `guard()` applies openrate's
+    /// anti-scraping limiter to `/api/` paths only, so this loop cannot spend
+    /// the request budget it is waiting to use. An earlier version polled
+    /// `/api/v1/meta` — which *is* limited — and needed exponential backoff to
+    /// stay under 120/min; that constraint is gone, so this polls every 150 ms
+    /// and notices a source that lands immediately.
     pub fn wait_ready(&self, timeout: Duration) -> Result<String> {
         let deadline = Instant::now() + timeout;
-        let mut last = String::new();
-        let mut delay = Duration::from_millis(100);
-        let max_delay = Duration::from_secs(2);
-        while Instant::now() < deadline {
-            let meta = self.meta()?;
-            if has_currencies(&meta) {
-                return Ok(meta);
+        // What the most recent attempt said. Deliberately unseeded: every path
+        // through the loop body sets it before the deadline is checked, so the
+        // message a caller sees is always something that actually happened
+        // rather than a placeholder.
+        let mut last;
+        loop {
+            match self.readyz() {
+                Ok(body) => return Ok(body),
+                // The documented not-ready answer: a JSON body we can quote.
+                Err(Error::Http(HttpError::Status(503, body))) => last = why_not_ready(&body),
+                // Anything else — a refused connection while the listener is
+                // still coming up, an unexpected status — is reported as it is.
+                Err(e) => last = e.to_string(),
             }
-            last = meta;
-            std::thread::sleep(delay);
-            delay = (delay * 2).min(max_delay);
+            if Instant::now() >= deadline {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(150));
         }
-        let why = extract_source_errors(&last);
-        Err(Error::NotReady(if why.is_empty() {
-            format!("no rates within {timeout:?}")
-        } else {
-            format!("no rates within {timeout:?}: {why}")
-        }))
+        Err(Error::NotReady(format!("after {timeout:?}: {last}")))
     }
 
     /// `GET /healthz`. Liveness.
@@ -229,6 +238,16 @@ impl Sidecar {
             &format!("{}/healthz", self.base_url),
             self.timeout,
         )?)
+    }
+
+    /// `GET /readyz`. Readiness: `200` once a conversion would succeed.
+    ///
+    /// A not-ready server is an `Err(Http(Status(503, body)))` and **the body is
+    /// the interesting part** — it holds `reason` and the per-source
+    /// `last_error`. Do not throw it away; [`Sidecar::wait_ready`] is the loop
+    /// that reads it for you.
+    pub fn readyz(&self) -> Result<String> {
+        Ok(http::get(&format!("{}/readyz", self.base_url), self.timeout)?)
     }
 
     /// `GET /api/v1/meta`.
@@ -294,6 +313,11 @@ impl Drop for Sidecar {
 /// test's fixture was hand-written compact JSON rather than a captured
 /// response. The tests below now use a **verbatim capture** from the running
 /// server for exactly that reason.
+///
+/// The split even runs through a single endpoint: `/readyz` writes its `200`
+/// through the pretty-printing `writeJSON` and its `503` through a plain
+/// encoder, so the ready body is indented and the not-ready body is compact.
+/// Anything reading either shape by substring must normalise first.
 pub fn compact(json: &str) -> String {
     let mut out = String::with_capacity(json.len());
     let mut in_string = false;
@@ -322,12 +346,39 @@ pub fn compact(json: &str) -> String {
     out
 }
 
-/// Whether a `/api/v1/meta` document reports at least one currency.
+/// Turns a `503` body from `/readyz` into one line a human can act on.
 ///
-/// Tolerant of pretty-printing; see [`compact`].
-pub fn has_currencies(meta: &str) -> bool {
-    let c = compact(meta);
-    c.contains("\"currencies\":[") && !c.contains("\"currencies\":[]")
+/// The shape is the server's `reason`, then every source that has a
+/// `last_error`, in brackets:
+///
+/// ```text
+/// no rates yet: no source has returned a usable quote (ecb: dial tcp …: connection refused)
+/// ```
+///
+/// **The brackets have to be able to disappear.** `last_error` is `omitempty`,
+/// so a source that has not been tried yet — the common case in the first
+/// second of a poll — carries no such key at all, and a formatter that assumes
+/// one prints `(ecb: )`. If nothing has failed yet, the reason stands alone; if
+/// the body is not the JSON we expect, it is quoted verbatim rather than
+/// reduced to nothing.
+fn why_not_ready(body: &str) -> String {
+    let reason = json_string_field(body, "reason").unwrap_or_default();
+    let sources = extract_source_errors(body);
+    match (reason.is_empty(), sources.is_empty()) {
+        (false, false) => format!("{reason} ({sources})"),
+        (false, true) => reason,
+        (true, false) => sources,
+        (true, true) => format!("503 from /readyz: {}", compact(body)),
+    }
+}
+
+/// Reads a top-level `"key": "value"` string out of a JSON document without a
+/// JSON dependency. Tolerant of pretty-printing; see [`compact`].
+fn json_string_field(json: &str, key: &str) -> Option<String> {
+    let json = compact(json);
+    let needle = format!("\"{key}\":\"");
+    let i = json.find(&needle)?;
+    read_json_string(&json[i + needle.len()..])
 }
 
 /// Reads a JSON string literal starting just after its opening quote, honouring
@@ -357,10 +408,13 @@ fn read_json_string(s: &str) -> Option<String> {
     None
 }
 
-/// Pulls `"name":"x", ... "last_error":"y"` pairs out of a meta document
+/// Pulls `"name":"x", ... "last_error":"y"` pairs out of a `sources` array
 /// without a JSON dependency. Best effort, for an error message only.
-fn extract_source_errors(meta: &str) -> String {
-    let meta = compact(meta);
+///
+/// `/readyz` and `/api/v1/meta` publish the same `fxsource.Status` objects, so
+/// this reads either; the readiness path feeds it the `503` body.
+fn extract_source_errors(doc: &str) -> String {
+    let meta = compact(doc);
     let mut out = Vec::new();
     for part in meta.split("{\"name\":\"").skip(1) {
         let Some(name) = read_json_string(part) else {
@@ -448,36 +502,28 @@ mod tests {
     /// VERBATIM captures from a running `openrate serve`, not hand-written
     /// JSON. The bug these guard against was invisible to a hand-written
     /// fixture: the server pretty-prints, so `"currencies":[` never appears.
-    const REAL_META_READY: &str = r#"{
-  "built_at": "2026-08-09T13:50:58.698005Z",
-  "currencies": [
-    "AUD",
-    "USD",
-    "ZAR"
-  ],
-  "default_base": "EUR",
+    const REAL_READYZ_200: &str = r#"{
+  "built_at": "2026-08-09T20:55:57.251721Z",
+  "currencies": 30,
+  "ready": true,
   "sources": [
     {
       "name": "ecb",
       "edges": 29,
-      "last_ok": "2026-08-09T13:50:58.698005Z"
+      "last_ok": "2026-08-09T20:55:57.251721Z"
     }
   ]
 }"#;
 
-    const REAL_META_EMPTY: &str = r#"{
-  "built_at": "0001-01-01T00:00:00Z",
-  "currencies": [],
-  "default_base": "EUR",
-  "sources": [
-    {
-      "name": "ecb",
-      "edges": 0,
-      "last_ok": "0001-01-01T00:00:00Z",
-      "last_error": "Get \"https://www.ecb.europa.eu/\": dial tcp: i/o timeout"
-    }
-  ]
-}"#;
+    /// The `503` body, captured with every fetch forced through a dead proxy
+    /// (`HTTPS_PROXY=http://127.0.0.1:1`). Note that it is COMPACT where the
+    /// `200` above is indented: same endpoint, two encoders.
+    const REAL_READYZ_503: &str = r#"{"built_at":"2026-08-09T20:56:05.581908Z","currencies":0,"ready":false,"reason":"no rates yet: no source has returned a usable quote","sources":[{"name":"ecb","edges":0,"last_ok":"0001-01-01T00:00:00Z","last_error":"Get \"https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml\": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused"}]}"#;
+
+    /// The FIRST `503`, before any source has been tried: same shape, and
+    /// `last_error` is simply absent because it is `omitempty`. Every poll
+    /// starts here, so this is the body the formatter meets most often.
+    const REAL_READYZ_503_UNTRIED: &str = r#"{"built_at":"2026-08-09T20:55:56.679179Z","currencies":0,"ready":false,"reason":"no rates yet: no source has returned a usable quote","sources":[{"name":"ecb","edges":0,"last_ok":"0001-01-01T00:00:00Z"}]}"#;
 
     #[test]
     fn urlencode_escapes_what_matters() {
@@ -497,40 +543,73 @@ mod tests {
         );
     }
 
+    /// The readiness verdict is the STATUS CODE, not a field this SDK parses —
+    /// but the `200` body still has to survive `compact`, because the example
+    /// prints it. Pinned so a future reader does not reintroduce a substring
+    /// check against the compact shape.
     #[test]
-    fn has_currencies_reads_the_real_pretty_printed_responses() {
+    fn the_ready_body_is_pretty_printed_and_the_not_ready_body_is_not() {
         assert!(
-            has_currencies(REAL_META_READY),
-            "the readiness check missed a server that IS serving rates"
+            !REAL_READYZ_200.contains("\"currencies\":30"),
+            "if this ever passes, /readyz stopped pretty-printing its 200 and \
+             this test's premise is stale"
         );
-        assert!(!has_currencies(REAL_META_EMPTY));
+        assert!(compact(REAL_READYZ_200).contains("\"currencies\":30"));
+        // The 503 arrives compact already, straight off json.NewEncoder.
+        assert!(REAL_READYZ_503.contains("\"ready\":false"));
     }
 
     #[test]
-    fn has_currencies_also_reads_the_compact_c_abi_shape() {
-        // The C ABI does not pretty-print, so both shapes must work.
-        assert!(has_currencies(r#"{"currencies":["EUR","USD"]}"#));
-        assert!(!has_currencies(r#"{"currencies":[]}"#));
-    }
-
-    /// The bug, pinned. This is the check the first version used; it must NOT
-    /// be what the code relies on.
-    #[test]
-    fn the_naive_substring_check_is_the_one_that_fails() {
-        assert!(
-            !REAL_META_READY.contains("\"currencies\":["),
-            "if this ever passes, openrate stopped pretty-printing and this \
-             test's premise is stale — but has_currencies still works either way"
-        );
-    }
-
-    #[test]
-    fn extract_source_errors_finds_the_named_failure_in_pretty_json() {
-        let got = extract_source_errors(REAL_META_EMPTY);
-        assert!(got.starts_with("ecb: "), "{got}");
-        // The whole message, not the fragment before the first escaped quote.
-        assert!(got.contains("i/o timeout"), "{got}");
+    fn why_not_ready_quotes_the_reason_and_names_the_failing_source() {
+        let got = why_not_ready(REAL_READYZ_503);
+        assert!(got.starts_with("no rates yet: "), "{got}");
+        assert!(got.contains("(ecb: "), "{got}");
+        // The whole error, not the fragment before the first escaped quote.
+        assert!(got.contains("connection refused"), "{got}");
         assert!(got.contains("ecb.europa.eu"), "{got}");
+    }
+
+    /// `last_error` is `omitempty`. A source that has not been tried yet has no
+    /// such key, and the message must degrade to the reason alone rather than
+    /// printing `(ecb: )`.
+    #[test]
+    fn why_not_ready_degrades_to_the_reason_when_nothing_has_failed_yet() {
+        assert_eq!(
+            why_not_ready(REAL_READYZ_503_UNTRIED),
+            "no rates yet: no source has returned a usable quote"
+        );
+    }
+
+    /// Never swallow the body: a 503 this SDK cannot parse is still the only
+    /// evidence the caller has.
+    #[test]
+    fn why_not_ready_falls_back_to_the_raw_body() {
+        assert_eq!(
+            why_not_ready(r#"{"ready": false}"#),
+            r#"503 from /readyz: {"ready":false}"#
+        );
+    }
+
+    #[test]
+    fn extract_source_errors_finds_the_named_failure() {
+        let got = extract_source_errors(REAL_READYZ_503);
+        assert!(got.starts_with("ecb: "), "{got}");
+        assert!(got.contains("connection refused"), "{got}");
+        assert!(got.contains("ecb.europa.eu"), "{got}");
+    }
+
+    /// The tail this SDK puts in front of the caller, end to end.
+    #[test]
+    fn the_timeout_message_carries_the_cause_not_just_the_deadline() {
+        let e = Error::NotReady(format!(
+            "after {:?}: {}",
+            Duration::from_secs(30),
+            why_not_ready(REAL_READYZ_503)
+        ));
+        let msg = e.to_string();
+        assert!(msg.starts_with("openrate has no rates after 30s: "), "{msg}");
+        assert!(msg.contains("ecb: "), "{msg}");
+        assert!(msg.contains("connection refused"), "{msg}");
     }
 
     #[test]
@@ -546,6 +625,9 @@ mod tests {
 
     #[test]
     fn extract_source_errors_is_empty_when_all_are_fine() {
-        assert_eq!(extract_source_errors(REAL_META_READY), "");
+        assert_eq!(extract_source_errors(REAL_READYZ_200), "");
+        // And when a source simply has not been tried yet: `last_error` is
+        // omitempty, so there is no key to read.
+        assert_eq!(extract_source_errors(REAL_READYZ_503_UNTRIED), "");
     }
 }
