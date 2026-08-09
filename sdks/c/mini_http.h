@@ -31,6 +31,12 @@ typedef struct {
  * Returns 0 on success (a response arrived, whatever its status), -1 on a
  * transport failure with errbuf filled in.
  *
+ * A non-2xx status is a SUCCESS here, and out->body holds that response's body
+ * unread and unjudged. That is deliberate and load-bearing: openrate's /readyz
+ * answers 503 with a JSON body naming the source that failed and why, so a
+ * client that discarded bodies on a bad status could only ever report a bare
+ * timeout. Read out->status; do not infer it from the return value.
+ *
  * On success the caller owns out->body and must call http_response_free.
  */
 int http_request(int port, const char *method, const char *path, const char *bearer,

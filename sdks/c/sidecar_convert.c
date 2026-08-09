@@ -5,7 +5,8 @@
  *   ./sidecar_convert http://openrate.example    # use a server you already run
  *
  * Nobody runs a server: this program picks a free port, spawns `openrate` with
- * OPENRATE_ADDR pointing at it, waits for /healthz, uses it, and kills it.
+ * OPENRATE_ADDR pointing at it, waits for /healthz (the listener) and then for
+ * /readyz (the first rate), uses it, and kills it.
  *
  * UNLIKE direct_convert.c, THIS FETCHES. A server refreshes on startup and on
  * its interval; that is what a server is for. If you want a process that
@@ -86,6 +87,13 @@ static int sidecar_start(struct sidecar *s) {
 	char sources[64];
 	snprintf(sources, sizeof(sources), "OPENRATE_SOURCES=%s",
 	         getenv("OPENRATE_SOURCES") ? getenv("OPENRATE_SOURCES") : "ecb");
+	/* The binary limits /api/ to 120 requests a minute per IP by default. That
+	 * is anti-scraping for a public deployment, and this child listens on
+	 * loopback and serves exactly one client — this process. There is no
+	 * stranger here to throttle, while a legitimate batch of conversions would
+	 * sail past 120/min and take a 429 from our own sidecar. Set
+	 * OPENRATE_RATELIMIT yourself to put it back. */
+	char ratelimit[] = "OPENRATE_RATELIMIT=0";
 
 	pid_t pid = fork();
 	if (pid < 0) {
@@ -97,6 +105,7 @@ static int sidecar_start(struct sidecar *s) {
 		 * sources pass through exactly as for the standalone binary. */
 		putenv(addr);
 		putenv(sources);
+		if (!getenv("OPENRATE_RATELIMIT")) putenv(ratelimit);
 		execvp(binary(), (char *const[]){(char *)binary(), NULL});
 		fprintf(stderr, "exec %s: %s\n", binary(), strerror(errno));
 		_exit(127);
@@ -127,21 +136,99 @@ static void sidecar_stop(struct sidecar *s) {
 }
 
 /*
- * "Healthy" and "useful" are different questions: openrate answers 200 from the
- * moment it is listening, with an empty book until the first fetch lands. So
- * poll for a currency rather than assuming one.
+ * Turn a /readyz 503 body into the one line a caller can act on: the server's
+ * own `reason`, then `name: last_error` for every source that has one.
+ *
+ * `last_error` is `omitempty`, so a source that has simply not been tried yet
+ * has no such key — printing "ecb: " for it would be worse than printing
+ * nothing, so a body with no errors in it degrades to the reason alone.
+ *
+ * The sources array is walked object by object rather than through jsonpeek's
+ * whole-document scan, because "name" and "last_error" have to be read as a
+ * PAIR: a document-wide search for "last_error" finds one source's error and a
+ * document-wide search for "name" finds a different source's name. No field of
+ * a source is itself an object or an array, so bounding each object at the next
+ * `}` is enough, and the array itself ends at the first `]`.
  */
-static int wait_for_rates(int port, double seconds) {
-	char errbuf[256];
-	for (int i = 0; i < (int)(seconds * 4); i++) {
-		http_response r;
-		if (http_request(port, "GET", "/api/v1/meta", NULL, NULL, &r, errbuf, sizeof(errbuf)) == 0) {
-			int have = strstr(r.body, "\"currencies\": []") == NULL &&
-			           strstr(r.body, "\"currencies\":[]") == NULL;
-			http_response_free(&r);
-			if (have) return 0;
+static void describe_not_ready(const char *body, char *out, size_t outcap) {
+	if (!outcap) return;
+	char reason[512] = "";
+	if (!json_string(body, "reason", reason, sizeof(reason)) || !reason[0]) {
+		snprintf(reason, sizeof(reason), "not ready, and it did not say why");
+	}
+	int n = snprintf(out, outcap, "%s", reason);
+	if (n < 0 || (size_t)n >= outcap) return;
+
+	const char *arr = strstr(body, "\"sources\"");
+	const char *first = arr ? strchr(arr, '[') : NULL;
+	const char *end = first ? strchr(first, ']') : NULL;
+	int printed = 0;
+	for (const char *p = first; p && end && p < end;) {
+		const char *open = strchr(p, '{');
+		if (!open || open >= end) break;
+		const char *close = strchr(open, '}');
+		if (!close || close > end) break;
+
+		char object[1024];
+		size_t len = (size_t)(close - open) + 1;
+		if (len >= sizeof(object)) len = sizeof(object) - 1;
+		memcpy(object, open, len);
+		object[len] = '\0';
+
+		char name[64] = "", err[512] = "";
+		json_string(object, "name", name, sizeof(name));
+		if (json_string(object, "last_error", err, sizeof(err)) && err[0]) {
+			int add = snprintf(out + n, outcap - (size_t)n, "%s%s: %s", printed ? "; " : " (",
+			                   name[0] ? name : "?", err);
+			if (add < 0 || (size_t)(n + add) >= outcap) return; /* truncated; stop cleanly */
+			n += add;
+			printed = 1;
 		}
-		millisleep(250);
+		p = close + 1;
+	}
+	if (printed) snprintf(out + n, outcap - (size_t)n, ")");
+}
+
+/*
+ * "Live" and "useful" are different questions. /healthz answers 200 from the
+ * moment the listener binds, with an empty book behind it; /readyz answers 200
+ * only once the snapshot has a currency in it, and 503 with a JSON body saying
+ * why not. Waiting on the wrong one is how this example used to convert against
+ * nothing and report every pair as an unknown currency.
+ *
+ * Neither endpoint is under /api/, and the rate limiter only guards /api/, so a
+ * fixed short interval is free — no backoff to dodge a limiter this poll never
+ * meets. (The earlier workaround polled /api/v1/meta, which did meet it.)
+ *
+ * On failure `why` holds the most useful explanation seen: the last 503's, if
+ * there ever was one, otherwise the transport error. A server that told us
+ * "ecb: connection refused" explains more than a socket that later stopped
+ * answering, so a transport error never displaces a reason the server gave.
+ */
+static int wait_ready(int port, double seconds, char *why, size_t whycap) {
+	char errbuf[256];
+	const long interval_ms = 150;
+	const int attempts = (int)(seconds * 1000 / (double)interval_ms);
+	int explained = 0;
+	snprintf(why, whycap, "openrate never answered /readyz");
+
+	for (int i = 0; i < attempts; i++) {
+		http_response r;
+		if (http_request(port, "GET", "/readyz", NULL, NULL, &r, errbuf, sizeof(errbuf)) == 0) {
+			if (r.status == 200) {
+				http_response_free(&r);
+				return 0;
+			}
+			/* A 503 carries its reasons in the BODY. mini_http hands back the
+			 * body whatever the status, which is the only reason this poll can
+			 * be specific rather than printing a bare timeout. */
+			describe_not_ready(r.body, why, whycap);
+			explained = 1;
+			http_response_free(&r);
+		} else if (!explained) {
+			snprintf(why, whycap, "%s", errbuf);
+		}
+		millisleep(interval_ms);
 	}
 	return -1;
 }
@@ -171,11 +258,15 @@ int main(int argc, char **argv) {
 		printf("base url:     %s  (not managed — spawning nothing)\n", argv[1]);
 	}
 
-	if (wait_for_rates(port, 30.0) != 0) {
-		printf("\nno rates arrived within 30s — the server started fine but could not\n");
-		printf("reach its sources. Everything below needs a rate to exist.\n");
-		printf("For a mode that needs no network at all, see direct_convert.c.\n");
-		goto done;
+	{
+		char why[1024] = "";
+		if (wait_ready(port, 30.0, why, sizeof(why)) != 0) {
+			fprintf(stderr, "openrate has no rates after 30s: %s\n", why);
+			printf("\nThe server is listening but its book is empty, and everything below\n");
+			printf("needs a rate to exist. For a mode that needs no network at all, see\n");
+			printf("direct_convert.c.\n");
+			goto done;
+		}
 	}
 
 	/* --- meta -------------------------------------------------------------- */

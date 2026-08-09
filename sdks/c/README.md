@@ -51,7 +51,29 @@ closing in the "wrong" order cannot leak a running loop.
 | file | mode | what it shows |
 |---|---|---|
 | `direct_convert.c` | direct | version probe, an empty engine refusing to guess, `load`, `convert`, a crossed pair reporting its path, an engine refusing `refresh`, the error path, one cleanup label, `openrate_open_handles()` back at zero |
-| `sidecar_convert.c` | sidecar | spawn `openrate` on a free loopback port, poll `/healthz`, wait for the first fetch to land, convert, read the book, HTTP errors, kill the child on every path |
+| `sidecar_convert.c` | sidecar | spawn `openrate` on a free loopback port, wait for `/healthz` and then for `/readyz`, convert, read the book, HTTP errors, kill the child on every path |
+
+**Two waits, because there are two questions.** `/healthz` is liveness: it
+answers 200 the instant the listener binds, with an empty book behind it.
+`/readyz` is readiness: 200 once the snapshot holds a currency, and 503 with a
+JSON body — `reason`, plus `last_error` per source — until then. Converting on
+the strength of `/healthz` is how this example used to get *unknown or
+unreachable currency pair* for every pair and still exit 0, so
+`sidecar_convert.c` waits for both and prints the 503's reasons if the second
+wait runs out:
+
+```
+openrate has no rates after 30s: no rates yet: no source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+Neither endpoint is under `/api/`, and the per-IP limiter guards only `/api/`,
+so polling readiness costs nothing from the budget the first real call wants —
+which is why the poll is a flat 150 ms with no backoff. The child is spawned
+with `OPENRATE_RATELIMIT=0` for the same family of reasons: it serves exactly
+one client over loopback, so there is no stranger to throttle, and the 120/min
+default is small enough that an honest batch of conversions would take a 429
+from our own sidecar. Set `OPENRATE_RATELIMIT` in the environment to put it
+back.
 
 ```bash
 make                                 # build both
@@ -191,4 +213,7 @@ Neither is a component to reuse:
   you should do.
 - **`mini_http`** is not an HTTP client. One request to `127.0.0.1` with
   `Connection: close`. No TLS, no chunked encoding, no keep-alive, no redirects,
-  no retries. Real programs link libcurl.
+  no retries. Real programs link libcurl. It does hand back the body whatever
+  the status, which is not incidental: `/readyz` says why it is not ready in the
+  body of a **503**, so a helper that dropped bodies on a bad status could only
+  ever report a bare timeout.
