@@ -2,13 +2,17 @@
 // sources into a currency graph, materializes an all-pairs snapshot anchored on
 // ZAR, and serves a JSON API plus a hand-written, dependency-free embedded UI
 // from a single binary.
+//
+// It is a thin main over the library: an openrate.Engine to compute, an
+// openrate.Refresher to fetch, a serve.Server to answer. Everything this file
+// does, an embedding program can do — and can choose not to do.
 package main
 
 import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,14 +21,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vul-os/openrate"
 	"github.com/vul-os/openrate/fxsource"
-	"github.com/vul-os/openrate/internal/api"
-	"github.com/vul-os/openrate/serve/interest"
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
-	"github.com/vul-os/openrate/internal/store"
-	"github.com/vul-os/openrate/serve/ratelimit"
-	"github.com/vul-os/openrate/serve/web"
+	"github.com/vul-os/openrate/serve"
+	"github.com/vul-os/openrate/serve/interest"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=vX.Y.Z".
@@ -41,52 +43,71 @@ func main() {
 	addr := flag.String("addr", env("OPENRATE_ADDR", ":8080"), "listen address")
 	base := flag.String("base", env("OPENRATE_BASE", "ZAR"), "default presentation base currency")
 	refresh := flag.Duration("refresh", envDur("OPENRATE_REFRESH", time.Hour), "source refresh interval")
+	fetchTimeout := flag.Duration("fetch-timeout", envDur("OPENRATE_FETCH_TIMEOUT", openrate.DefaultFetchTimeout), "per-source fetch timeout (the SARB host can be slow to connect)")
 	srcSpec := flag.String("sources", env("OPENRATE_SOURCES", ""), "comma-separated FX sources (default: ecb,coinbase,luno,sarb; also: frankfurter,yahoo)")
 	intSpec := flag.String("interest-sources", env("OPENRATE_INTEREST_SOURCES", ""), "comma-separated interest-rate sources (default: bis,sarbrates; fred auto-enables with key)")
 	intRefresh := flag.Duration("interest-refresh", envDur("OPENRATE_INTEREST_REFRESH", 6*time.Hour), "interest-rate refresh interval")
 	rpm := flag.Int("ratelimit", envInt("OPENRATE_RATELIMIT", 120), "per-IP API requests/minute (anti-scraping; 0 disables)")
 	cors := flag.String("cors-origin", env("OPENRATE_CORS_ORIGIN", "*"), "Access-Control-Allow-Origin for the JSON API (default * — public read-only; set an origin to lock down)")
 	trustedProxies := flag.String("trusted-proxies", env("OPENRATE_TRUSTED_PROXIES", ""), "comma-separated proxy IPs/CIDRs whose X-Forwarded-For is trusted for rate-limiting (default none → use RemoteAddr)")
+	ui := flag.Bool("ui", envBool("OPENRATE_UI", true), "serve the embedded web console at / (-ui=false leaves only the JSON API; -tags noui removes it from the binary)")
 	flag.Parse()
 
+	log := slog.Default()
+
+	// FromEnvSpec, not Build: the binary is where "an API key in .env turns its
+	// source on" belongs. The library never reads the environment on its own.
 	srcs := fxsource.FromEnvSpec(*srcSpec)
 	if len(srcs) == 0 {
-		log.Fatal("no valid sources configured")
+		log.Error("no valid sources configured", slog.String("spec", *srcSpec))
+		os.Exit(1)
 	}
-	st := store.New(*refresh, srcs...)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	go st.Run(ctx)
 
-	mux := http.NewServeMux()
-	api.New(st, *base, *cors).Routes(mux)
+	engine := openrate.NewEngine(openrate.EngineOptions{Base: *base, Logger: log})
+	refresher := openrate.NewRefresher(engine, openrate.RefreshOptions{
+		Sources:      srcs,
+		Interval:     *refresh,
+		FetchTimeout: *fetchTimeout,
+		Logger:       log,
+	})
+	go func() { _ = refresher.Run(ctx) }()
 
-	// Interest-rate engine: an independent store/snapshot (rates are flat series,
-	// not a currency graph) served under /api/v1/interest/*. Policy rates change
-	// slowly, so it refreshes on its own slower cadence.
+	// Interest-rate engine: an independent store/snapshot (rates are flat
+	// series, not a currency graph) served under /api/v1/interest/*. Policy
+	// rates change slowly, so it refreshes on its own slower cadence.
+	var extra []serve.Routable
 	if intSrcs := ratesources.Build(*intSpec); len(intSrcs) > 0 {
-		ist := ratestore.New(*intRefresh, intSrcs...)
+		ist := ratestore.New(*intRefresh, log, intSrcs...)
 		go ist.Run(ctx)
-		interest.New(ist, *cors).Routes(mux)
-		log.Printf("interest rates: %d source(s), refresh %s", len(intSrcs), *intRefresh)
+		extra = append(extra, interest.New(ist, *cors))
+		log.Info("interest rates enabled", slog.Int("sources", len(intSrcs)), slog.Duration("refresh", *intRefresh))
 	}
 
-	mux.Handle("/", web.Handler())
-
-	var limiter *ratelimit.Limiter
-	if *rpm > 0 {
-		var proxies []string
-		if *trustedProxies != "" {
-			proxies = strings.Split(*trustedProxies, ",")
-		}
-		limiter = ratelimit.New(*rpm, *rpm/2+1, proxies...)
+	var proxies []string
+	if *trustedProxies != "" {
+		proxies = strings.Split(*trustedProxies, ",")
 	}
-	srv := &http.Server{Addr: *addr, Handler: guard(mux, limiter), ReadHeaderTimeout: 10 * time.Second}
+	api := serve.New(engine, serve.Options{
+		UI:             *ui,
+		CORSOrigin:     *cors,
+		RateLimit:      *rpm,
+		TrustedProxies: proxies,
+		Status:         refresher.Status,
+		Extra:          extra,
+	})
+	defer api.Close()
+
+	srv := &http.Server{Addr: *addr, Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
-		log.Printf("openrate listening on %s (base=%s, refresh=%s)", *addr, *base, *refresh)
+		log.Info("openrate listening",
+			slog.String("addr", *addr), slog.String("base", *base),
+			slog.Duration("refresh", *refresh), slog.Bool("ui", *ui))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server: %v", err)
+			log.Error("server failed", slog.String("error", err.Error()))
+			os.Exit(1)
 		}
 	}()
 
@@ -94,31 +115,7 @@ func main() {
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutCtx)
-	log.Println("openrate stopped")
-}
-
-// guard wraps the mux with anti-scraping + hardening: a restrictive robots.txt,
-// security headers, no-store caching on the API, and per-IP rate limiting on
-// /api/ paths. The embedded UI and its assets are not rate-limited.
-func guard(mux http.Handler, limiter *ratelimit.Limiter) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/robots.txt" {
-			w.Header().Set("Content-Type", "text/plain")
-			_, _ = w.Write([]byte("User-agent: *\nDisallow: /api/\n"))
-			return
-		}
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			w.Header().Set("Cache-Control", "no-store")
-			if limiter != nil {
-				limiter.Middleware(mux).ServeHTTP(w, r)
-				return
-			}
-		}
-		mux.ServeHTTP(w, r)
-	})
+	log.Info("openrate stopped")
 }
 
 // loadDotEnv reads a .env file (if present) and sets any KEY=VALUE pairs that
@@ -165,6 +162,15 @@ func envDur(k string, def time.Duration) time.Duration {
 	if v := os.Getenv(k); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
+		}
+	}
+	return def
+}
+
+func envBool(k string, def bool) bool {
+	if v := os.Getenv(k); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
 		}
 	}
 	return def

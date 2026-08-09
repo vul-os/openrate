@@ -1,18 +1,3 @@
-// Package openrate embeds the rate engine in-process for Go programs.
-//
-// The openrate binary (cmd/openrate) keeps its building blocks under internal/,
-// so they cannot be imported directly. This package is the public surface: it
-// wires the same store, sources, API, and hardening that main() does, but runs
-// them in a background goroutine so any Go program can embed the engine without
-// shelling out to the binary:
-//
-//	local, err := openrate.Start(openrate.Options{})
-//	if err != nil { ... }
-//	defer local.Close()
-//	// hit local.APIBaseURL()+"/rates", or local.BaseURL+"/healthz", etc.
-//
-// Provider API keys (for the sources that need them) are read from the
-// environment, exactly as the binary reads them.
 package openrate
 
 import (
@@ -20,22 +5,20 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/vul-os/openrate/fxsource"
-	"github.com/vul-os/openrate/internal/api"
-	"github.com/vul-os/openrate/serve/interest"
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
-	"github.com/vul-os/openrate/internal/store"
-	"github.com/vul-os/openrate/serve/ratelimit"
-	"github.com/vul-os/openrate/serve/web"
+	"github.com/vul-os/openrate/serve"
+	"github.com/vul-os/openrate/serve/interest"
 )
 
-// Options configures the embedded engine. The zero value is valid and mirrors
-// the binary's defaults (ZAR base, hourly refresh, the default source set, no
-// rate limiting, no UI).
+// Options configures the embedded engine.
+//
+// Deprecated: Options belongs to [Start]. Use [EngineOptions], [RefreshOptions]
+// and serve.Options, which say separately what to compute, what to fetch and
+// what to serve.
 type Options struct {
 	// Addr overrides the listen address. If empty, an ephemeral localhost port
 	// is chosen.
@@ -73,31 +56,40 @@ type Options struct {
 }
 
 // Local is a running in-process engine.
+//
+// Deprecated: Local is [Start]'s handle. See [Start].
 type Local struct {
 	// BaseURL is the http://host:port root (no trailing slash).
 	BaseURL string
 	cancel  context.CancelFunc
 	srv     *http.Server
+	api     *serve.Server
 	done    chan struct{}
-	limiter *ratelimit.Limiter // non-nil only when RateLimit > 0; stopped by Close
 }
 
 // Start builds the engine, launches it in a background goroutine, and returns
 // once it is serving (the /healthz endpoint responds OK).
+//
+// Deprecated: Start makes a Go program talk HTTP to itself. It binds a loopback
+// listener, starts a refresh loop, and begins fetching from the network before
+// it returns — none of which a caller that only wants to convert a number asked
+// for, and none of which could be turned off.
+//
+// Use [NewEngine] instead, which computes and nothing else:
+//
+//	e := openrate.NewEngine(openrate.EngineOptions{})
+//	e.Load(snapshot) // from a file, a cache, another process — or a Refresher
+//	c, err := e.Convert("USD", "ZAR", 100)
+//
+// Add [NewRefresher] when — and only when — the process should fetch, and
+// serve.New when it should also answer HTTP. Start keeps working, built on
+// exactly those three pieces, so nothing that depends on it breaks.
 func Start(opts Options) (*Local, error) {
 	srcs := fxsource.FromEnvSpec(opts.Sources)
 	if len(srcs) == 0 {
 		return nil, fmt.Errorf("openrate: no valid sources configured (spec=%q)", opts.Sources)
 	}
 
-	base := opts.Base
-	if base == "" {
-		base = "ZAR"
-	}
-	refresh := opts.Refresh
-	if refresh <= 0 {
-		refresh = time.Hour
-	}
 	addr := opts.Addr
 	if addr == "" {
 		addr = "127.0.0.1:0"
@@ -108,40 +100,40 @@ func Start(opts Options) (*Local, error) {
 	}
 	addr = ln.Addr().String()
 
-	st := store.New(refresh, srcs...)
+	engine := NewEngine(EngineOptions{Base: opts.Base})
+	refresher := NewRefresher(engine, RefreshOptions{Sources: srcs, Interval: opts.Refresh})
+
 	ctx, cancel := context.WithCancel(context.Background())
-	go st.Run(ctx)
+	go func() { _ = refresher.Run(ctx) }()
 
-	mux := http.NewServeMux()
-	api.New(st, base, opts.CORSOrigin).Routes(mux)
-
+	var extra []serve.Routable
 	if opts.Interest {
 		intRefresh := opts.InterestRefresh
 		if intRefresh <= 0 {
 			intRefresh = 6 * time.Hour
 		}
 		if intSrcs := ratesources.Build(opts.InterestSources); len(intSrcs) > 0 {
-			ist := ratestore.New(intRefresh, intSrcs...)
+			ist := ratestore.New(intRefresh, nil, intSrcs...)
 			go ist.Run(ctx)
-			interest.New(ist, opts.CORSOrigin).Routes(mux)
+			extra = append(extra, interest.New(ist, opts.CORSOrigin))
 		}
 	}
 
-	if opts.ServeUI {
-		mux.Handle("/", web.Handler())
-	}
-
-	var limiter *ratelimit.Limiter
-	if opts.RateLimit > 0 {
-		limiter = ratelimit.New(opts.RateLimit, opts.RateLimit/2+1, opts.TrustedProxies...)
-	}
+	api := serve.New(engine, serve.Options{
+		UI:             opts.ServeUI,
+		CORSOrigin:     opts.CORSOrigin,
+		RateLimit:      opts.RateLimit,
+		TrustedProxies: opts.TrustedProxies,
+		Status:         refresher.Status,
+		Extra:          extra,
+	})
 
 	l := &Local{
 		BaseURL: "http://" + addr,
 		cancel:  cancel,
-		srv:     &http.Server{Addr: addr, Handler: guard(mux, limiter), ReadHeaderTimeout: 10 * time.Second},
+		srv:     &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second},
+		api:     api,
 		done:    make(chan struct{}),
-		limiter: limiter,
 	}
 
 	go func() {
@@ -153,6 +145,8 @@ func Start(opts Options) (*Local, error) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
+	// Note what this waits for: the listener answering, not a rate existing.
+	// That was always true of Start, and is why Refresher.Ready exists.
 	if err := waitHealthy(l.BaseURL, timeout); err != nil {
 		_ = l.Close()
 		return nil, err
@@ -163,42 +157,16 @@ func Start(opts Options) (*Local, error) {
 // APIBaseURL returns the .../api/v1 base URL for the JSON API.
 func (l *Local) APIBaseURL() string { return l.BaseURL + "/api/v1" }
 
-// Close stops refreshing, stops the rate-limiter GC goroutine (if active),
-// shuts the server down, and waits for it to stop.
+// Close stops refreshing, stops the rate-limiter sweeper (if active), shuts the
+// server down, and waits for it to stop.
 func (l *Local) Close() error {
 	l.cancel()
-	if l.limiter != nil {
-		l.limiter.Stop()
-	}
+	_ = l.api.Close()
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := l.srv.Shutdown(shutCtx)
 	<-l.done
 	return err
-}
-
-// guard mirrors cmd/openrate's hardening: a restrictive robots.txt, security
-// headers, no-store caching on the API, and optional per-IP rate limiting on
-// /api/ paths. The embedded UI and its assets are not rate-limited.
-func guard(mux http.Handler, limiter *ratelimit.Limiter) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/robots.txt" {
-			w.Header().Set("Content-Type", "text/plain")
-			_, _ = w.Write([]byte("User-agent: *\nDisallow: /api/\n"))
-			return
-		}
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			w.Header().Set("Cache-Control", "no-store")
-			if limiter != nil {
-				limiter.Middleware(mux).ServeHTTP(w, r)
-				return
-			}
-		}
-		mux.ServeHTTP(w, r)
-	})
 }
 
 func waitHealthy(base string, timeout time.Duration) error {

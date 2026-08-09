@@ -3,6 +3,7 @@ package interest
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -37,7 +38,7 @@ var testObs = []rates.Observation{
 func populatedRateStore(t *testing.T, obs []rates.Observation, minSeries int) (*ratestore.Store, context.CancelFunc) {
 	t.Helper()
 	ms := &mockRateSource{"test", obs}
-	st := ratestore.New(time.Hour, ms)
+	st := ratestore.New(time.Hour, quietLogger(), ms)
 	ctx, cancel := context.WithCancel(context.Background())
 	go st.Run(ctx)
 
@@ -207,7 +208,7 @@ func TestInterestSeriesKnownID(t *testing.T) {
 }
 
 func TestInterestSeriesMissingIDIs400(t *testing.T) {
-	st := ratestore.New(time.Hour)
+	st := ratestore.New(time.Hour, quietLogger())
 	mux := http.NewServeMux()
 	New(st, "*").Routes(mux)
 
@@ -221,7 +222,7 @@ func TestInterestSeriesMissingIDIs400(t *testing.T) {
 }
 
 func TestInterestSeriesUnknownIDIs404(t *testing.T) {
-	st := ratestore.New(time.Hour)
+	st := ratestore.New(time.Hour, quietLogger())
 	mux := http.NewServeMux()
 	New(st, "*").Routes(mux)
 
@@ -274,7 +275,7 @@ func TestInterestMetaShape(t *testing.T) {
 // JSON body. The /series endpoint without an id takes the http.Error path which
 // intentionally omits CORS headers and is tested separately as a 400.
 func TestInterestSuccessEndpointsCORSHeaders(t *testing.T) {
-	st := ratestore.New(time.Hour)
+	st := ratestore.New(time.Hour, quietLogger())
 	mux := http.NewServeMux()
 	New(st, "*").Routes(mux)
 
@@ -290,3 +291,7 @@ func TestInterestSuccessEndpointsCORSHeaders(t *testing.T) {
 		}
 	}
 }
+
+// quietLogger keeps a failing test double's fetch errors out of the test log:
+// the store takes its logger explicitly precisely so a caller can do this.
+func quietLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }

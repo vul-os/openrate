@@ -21,7 +21,7 @@ func TestCORSVaryHeader(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s := New(ratestore.New(time.Hour), tc.origin)
+			s := New(ratestore.New(time.Hour, quietLogger()), tc.origin)
 			mux := http.NewServeMux()
 			s.Routes(mux)
 

@@ -1,12 +1,12 @@
-package api
+package serve_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/vul-os/openrate/internal/store"
+	"github.com/vul-os/openrate"
+	"github.com/vul-os/openrate/serve"
 )
 
 func TestCORSVaryHeader(t *testing.T) {
@@ -21,7 +21,7 @@ func TestCORSVaryHeader(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s := New(store.New(time.Hour), "ZAR", tc.origin)
+			s := serve.New(openrate.NewEngine(openrate.EngineOptions{}), serve.Options{CORSOrigin: tc.origin})
 			mux := http.NewServeMux()
 			s.Routes(mux)
 

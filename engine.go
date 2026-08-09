@@ -65,7 +65,7 @@ type Engine struct {
 
 // NewEngine returns an Engine holding an empty snapshot.
 func NewEngine(opts EngineOptions) *Engine {
-	base := opts.Base
+	base := normalize(opts.Base)
 	if base == "" {
 		base = "ZAR"
 	}

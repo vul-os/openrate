@@ -6,7 +6,7 @@ package ratestore
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -30,14 +30,22 @@ type Store struct {
 	srcs     []ratesources.Source
 	status   map[string]*SourceStatus
 	interval time.Duration
+	log      *slog.Logger
 }
 
-func New(interval time.Duration, srcs ...ratesources.Source) *Store {
+// New builds the store. log receives one warning per failed source fetch; nil
+// means slog.Default(). The FX side takes its logger the same way — a package
+// that writes to the global logger cannot be embedded quietly.
+func New(interval time.Duration, log *slog.Logger, srcs ...ratesources.Source) *Store {
+	if log == nil {
+		log = slog.Default()
+	}
 	st := &Store{
 		b:        rates.New(),
 		srcs:     srcs,
 		status:   map[string]*SourceStatus{},
 		interval: interval,
+		log:      log,
 	}
 	for _, s := range srcs {
 		st.status[s.Name()] = &SourceStatus{Name: s.Name()}
@@ -94,7 +102,8 @@ func (s *Store) refresh(ctx context.Context) {
 			// net/http echoes inside *url.Error; redact before recording.
 			safe := redact.Error(r.err)
 			st.LastError = safe.Error()
-			log.Printf("interest source %s: %v", r.name, safe)
+			s.log.Warn("openrate: interest source fetch failed",
+				slog.String("source", r.name), slog.String("error", safe.Error()))
 		} else {
 			st.LastError = ""
 			st.LastOK = now

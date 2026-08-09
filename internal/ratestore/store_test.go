@@ -2,6 +2,7 @@ package ratestore
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func TestSnapshotReadsDuringRefresh(t *testing.T) {
 	}
 
 	// Very short interval so multiple refreshes fire during the test.
-	st := New(5*time.Millisecond, src)
+	st := New(5*time.Millisecond, slog.New(slog.DiscardHandler), src)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)
@@ -73,7 +74,7 @@ func TestStatusReadsDuringRefresh(t *testing.T) {
 		},
 	}
 
-	st := New(5*time.Millisecond, src)
+	st := New(5*time.Millisecond, slog.New(slog.DiscardHandler), src)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)
@@ -106,7 +107,7 @@ func TestConcurrentSnapshotAndStatus(t *testing.T) {
 		},
 	}
 
-	st := New(5*time.Millisecond, src)
+	st := New(5*time.Millisecond, slog.New(slog.DiscardHandler), src)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go st.Run(ctx)

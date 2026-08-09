@@ -1,4 +1,4 @@
-package api
+package serve_test
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 
 // A rate that is not a positive finite number must never reach the wire.
 //
-// api.writeJSON sets the status and Content-Type before streaming, and discards
+// serve.writeJSON sets the status and Content-Type before streaming, and discards
 // the encoder's error (`_ = enc.Encode(v)`). So if a NaN or +Inf reaches the
 // encoder, the consumer gets 200 + `Content-Type: application/json` + a
 // truncated or empty body, with nothing anywhere to indicate failure. A client
@@ -41,10 +41,7 @@ func TestRatesResponseIsAlwaysCompleteJSON(t *testing.T) {
 		"-Inf": math.Inf(-1),
 	} {
 		t.Run(name, func(t *testing.T) {
-			st, cancel := populatedStore(t, poisonEdges(bad), 3)
-			defer cancel()
-			srv := apiServer(t, st)
-			defer srv.Close()
+			srv := apiServer(t, populatedEngine(t, poisonEdges(bad), 3))
 
 			for _, path := range []string{
 				"/api/v1/rates?base=USD",
@@ -85,10 +82,7 @@ func TestRatesResponseIsAlwaysCompleteJSON(t *testing.T) {
 // carries a usable number. Silently omitting a pair is correct; serving a
 // corrupt one is not.
 func TestPoisonedPairIsAbsentNotCorrupt(t *testing.T) {
-	st, cancel := populatedStore(t, poisonEdges(math.NaN()), 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, poisonEdges(math.NaN()), 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/rates?base=USD")
 	if err != nil {
@@ -144,10 +138,7 @@ func TestPoisonedPairIsAbsentNotCorrupt(t *testing.T) {
 // TestConvertResultIsFinite covers the multiplication the convert endpoint does
 // on top of the rate (amount * rate), which is the value consumers actually use.
 func TestConvertResultIsFinite(t *testing.T) {
-	st, cancel := populatedStore(t, poisonEdges(math.NaN()), 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, poisonEdges(math.NaN()), 3))
 
 	// math.MaxFloat64 is finite and parses cleanly, so the non-finite-amount
 	// guard lets it through — but amount*rate overflows to +Inf. That must be

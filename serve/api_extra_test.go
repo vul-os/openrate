@@ -1,7 +1,6 @@
-package api
+package serve_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,62 +9,61 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vul-os/openrate"
 	"github.com/vul-os/openrate/fx"
-	"github.com/vul-os/openrate/internal/store"
+	"github.com/vul-os/openrate/serve"
 )
 
-// ─── Mock FX source ──────────────────────────────────────────────────────────
+// These tests drive the real HTTP surface over the real Engine — no test double
+// stands in for either. An engine is loaded directly with a snapshot, which is
+// the point of the library split: populating one no longer needs a refresh
+// loop, a goroutine, and a two-second poll waiting for it to finish.
 
-// mockFX satisfies sources.Source (structurally, no import needed).
-type mockFX struct {
-	name  string
-	edges []fx.Edge
-}
-
-func (m *mockFX) Name() string                               { return m.name }
-func (m *mockFX) Fetch(_ context.Context) ([]fx.Edge, error) { return m.edges, nil }
-
-// testEdges are used throughout these tests.
 var apiTestTime = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 var testEdges = []fx.Edge{
 	{From: "USD", To: "ZAR", Rate: 18.50, Source: "sarb", Time: apiTestTime},
 	{From: "USD", To: "EUR", Rate: 0.92, Source: "ecb", Time: apiTestTime},
 }
 
-// populatedStore creates a store seeded from mockFX and blocks until the
-// snapshot contains at least minCurrencies currencies (or the test fails).
-func populatedStore(t *testing.T, edges []fx.Edge, minCurrencies int) (*store.Store, context.CancelFunc) {
+// populatedEngine returns an engine holding exactly these edges. It fails the
+// test if the book materialized smaller than expected — a fixture that came out
+// empty would make every assertion below vacuous.
+func populatedEngine(t *testing.T, edges []fx.Edge, minCurrencies int) *openrate.Engine {
 	t.Helper()
-	ms := &mockFX{"test", edges}
-	st := store.New(time.Hour, ms)
-	ctx, cancel := context.WithCancel(context.Background())
-	go st.Run(ctx)
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if len(st.Snapshot().Currencies) >= minCurrencies {
-			return st, cancel
-		}
-		time.Sleep(time.Millisecond)
+	g := fx.NewGraph()
+	g.Replace("test", edges)
+	snap := g.Materialize(apiTestTime)
+	if len(snap.Currencies) < minCurrencies {
+		t.Fatalf("fixture materialized %d currencies, want at least %d", len(snap.Currencies), minCurrencies)
 	}
-	cancel()
-	t.Fatalf("store did not populate with %d currencies within 2 s", minCurrencies)
-	return nil, nil
+	e := openrate.NewEngine(openrate.EngineOptions{Now: func() time.Time { return apiTestTime }})
+	e.Load(snap)
+	return e
 }
 
-func apiServer(t *testing.T, st *store.Store) *httptest.Server {
+// emptyServer is the other half of the fixture: a server over an engine that
+// has never been loaded, which is what a caller hits before the first refresh.
+func emptyServer(t *testing.T) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
-	New(st, "ZAR", "*").Routes(mux)
-	return httptest.NewServer(mux)
+	serve.New(openrate.NewEngine(openrate.EngineOptions{}), serve.Options{}).Routes(mux)
+	return mux
+}
+
+func apiServer(t *testing.T, e *openrate.Engine) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	serve.New(e, serve.Options{Now: func() time.Time { return apiTestTime }}).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 // ─── /healthz ────────────────────────────────────────────────────────────────
 
 func TestHealthzEndpoint(t *testing.T) {
-	st := store.New(time.Hour)
 	mux := http.NewServeMux()
-	New(st, "ZAR", "*").Routes(mux)
+	serve.New(openrate.NewEngine(openrate.EngineOptions{}), serve.Options{}).Routes(mux)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
@@ -82,10 +80,7 @@ func TestHealthzEndpoint(t *testing.T) {
 // ─── /api/v1/meta ────────────────────────────────────────────────────────────
 
 func TestMetaEndpointShape(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/meta")
 	if err != nil {
@@ -111,10 +106,7 @@ func TestMetaEndpointShape(t *testing.T) {
 // ─── /api/v1/rates ───────────────────────────────────────────────────────────
 
 func TestRatesEndpointDefaultBase(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/rates")
 	if err != nil {
@@ -135,10 +127,7 @@ func TestRatesEndpointDefaultBase(t *testing.T) {
 }
 
 func TestRatesEndpointExplicitBase(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/rates?base=USD")
 	if err != nil {
@@ -168,10 +157,7 @@ func TestRatesEndpointExplicitBase(t *testing.T) {
 // ─── /api/v1/convert ─────────────────────────────────────────────────────────
 
 func TestConvertKnownPair(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/convert?from=USD&to=ZAR&amount=100")
 	if err != nil {
@@ -200,10 +186,7 @@ func TestConvertKnownPair(t *testing.T) {
 }
 
 func TestConvertDefaultAmountIsOne(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/convert?from=USD&to=ZAR")
 	if err != nil {
@@ -221,10 +204,7 @@ func TestConvertDefaultAmountIsOne(t *testing.T) {
 }
 
 func TestConvertUnknownPairIs404(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/convert?from=XXX&to=YYY")
 	if err != nil {
@@ -237,10 +217,7 @@ func TestConvertUnknownPairIs404(t *testing.T) {
 }
 
 func TestConvertSelfIsOne(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/convert?from=USD&to=USD&amount=42")
 	if err != nil {
@@ -260,10 +237,7 @@ func TestConvertSelfIsOne(t *testing.T) {
 }
 
 func TestConvertMalformedAmountFallsBackToOne(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	resp, err := http.Get(srv.URL + "/api/v1/convert?from=USD&to=ZAR&amount=notanumber")
 	if err != nil {
@@ -288,10 +262,7 @@ func TestConvertMalformedAmountFallsBackToOne(t *testing.T) {
 // JSON encoder fail mid-write, leaving the client a 200 with a truncated body.
 // They must be rejected cleanly with a 400 instead.
 func TestConvertNonFiniteAmountIs400(t *testing.T) {
-	st, cancel := populatedStore(t, testEdges, 3)
-	defer cancel()
-	srv := apiServer(t, st)
-	defer srv.Close()
+	srv := apiServer(t, populatedEngine(t, testEdges, 3))
 
 	for _, amt := range []string{"Inf", "-Inf", "NaN", "inf", "nan", "Infinity"} {
 		resp, err := http.Get(srv.URL + "/api/v1/convert?from=USD&to=ZAR&amount=" + url.QueryEscape(amt))
@@ -313,9 +284,8 @@ func TestConvertNonFiniteAmountIs400(t *testing.T) {
 // headers. The convert endpoint is excluded here because an unknown pair takes
 // the http.Error path which intentionally omits CORS headers.
 func TestSuccessfulEndpointsSetCORSAndJSON(t *testing.T) {
-	st := store.New(time.Hour)
 	mux := http.NewServeMux()
-	New(st, "ZAR", "*").Routes(mux)
+	serve.New(openrate.NewEngine(openrate.EngineOptions{}), serve.Options{}).Routes(mux)
 
 	for _, path := range []string{"/api/v1/meta", "/api/v1/rates"} {
 		r := httptest.NewRequest(http.MethodGet, path, nil)
