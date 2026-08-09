@@ -25,21 +25,70 @@ type engineConfig struct {
 // outlive the handle that owns it.
 type engineObj struct {
 	e *openrate.Engine
+	// handle is this engine's own registry key, known before the object becomes
+	// reachable. adopt needs it to name the engine in the "not open" error a
+	// host gets when it builds a refresher over an engine it is closing.
+	handle uint64
 	// now is the response clock, matching serve.Options.Now. One instant per
 	// response, so every rate in a /rates payload is aged against the same
 	// moment. Tests pin it.
 	now func() time.Time
 
-	mu         sync.Mutex
+	mu sync.Mutex
+	// closed is terminal. It is what makes adopt and close mutually exclusive
+	// rather than merely mutex-protected: whichever runs second must be able to
+	// see that the other already happened.
+	closed     bool
 	refreshers []*refresherObj
 }
 
 func (o *engineObj) kindName() string { return "engine" }
 
-func (o *engineObj) adopt(r *refresherObj) {
+// adopt publishes r's handle in the registry AND appends r to this engine's
+// child list, as one critical section, or does neither.
+//
+// Both halves have to be one step. A refresher in the registry but not in the
+// list is a handle no close can reach: the engine has already snapshotted its
+// children, so closing the engine will not take it, and the host does not know
+// the number to close it with because openrate_refresher_new has not returned
+// yet. openrate_open_handles() then never comes back to zero, which is the one
+// assertion that entry point exists to support.
+//
+// LOCK ORDER: this takes the registry lock (inside install) while holding o.mu.
+// That is the package's declared order — see the comment above the registry in
+// abi.go — and it is safe because nothing in the registry ever calls back into
+// an object.
+func (o *engineObj) adopt(r *refresherObj) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.closed {
+		// The engine was closed while this refresher was being constructed.
+		// Same error the host would have got had close won the race a moment
+		// earlier and made the lookup in NewRefresher fail — because from the
+		// host's side it is the same event.
+		return errHandleNotOpen(o.handle)
+	}
+	install(r.handle, r)
 	o.refreshers = append(o.refreshers, r)
+	return nil
+}
+
+// detach removes r from the child list. A refresher the host closed itself must
+// stop being reported by "meta" — a fetch status from an object whose handle is
+// gone is a fact about nothing — and a long-lived engine that a host opens and
+// closes refreshers over must not accumulate one dead *refresherObj per cycle.
+//
+// It is called from refresherObj.close, which must NOT hold its own lock: the
+// order is engineObj.mu before refresherObj.mu.
+func (o *engineObj) detach(r *refresherObj) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for i, x := range o.refreshers {
+		if x == r {
+			o.refreshers = append(o.refreshers[:i], o.refreshers[i+1:]...)
+			return
+		}
+	}
 }
 
 // statuses is what /api/v1/meta calls its "sources" field: the fetch outcome of
@@ -65,8 +114,16 @@ func (o *engineObj) statuses() []fxsource.Status {
 // engine and then closes a refresher does not run the teardown twice, and a
 // host that closes the engine and then USES a refresher gets "handle is not
 // open" rather than a ticker feeding an engine nobody can reach.
+//
+// o.mu is released before any of that: r.close reaches back into detach, and
+// take reaches into the registry, so holding the engine's lock across the loop
+// would invert the package's lock order.
 func (o *engineObj) close() {
 	o.mu.Lock()
+	// Set BEFORE releasing the lock, in the same critical section that empties
+	// the list: a refresher being adopted concurrently either gets in before
+	// this and appears in rs, or finds closed and is never registered at all.
+	o.closed = true
 	rs := o.refreshers
 	o.refreshers = nil
 	o.mu.Unlock()
