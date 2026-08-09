@@ -102,6 +102,93 @@ jobs:
           go vet -tags noui ./...
           go test -tags noui ./...
 
+  # openrate is a library first and a server second, and every part of that
+  # claim is invisible to the job above. `go test ./...` runs INSIDE the module,
+  # where internal/ is reachable, nothing distinguishes a package the pure core
+  # may import from one it may not, and a binary's contents are not something a
+  # test asks about. Each step here is a property that can rot without a single
+  # existing test going red.
+  #
+  # embedtest/ is a second Go module (see its go.mod) and is therefore skipped
+  # by the root module's ./... — it only runs because this job runs it, which is
+  # exactly why every invocation goes through scripts/go-test-gate.sh with a
+  # floor and a list of required test names. A step that silently stopped
+  # executing anything would otherwise be a green tick over nothing.
+  embeddability:
+    name: Embeddability — public API, cold construction, import direction, UI linkage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt & vet the embeddability module
+        working-directory: embedtest
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+          go vet ./...
+          go vet -tags noui ./...
+
+      # G1 the internal/ wall holds and the public API is sufficient
+      # G2 constructing the library starts no goroutine, sends no packet, reads
+      #    no environment
+      # G3 fx and fxsource depend on nothing above them, and only the deprecated
+      #    Start shim reaches the server
+      # G5 the default build serves the console
+      - name: G1–G3, G5 — embeddability suite (default build)
+        working-directory: embedtest
+        run: |
+          bash ../scripts/go-test-gate.sh \
+            --min 8 \
+            --require TestG1EngineIsUsableFromAnotherModule \
+            --require TestG1InternalPackagesStayUnreachable \
+            --require TestG2ColdConstructionMakesZeroRoundTrips \
+            --require TestG2ColdConstructionStartsNoGoroutines \
+            --require TestG2ColdConstructionAdoptsNoEnvironmentKey \
+            --require TestG3ImportDirection \
+            --require TestG3RootDependsOnServeOnlyThroughTheDeprecatedShim \
+            --require TestG5DefaultBuildServesTheConsole \
+            -- ./...
+
+      # The same suite against the console-less build. Same floor, same required
+      # names, except that the "/" expectation inverts: the stub, not the page.
+      - name: G1–G3, G5 — embeddability suite (-tags noui)
+        working-directory: embedtest
+        run: |
+          bash ../scripts/go-test-gate.sh \
+            --min 8 \
+            --require TestG1EngineIsUsableFromAnotherModule \
+            --require TestG1InternalPackagesStayUnreachable \
+            --require TestG2ColdConstructionMakesZeroRoundTrips \
+            --require TestG2ColdConstructionStartsNoGoroutines \
+            --require TestG2ColdConstructionAdoptsNoEnvironmentKey \
+            --require TestG3ImportDirection \
+            --require TestG3RootDependsOnServeOnlyThroughTheDeprecatedShim \
+            --require TestG5NoUIBuildServesTheJSONStub \
+            -- -tags noui ./...
+
+      # Builds both binaries and measures: the console must be in one and not
+      # the other, and noui must save at least 90% of the bytes serve/web
+      # embeds. "Measurably smaller" has to be a measurement.
+      - name: G5 — noui is a real saving, not a compiled-out handler over the same bytes
+        run: bash scripts/check-ui-builds.sh
+
+      # The strongest form of the claim: a host importing ONLY the library links
+      # none of the console, even though serve/web is reachable through its
+      # import graph via the deprecated Start. Checked against a control host
+      # whose binary must contain the sentinel.
+      - name: G7 — importing the library links no UI bytes
+        run: bash scripts/check-embed-linkage.sh
+
   # The landing page's product captures were blurry and silently cropped for a
   # release, because the capture's aspect (1.33) and the display box's (0.92)
   # disagreed and `object-fit: cover` resolved the disagreement by discarding the
