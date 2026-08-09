@@ -281,8 +281,11 @@ Full detail in [`ffi/README.md`](../../ffi/README.md).
    `ProcessBuilder`/`Runtime.exec` are safe because they `posix_spawn` or
    `fork`+`exec`. The victims are a JNI/FFM call to bare `fork(2)`, and any
    supervisor that forks the JVM after the library is loaded.
-3. **The library is 6.7 MB** — 6,682,274 bytes on darwin/arm64. Smaller than
-   llmux's 12–17 MB, and still not nothing.
+3. **The library is ~6.7 MB** on darwin/arm64 — 6,682,274 bytes for the build
+   in `dist/` at the time of writing and 6,700,448 for a later rebuild of the
+   same source. The figure moves a little with build paths, so treat it as
+   "about 6.7 MB" rather than a constant. Smaller than llmux's 12–17 MB, and
+   still not nothing.
 4. **One platform.** See below.
 5. **Latency is not the reason to embed.** The reason is the engine's
    zero-network guarantee, plus no second process and no port. Not microseconds.
@@ -294,7 +297,7 @@ than llmux's**, and they are not interchangeable:
 
 | target | status |
 |---|---|
-| darwin/arm64 | **built, smoke-tested and benchmarked.** 6,682,274 bytes. Everything on this page was run on it. |
+| darwin/arm64 | **built, smoke-tested and benchmarked.** ~6.7 MB. Everything on this page was run on it. |
 | darwin/amd64 | **built (7,120,680 bytes) but NEVER EXECUTED.** Do not read this row as tested. |
 | linux/amd64 | **not built locally.** A CI job exists and has never run. |
 | **linux/arm64** | **built nowhere** — unlike llmux, which has a tested one. |
