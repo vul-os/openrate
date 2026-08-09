@@ -11,7 +11,13 @@ by one fact about your program rather than by a feature comparison.
 | **Go library** | `Engine`, `Refresher`, optionally `serve` | your program is Go |
 | **CLI / server** | one binary, JSON API, web console | you want a service, or you are exploring |
 | **Sidecar** | the same binary, on loopback, spoken to over HTTP | your program is not Go, or you want openrate restartable and crash-isolated |
-| **C ABI** | `libopenrate.{so,dylib,dll}`, six functions | your program is not Go **and** the per-call cost matters |
+| **C ABI** | `libopenrate.so` / `libopenrate.dylib`, six functions | your program is not Go, the per-call cost matters, **and** you want the no-network guarantee held structurally |
+
+The last two are not something you have to build. **Fifteen languages have a
+package already written** — and every one of them implements both, behind one
+API, so choosing again later is a constructor change rather than a rewrite. The
+index, with the right default for each language and the reasoning behind it, is
+[`sdks/README.md`](../sdks/README.md).
 
 ## The decision, in order
 
@@ -33,16 +39,30 @@ recommendation for every non-Go host, and it is not a compromise — it is
 simpler, it has none of the costs in step 4, and it makes openrate
 independently restartable and upgradable.
 
-Bindings for both of those live in [`sdks/`](../sdks) — C, C++, Go, Python,
-Ruby, PHP, Rust, Java, Elixir — and every one implements both modes, so
-choosing again later is a constructor change rather than a rewrite.
+Packages for both of those live in [`sdks/`](../sdks/README.md) — **bun, C,
+C++, Deno, .NET, Elixir, Go, Java, Kotlin, Node, PHP, Python, Ruby, Rust and
+Swift** — and most of them can start and supervise the sidecar process for you,
+so "run a sidecar" is a constructor call rather than an ops task.
 
-**4. Not Go, and the per-call cost genuinely matters?**
-Use the [C ABI](c-abi.md). In-process conversion measured **3.7 µs mean**
-against **33.5 µs** for the same conversion over a warm loopback HTTP
-connection — about 9×, or 30 µs saved per call. Read the costs on that page
-first; they are real, they include "not fork-safe", and for many hosts they
-outweigh the saving.
+**4. Not Go, and you want the engine in your own address space?**
+Use the [C ABI](c-abi.md). There are two reasons, and the second is the better
+one.
+
+The measurable reason: in-process conversion measured **3.7 µs mean** against
+**33.5 µs** for the same conversion over a warm loopback HTTP connection —
+about 9×, or 30 µs saved per call.
+
+The structural reason: **an engine handle refuses `"refresh"`**, checked in Go
+and again in C. Over the sidecar, "this deployment fetches nothing" is a
+configuration you maintain; in-process it is a property of the handle you are
+holding, and there is no argument you can pass to make an engine fetch. If what
+you need is a currency calculator that provably talks to nobody — behind a
+feature flag, in an air-gapped build, inside an audit — that is the mode that
+gives it to you. See [Proving it sends nothing](zero-network.md).
+
+Read the costs on the C ABI page before either: they are real, they include
+"not fork-safe" and "one target has ever been executed", and for many hosts
+they outweigh both reasons above.
 
 ## Cost, measured
 
@@ -65,6 +85,15 @@ by a lot.
 And 30 µs is 30 µs. Converting a handful of numbers per web request, it is
 invisible next to everything else you do. Pricing a book of orders in a loop,
 it is the whole cost.
+
+So do the division before you decide. If a conversion sits behind a database
+query, an outbound API call, or a model inference, the saving is somewhere
+around a thousandth of the request and **9× is not an argument for embedding** —
+take the sidecar and keep the fork-safety, the crash isolation and the empty
+platform matrix. The ratio only starts to mean something when conversions are
+the loop rather than a step inside one. Where the C ABI wins regardless of
+timing is the row at the bottom of the surface table above: an engine handle
+that cannot be made to fetch.
 
 ## Size, measured
 
@@ -96,6 +125,8 @@ Not every surface exists in every mode, and the gap is on one side only.
 | Metadata and source status | ✅ `Refresher.Status` | ✅ `GET /api/v1/meta` | ✅ `meta` |
 | Install your own rates | ✅ `Engine.Load` | ❌ the server is read-only | ✅ `load` |
 | Fetch on demand / on a schedule | ✅ `Refresher` | ✅ built in | ✅ refresher handles |
+| Know when a conversion would succeed | ✅ `Refresher.Ready(ctx)`, blocking, no polling | ✅ poll `GET /readyz` — 200 when the snapshot has currencies, 503 carrying each source's `last_error` | ✅ `ready` on a refresher handle |
+| **Fetch nothing, structurally** | ✅ build no `Refresher` | ❌ a running server is configured not to fetch | ✅ an engine handle **refuses** `"refresh"` |
 | Web console | ✅ via `serve` | ✅ | ❌ |
 | **Interest rates** | ❌ **`internal/`, serve-only** | ✅ `/api/v1/interest/*` | ❌ |
 

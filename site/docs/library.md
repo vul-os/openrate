@@ -15,6 +15,18 @@ for only what it uses:
 Import `github.com/vul-os/openrate` for `Engine` and `Refresher`. Add `serve`
 only if the program should also speak HTTP.
 
+```bash
+go get github.com/vul-os/openrate
+```
+
+Two runnable programs — one importing the package, one driving a sidecar over
+loopback — are in [`sdks/go/`](https://github.com/vul-os/openrate/blob/main/sdks/go/README.md); `bash sdks/go/examples/run.sh`
+runs both. Everything on this page applies to the first of them. **Go is the
+one language with no FFI story at all**: no shared library, no `dlopen`, no
+platform matrix, none of the costs on [the C ABI page](#c-abi). If your
+program is not Go, that page and the
+[fifteen language packages](https://github.com/vul-os/openrate/blob/main/sdks/README.md) are where to start instead.
+
 ## The headline case: an Engine with no Refresher
 
 This is the case that answers the real objection to embedding an FX engine in

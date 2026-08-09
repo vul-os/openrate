@@ -20,7 +20,7 @@ library-vs-sidecar question before you write any code.
 |---|---|
 | [Embed as a Go library](library.md) | `Engine`, `Refresher`, `fx`, `fxsource`, `serve`, the `noui` tag — the full reference |
 | [Proving it sends nothing](zero-network.md) | The headline property: an `Engine` constructed with the feature off sends zero packets, counted with a control |
-| [Use it from another language](c-abi.md) | The C ABI, its honest costs, and why the sidecar is usually the better answer |
+| [Use it from another language](c-abi.md) | The C ABI, its honest costs, the fifteen language packages, and why the sidecar is usually the better answer |
 
 ## Running the server
 
@@ -43,8 +43,8 @@ library-vs-sidecar question before you write any code.
 
 | Document | Purpose |
 |---|---|
+| [`sdks/README.md`](../sdks/README.md) | **The language index** — fifteen packages (bun, C, C++, Deno, .NET, Elixir, Go, Java, Kotlin, Node, PHP, Python, Ruby, Rust, Swift), each offering both the sidecar and the in-process path, with the right default for that language |
 | [`ffi/README.md`](../ffi/README.md) | The C ABI reference: every function, the memory rules, the measured numbers |
-| [`sdks/`](../sdks) | Per-language bindings — C, C++, Go, Python, Ruby, PHP, Rust, Java, Elixir — each offering both the sidecar and the in-process path |
 | [`SECURITY.md`](../SECURITY.md) | Disclosure policy |
 | [`CHANGELOG.md`](../CHANGELOG.md) | Release history |
 | [`ROADMAP.md`](../ROADMAP.md) | What is planned, and what is deliberately not |

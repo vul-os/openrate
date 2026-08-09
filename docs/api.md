@@ -147,6 +147,33 @@ workaround this endpoint replaces — could and did.
 In-process there is a direct equivalent and no polling: `Refresher.Ready(ctx)`
 blocks until the first non-empty snapshot. See [library.md](library.md).
 
+**All fifteen [language packages](../sdks/README.md) wait on this endpoint**,
+and none of them makes you call it: whichever function starts or attaches to a
+managed sidecar returns only once `/readyz` has answered `200`, and on timeout
+raises the sources' `last_error` text rather than a bare deadline. If you are
+writing your own client, that is the behaviour to copy — a start that returns
+before readiness is the single most common way to get a green run that
+converted nothing.
+
+### Two things that bite HTTP clients on loopback
+
+**Your language's HTTP client may route `127.0.0.1` through a proxy.** Several
+do, and they do it silently: if `HTTP_PROXY` is set in the environment — which
+it is, on most corporate machines and inside plenty of CI images — Python's
+`urllib` and .NET's `HttpClient` will both send a loopback request to the
+proxy, which then fails to reach a port on your machine. Both language packages
+now bypass the proxy explicitly for the sidecar's address. The Bun and Deno
+packages document `NO_PROXY=127.0.0.1` instead, because their runtimes read it.
+Nothing about openrate causes this and openrate cannot fix it for a client it
+did not write; the symptom is a connection error or a timeout against a sidecar
+that is demonstrably listening.
+
+**Neither `/healthz` nor `/readyz` is rate-limited, but everything under
+`/api/` is** — 120 requests/minute per IP by default. That is anti-scraping for
+a public deployment and simply wrong for a loopback sidecar serving one
+process, so the managed-sidecar packages start the server with
+`OPENRATE_RATELIMIT=0`. Set it to a number to put the limiter back.
+
 ---
 
 ## The rate object

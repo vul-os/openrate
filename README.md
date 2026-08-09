@@ -12,6 +12,7 @@
   <a href="docs/api.md">API</a> ·
   <a href="docs/configuration.md">Configuration</a> ·
   <a href="docs/library.md">Go library</a> ·
+  <a href="sdks/README.md">15 languages</a> ·
   <a href="docs/graph-model.md">Graph model</a> ·
   <a href="ACCURACY.md">Accuracy</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
@@ -117,36 +118,84 @@ Add a `Refresher` only when — and exactly when — the process should fetch, a
 `serve.New` (below) only when it should also answer HTTP. Full guide:
 [docs/library.md](docs/library.md).
 
-## Use it from another language
+## Use it from fifteen languages
 
-Not Go? There are two ways in, and the honest answer for which one you want
-depends on your runtime.
+openrate ships a package for **bun, C, C++, Deno, .NET, Elixir, Go, Java,
+Kotlin, Node, PHP, Python, Ruby, Rust and Swift** — fifteen — and each one
+gives you the same **two ways in**, behind one API, so choosing again later is
+a constructor change rather than a rewrite.
 
-**In-process.** `ffi/` builds a C shared library — integer handles, JSON in and
-JSON out, six functions — so Python, Ruby, Node, the JVM, Rust and anything else
-with an FFI can call openrate directly. It keeps the Engine/Refresher split
-intact: `openrate_new` builds an engine and nothing else, and a refresher is a
-separate, explicit construction, so a host that never asks for one cannot make
-the library open a socket.
+| | What it is | The right default for |
+|---|---|---|
+| **Sidecar** | openrate runs as its own process on `127.0.0.1`; the package starts it, waits until it is *ready*, and stops it for you | .NET · Elixir · Java · Kotlin · Node · PHP · Python |
+| **Direct** | the engine runs *inside* your process, over a C shared library — no port, no process, no socket | bun · C · C++ · Deno · Go · Rust · Swift |
+| *depends* | Ruby, where the answer turns on whether your server forks — [its README makes the call](sdks/ruby/README.md) | Ruby |
 
-```c
-uint64_t eng = openrate_new("{\"base\":\"ZAR\"}", &err);
-char *out = openrate_call(eng, "convert",
-                          "{\"from\":\"USD\",\"to\":\"ZAR\",\"amount\":100}", &err);
+Elixir is the one language with no direct mode, deliberately: a crash inside a
+NIF takes the BEAM down with it. Go is the one with no FFI at all — it imports
+the package.
+
+Sidecar, in Python. The package spawns the process and returns only once it is
+**ready**, not merely alive:
+
+```python
+import openrate
+from openrate import Client
+
+openrate.start(sources="ecb,coinbase", base_currency="ZAR")
+with Client() as client:
+    answer = client.convert("USD", "ZAR", 100)
+    print(answer["result"], answer["rate"]["quality"]["grade"])
 ```
 
-**Sidecar.** Run the binary below and talk to its JSON API over loopback. Fewer
-moving parts, no Go runtime in your process, no fork hazard.
+Direct, in C — the shape every other in-process binding wraps. Nothing here
+opens a socket, and nothing can be configured to:
 
-Measured on an idle M-series Mac, in-process costs 3.7 µs per conversion against
-33.5 µs over loopback — about 9x, or 30 µs saved per call. Whether that matters
-is the question, and **[`ffi/README.md`](ffi/README.md)** leads with the reasons
-it might not: the Go runtime and its signal handlers move into your process, the
-library is not fork-safe (Python `multiprocessing`, uWSGI, Unicorn), building it
-needs cgo and a per-target C toolchain, and the artifact is 6–8 MB.
-[docs/c-abi.md](docs/c-abi.md) is the shorter version of that decision, and
-[docs/deployment-modes.md](docs/deployment-modes.md) puts it beside the other
-three ways to run openrate.
+```c
+char *err = NULL;
+uint64_t eng = openrate_new("{\"base\":\"ZAR\"}", &err);   /* no thread, no socket */
+openrate_free(openrate_call(eng, "load", edges_json, &err));
+char *out = openrate_call(eng, "convert",
+                          "{\"from\":\"USD\",\"to\":\"ZAR\",\"amount\":100}", &err);
+puts(out);
+openrate_free(out);
+openrate_close(eng);
+```
+
+Both return the **same JSON document** `/api/v1` publishes — one wire format for
+both modes, held by a test that asks one engine the same questions over each and
+requires the answers to be equal by value.
+
+**The split is enforced at the ABI, and that — not speed — is direct mode's
+argument.** `openrate_new` builds an *engine*: no thread, no socket, no
+environment read. A refresher is a separate, explicit `openrate_refresher_new`,
+and **an engine handle refuses `"refresh"`** — checked in Go and again in C,
+through a really-`dlopen`'d library. "The feature is off, therefore nothing is
+sent" stops being a promise in a comment and becomes a property of the handle
+you hold — in all thirteen non-Go packages that offer a direct mode, because
+all thirteen call these same two constructors.
+
+Direct mode is also faster — 3.7 µs per conversion against 33.5 µs over
+loopback, about 9× — but read that as a floor with an asterisk: if a conversion
+sits behind a database query or a model call, 30 µs is not an argument for
+anything. The costs are real and **[`ffi/README.md`](ffi/README.md)** leads with
+them: the Go runtime and its signal handlers move into your process, the library
+is not fork-safe (Python `multiprocessing`, uWSGI, Unicorn), building it needs
+cgo and a per-target C toolchain, and the artifact is 6–8 MB. Of the prebuilt
+targets only `darwin/arm64` has ever been executed and **no Windows DLL exists**,
+so on Windows the sidecar is not a fallback — it is the mode. The sidecar needs
+only the `openrate` binary and has no such matrix.
+
+Start at **[`sdks/README.md`](sdks/README.md)** — the index, with the reasoning
+behind each language's default. [docs/quickstart.md](docs/quickstart.md#4-my-program-is-not-go)
+has the one command that runs a working example in each of the fifteen;
+[docs/c-abi.md](docs/c-abi.md) is the ABI they are built on, and
+[docs/deployment-modes.md](docs/deployment-modes.md) puts both beside the other
+ways to run openrate.
+
+There is deliberately **no streaming API** and no `openrate_stream`: a
+conversion is a graph lookup and a multiplication, complete the moment it is
+asked for. That is a design statement, not a gap.
 
 ## Run it as a server instead
 
@@ -207,8 +256,10 @@ much of it you need, all fully open, keyless, and free:
 | **Compute + fetch** | add `openrate.NewRefresher(...)` — still no HTTP, in-process only |
 | **Compute + fetch + HTTP** | add `serve.New(...)` — the JSON API, and the UI if `Options.UI` is set |
 | **Self-hosted binary** | `go run ./cmd/openrate` — all three, wired together, keyless, hourly refresh |
+| **Sidecar, from any language** | the same binary on `127.0.0.1`, spawned and supervised by your [language package](sdks/README.md) |
+| **In-process, from any language** | `libopenrate` loaded over the [C ABI](docs/c-abi.md) — the first two rows, outside Go |
 
-The binary is the last row, not a different thing. There is also
+The binary is the fourth row, not a different thing. There is also
 `openrate.Start(...)`, the original all-in-one embedding call — it still
 works, but it is deprecated in favour of the three explicit pieces above; see
 [docs/library.md](docs/library.md#deprecated-openratestart) for the migration.
@@ -335,6 +386,9 @@ serve/interest      policy-rate endpoints, /api/v1/interest/*
 serve/ratelimit     the per-IP rate limiter
 ffi                 the C shared library other languages load (its own Go module,
                     named openrate-ffi so the internal/ wall applies to it too)
+sdks                fifteen language packages (bun, c, cpp, deno, dotnet, elixir, go,
+                    java, kotlin, node, php, python, ruby, rust, swift), each offering
+                    both direct and sidecar modes; sdks/README.md is the index
 embedtest           a second module that proves the library is embeddable from outside
 internal/rates,     the interest-rate engine's own stack (rates, sources, store,
   ratesources,        quality) — serve-only, not part of the importable surface
@@ -378,8 +432,9 @@ Full documentation lives in **[`docs/`](docs/)**.
 | Guide | What's inside |
 |---|---|
 | [Go library](docs/library.md) | Import `Engine`/`Refresher` directly — compute, fetch and serve as separate, opt-in steps |
-| [Proving it sends nothing](docs/zero-network.md) | An `Engine` constructed with the feature off sends zero packets — counted, with a control |
-| [Use it from another language](docs/c-abi.md) | The C ABI, its honest costs, and why the sidecar is usually the better answer |
+| [Language packages](sdks/README.md) | **The index for all fifteen** — which of the two modes each language should default to, and why |
+| [Use it from another language](docs/c-abi.md) | The C ABI those packages are built on, its honest costs, and what is actually prebuilt |
+| [Proving it sends nothing](docs/zero-network.md) | An `Engine` constructed with the feature off sends zero packets — counted, with a control, and held across the ABI too |
 
 **Everything else**
 

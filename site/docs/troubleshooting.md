@@ -232,6 +232,94 @@ rates](interest-rates.md).
 
 ---
 
+## The language packages
+
+Symptoms specific to the fifteen packages in [`sdks/`](https://github.com/vul-os/openrate/blob/main/sdks/README.md). The
+C ABI section below covers the layer underneath them, and everything in it
+applies to direct mode in every language.
+
+### The package cannot find the shared library
+
+Direct mode needs `libopenrate-<goos>-<goarch>.{dylib,so}`, and no release
+ships one. Build it, then point the package at it:
+
+```bash
+scripts/build-ffi.sh --host-only      # writes dist/ffi/
+export OPENRATE_LIBRARY=/abs/path/to/dist/ffi/libopenrate-darwin-arm64.dylib
+```
+
+Every package reads `OPENRATE_LIBRARY` and falls back to a conventional
+`dist/ffi/` path relative to the checkout. If the build itself failed, the
+cause is almost always cgo: `go build -buildmode=c-shared` needs a C toolchain
+for the target, and `build-ffi.sh` prints what it built, what it attempted and
+failed, and what it skipped and why — a skipped target is reported, never
+omitted.
+
+Before you spend long on this, check that your platform is one that has ever
+been built. **Only `darwin/arm64` has been built and executed.** `darwin/amd64`
+has been compiled and never run; the `linux/amd64` CI job exists and has never
+run; `linux/arm64` is not built; **no Windows DLL exists at all**. On Windows,
+and on linux/arm64 today, the sidecar is not a workaround — it is the mode.
+(llmux publishes a different matrix. It does not transfer.)
+
+### The sidecar starts, `/healthz` says `ok`, and every conversion fails
+
+You are waiting on liveness instead of readiness. See
+the same symptom under *Running the server*.
+Every package now waits on `/readyz` for you inside whatever function starts
+the sidecar, so if you are seeing this you are either on an older package or
+you have hand-rolled the wait. Wait for a `200` from `/readyz`, and on timeout
+print the sources' `last_error` values from the `503` body.
+
+### The sidecar is listening but the client cannot reach it
+
+Check `HTTP_PROXY` first. Several HTTP clients route `127.0.0.1` through a
+configured proxy without saying so, and the proxy then cannot reach a port on
+your own machine. This was a real bug in two of the packages here — Python's
+`urllib` and .NET's `HttpClient` were both doing it — and both now bypass the
+proxy explicitly for the sidecar's address. The Bun and Deno packages document
+the environment fix instead, because their runtimes honour it:
+
+```bash
+export NO_PROXY=127.0.0.1
+```
+
+The symptom is a connection error or a timeout against a server you can
+`curl` from the same shell.
+
+### `429` from a sidecar that only I am talking to
+
+The `/api/` rate limiter, 120 requests/minute per IP, which is anti-scraping
+for a public deployment and simply wrong for a loopback sidecar serving one
+process. The managed-sidecar packages start the child with
+`OPENRATE_RATELIMIT=0` for exactly this reason; if you started the process
+yourself, pass it too. Neither `/healthz` nor `/readyz` is limited, so a
+readiness poll is never the cause.
+
+### I cannot find the streaming API
+
+There is not one, in any of the fifteen languages, and there is no
+`openrate_stream` in the ABI. A conversion is a graph lookup and a
+multiplication — it is complete the moment it is asked for, so there is no
+incremental result to deliver. This is a design statement, not a gap waiting to
+be filled.
+
+### `refresh` fails on an object that converts fine
+
+```
+openrate: unknown engine method "refresh" (have: convert, rates, meta, load)
+```
+
+You are holding an **engine**, and an engine refuses to fetch. That is the
+whole point of the split, not a missing feature: build a refresher over it with
+the package's equivalent of `openrate_refresher_new`, and call
+`refresh`/`start` on that. The refusal is checked in Go and again in C, so no
+package can accidentally grant it. See
+[Use it from another language](#c-abi) and
+[Proving it sends nothing](#zero-network).
+
+---
+
 ## The C ABI
 
 ### The child process hangs after `fork()`

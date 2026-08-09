@@ -50,6 +50,25 @@ is what the current shape is for. The same decision is carried into the
 [C ABI](#c-abi): `openrate_new` builds an engine, `openrate_refresher_new` is
 a second, explicit construction, and no entry point does both.
 
+### The guarantee survives the language boundary
+
+In Go the split is two types, and the compiler is what stops you calling
+`Refresh` on an `Engine`. Across the C ABI there are no types — there are
+`uint64` handles and a method name in a string — so the same guarantee has to
+be re-established at runtime, and it is: **an engine handle refuses
+`"refresh"`**. That refusal is asserted in Go
+(`ffi/abi/abi_test.go`) and again in C, through a really-`dlopen`'d library
+(`ffi/test/smoke.c`). Both, because the first proves the dispatcher rejects it
+and the second proves the library a host actually loads is the one that was
+tested.
+
+All thirteen non-Go [language packages](https://github.com/vul-os/openrate/blob/main/sdks/README.md) that offer a direct
+mode inherit this rather than reimplementing it (Elixir is the fourteenth, and
+declines a direct mode altogether). A Python or
+Java or Rust host that constructs only an engine has the same property this
+page's Go examples do, held by the same two checks, and it does not depend on
+that package's own wrapper being careful.
+
 ## An engine that is never fed says so
 
 `NewEngine` materializes an *empty* snapshot rather than a nil one, so every
