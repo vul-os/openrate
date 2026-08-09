@@ -26,7 +26,8 @@ int json_string(const char *doc, const char *key, char *out, size_t outcap);
 
 /*
  * Append the string value of EVERY `"key":"..."` to out, in document order.
- * This is how the examples reassemble a streamed answer from its chunks.
+ * openrate has no streaming operation; this collects every value for a
+ * repeated key out of one response document.
  * Returns the number of matches appended.
  */
 int json_string_append_all(const char *doc, const char *key, char *out, size_t outcap);

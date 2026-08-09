@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-10
+
+### Fixed
+
+- **v0.1.3 shipped a library that misreported its own version.** `VERSION` was
+  bumped to 0.1.3; `ffi/abi/version.go` and `ffi/include/openrate.h` were not, so
+  `openrate_abi_version()` answered `0.1.2`. That breaks the staleness detection
+  the symbol exists to provide, in the direction that reports "old" for a current
+  library.
+
+  Every check run before tagging was green, because **`ffi/` is a separate Go
+  module and `go test ./...` at the root cannot see it** — the pin that would
+  have caught this (`ffi/abi`'s `TestVersionMatchesTheVERSIONFile`) lives inside
+  the module that was wrong. `TestFFIABIVersionTracksTheVERSIONFile` now runs in
+  the root module and reads ffi/'s source as text, precisely because importing
+  across that boundary is not possible.
+- **A stale binary could pass a readiness check.** An openrate predating
+  `/readyz` has no such route, so its console catch-all answers `200 text/html`,
+  and a probe testing only the status code read that as ready against an engine
+  holding zero rates — the same false green `/readyz` was added to remove.
+  Readiness now requires the document to say `"ready": true`, and a non-JSON 200
+  is reported as "this binary predates the readiness endpoint".
+- **`ffi/README.md` claimed `linux/amd64` was "built and smoke-tested by the
+  `ffi` job on `ubuntu-latest`".** The job is configured and has never run.
+- **Dead streaming code in `sdks/c`.** `http_sse` and a comment about
+  reassembling "a streamed answer from its chunks" were carried over from llmux
+  into a product whose own README states it has no streaming operation. Nothing
+  called them.
+
 ## [0.1.3] - 2026-08-09
 
 Additive. Nothing that compiled or called against v0.1.2 changes behaviour.
@@ -415,7 +444,8 @@ reason.
 
 Initial release.
 
-[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/vul-os/openrate/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/vul-os/openrate/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/vul-os/openrate/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/vul-os/openrate/compare/v0.1.0...v0.1.1

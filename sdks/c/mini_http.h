@@ -54,10 +54,6 @@ void http_response_free(http_response *r);
  *
  * The terminal `data: [DONE]` frame is delivered like any other; the caller
  * decides what it means, exactly as it must against the real API.
- */
-int http_sse(int port, const char *path, const char *bearer, const char *body,
-             int (*on_event)(const char *data, void *user_data), void *user_data,
-             char *errbuf, size_t errcap);
 
 /*
  * Ask the kernel for an unused loopback port and give it straight back.

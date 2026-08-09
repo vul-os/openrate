@@ -157,61 +157,6 @@ void http_response_free(http_response *r) {
 	r->len = 0;
 }
 
-int http_sse(int port, const char *path, const char *bearer, const char *body,
-             int (*on_event)(const char *data, void *user_data), void *user_data,
-             char *errbuf, size_t errcap) {
-	int fd = dial(port, errbuf, errcap);
-	if (fd < 0) return -1;
-	if (write_request(fd, port, "POST", path, bearer, body, "text/event-stream") != 0) {
-		fail(errbuf, errcap, "send");
-		close(fd);
-		return -1;
-	}
-
-	/* Read incrementally and hand over each `data:` line as it lands. Buffering
-	 * the whole response first would make time-to-first-token a lie. */
-	char line[16384];
-	size_t line_len = 0;
-	int past_headers = 0;
-	int header_match = 0; /* how much of "\r\n\r\n" we have seen */
-	char chunk[4096];
-
-	for (;;) {
-		ssize_t n = recv(fd, chunk, sizeof(chunk), 0);
-		if (n < 0) {
-			if (errno == EINTR) continue;
-			fail(errbuf, errcap, "recv");
-			close(fd);
-			return -1;
-		}
-		if (n == 0) break;
-		for (ssize_t i = 0; i < n; i++) {
-			char c = chunk[i];
-			if (!past_headers) {
-				const char *want = "\r\n\r\n";
-				header_match = (c == want[header_match]) ? header_match + 1
-				               : (c == '\r' ? 1 : 0);
-				if (header_match == 4) past_headers = 1;
-				continue;
-			}
-			if (c == '\n') {
-				while (line_len && (line[line_len - 1] == '\r')) line_len--;
-				line[line_len] = '\0';
-				if (strncmp(line, "data: ", 6) == 0) {
-					if (on_event(line + 6, user_data) != 0) {
-						close(fd);
-						return 0;
-					}
-				}
-				line_len = 0;
-				continue;
-			}
-			if (line_len + 1 < sizeof(line)) line[line_len++] = c;
-		}
-	}
-	close(fd);
-	return 0;
-}
 
 int http_free_port(void) {
 	int fd = socket(AF_INET, SOCK_STREAM, 0);

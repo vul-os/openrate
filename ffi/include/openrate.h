@@ -94,7 +94,7 @@ extern "C" {
  *
  * KEEP IN SYNC WITH: /VERSION and ffi/abi/version.go. Tests fail if they drift.
  */
-#define OPENRATE_ABI_VERSION "0.1.2"
+#define OPENRATE_ABI_VERSION "0.1.4"
 
 /*
  * Construct an ENGINE. Returns a handle, or 0 with *err set.

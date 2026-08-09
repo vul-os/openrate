@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <sub>Current release: <a href="https://github.com/vul-os/openrate/releases/tag/v0.1.3">v0.1.3</a></sub>
+  <sub>Current release: <a href="https://github.com/vul-os/openrate/releases/tag/v0.1.4">v0.1.4</a></sub>
 </p>
 
 <!-- Plain-text badges on purpose. Shields.io images are third-party fetches:
@@ -228,8 +228,8 @@ release workflow's OIDC identity (no long-lived signing key exists, so there is
 none to leak or rotate). `scripts/verify.sh` is what you run against them:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/vul-os/openrate/v0.1.3/scripts/verify.sh
-bash verify.sh --tag v0.1.3 --attest openrate_0.1.3_source.zip
+curl -fsSLO https://raw.githubusercontent.com/vul-os/openrate/v0.1.4/scripts/verify.sh
+bash verify.sh --tag v0.1.4 --attest openrate_0.1.4_source.zip
 ```
 
 It fetches the manifest, looks up the **exact** entry for the asset (names are

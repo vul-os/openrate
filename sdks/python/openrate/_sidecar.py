@@ -132,7 +132,24 @@ def _wait_ready(base: str, timeout: float, interval: float = 0.1) -> None:
         try:
             with _urlopen(base + "/readyz", timeout=2) as r:
                 if r.status == 200:
-                    return
+                    # A 200 is not enough. An openrate that predates /readyz has
+                    # no such route, so its console catch-all answers 200 with
+                    # HTML — and a status-only check reads that as ready and
+                    # hands the caller an engine holding zero rates. The 404
+                    # branch below only catches binaries whose catch-all is off.
+                    # Require the document to say so itself.
+                    try:
+                        doc = json.loads(r.read().decode("utf-8", "replace"))
+                    except ValueError:
+                        raise OpenRateSidecarError(
+                            f"{base}/readyz answered 200 but not JSON. That is what an "
+                            "openrate predating the readiness endpoint looks like: the "
+                            "console catch-all answering instead of a route. Upgrade it."
+                        ) from None
+                    if doc.get("ready") is True:
+                        return
+                    detail = _not_ready_detail(doc)
+                    transport = None
         except urllib.error.HTTPError as exc:
             # urllib hands a non-2xx response back as an exception, and the 503
             # here has a JSON body worth keeping — reading it is the whole point.

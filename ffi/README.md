@@ -326,9 +326,10 @@ why. A skipped target is reported as skipped.
 
 **Not built here, CI-only:**
 
-- `linux/amd64` — built and smoke-tested by the `ffi` job on `ubuntu-latest`.
-  Cross-building it from macOS needs `x86_64-linux-gnu-gcc` or `zig cc`, neither
-  of which was installed.
+- `linux/amd64` — an `ffi` job on `ubuntu-latest` is configured to build and
+  smoke-test it. **That job has never run**, so treat this target as unbuilt
+  until it does. Cross-building from macOS needs `x86_64-linux-gnu-gcc` or
+  `zig cc`, neither of which was installed here.
 - `linux/arm64`, `windows/amd64` — **not built anywhere yet.** Windows needs
   mingw-w64 and no runner in this repository's CI has it. The build script knows
   how to target it and will say so when the toolchain appears. Until then,
