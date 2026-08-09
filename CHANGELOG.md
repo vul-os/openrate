@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`GET /readyz` — a real readiness endpoint.** `/healthz` answers the instant
+  the listener binds, before any source has been fetched. That is correct for a
+  liveness probe and wrong for a client deciding when to send its first request,
+  and the gap was not theoretical: every managed sidecar in [`sdks/`](sdks/) was
+  written against `/healthz`, saw a `200`, converted immediately, got
+  `unknown or unreachable currency pair` for every pair, and **exited 0** — a
+  false green that also disguises itself as a bad currency code.
+
+  `/readyz` returns `200` once the snapshot has currencies and `503` before
+  that, and the `503` carries each source's `last_error`, so a stuck start
+  prints `ecb: dial tcp: connection refused` rather than an unexplained timeout.
+  It sits **outside `/api/`** deliberately: the rate limiter covers `/api/` only,
+  so polling readiness cannot exhaust the budget you are waiting to use — which
+  is exactly what polling `/api/v1/meta`, the workaround it replaces, could do.
+  In-process the equivalent is unchanged and needs no polling:
+  `Refresher.Ready(ctx)`.
+
+  Both guarantees are mutation-tested. Reporting ready on an empty engine fails
+  `TestReadyIsNotReadyBeforeAnyRateArrives`; extending the limiter to cover
+  `/readyz` fails `TestReadyzIsNotRateLimited` on poll 3, and that test carries a
+  control proving the limiter is genuinely on.
+
+### Fixed
+
+- **`docs/api.md` described `/healthz` as "used as a readiness probe".** That
+  sentence was the defect above, written down.
+
+### Added (docs)
+
 - **Five new guides**, taking the published set from nine pages to fourteen:
   [docs/quickstart.md](docs/quickstart.md) (one starting point per audience),
   [docs/deployment-modes.md](docs/deployment-modes.md) (library / CLI /
