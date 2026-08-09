@@ -270,12 +270,27 @@ func (s *sidecar) waitLive(timeout time.Duration) error {
 	return fmt.Errorf("openrate did not listen within %s: %w", timeout, last)
 }
 
-// waitReady polls /api/v1/meta until the engine holds at least one currency.
+// waitReady polls /api/v1/meta until the engine holds at least one currency,
+// and returns an ERROR if it never does.
+//
 // This is the HTTP equivalent of Refresher.Ready, and it is a different
-// question from /healthz.
+// question from /healthz — which answers ok the instant the listener binds,
+// before any source has been fetched. Returning an error rather than an empty
+// result is the point: a caller that treats /healthz as readiness gets
+// "unknown or unreachable currency pair" from every conversion and exits 0,
+// because that message reads like a bad currency code rather than like "this
+// server has no rates yet".
+//
+// The delay backs off from 100ms to a 2s ceiling. A fixed 200ms poll is 300
+// requests a minute, and `openrate serve` ships an anti-scraping rate limiter
+// at 120/minute per IP, so a long wait gets itself a 429 from the very server
+// it is waiting for. (The Rust SDK's first version did exactly that and failed
+// on its first run.) With backoff a 45-second wait is about 25 requests.
 func (s *sidecar) waitReady(ctx context.Context, timeout time.Duration) (*metaResponse, error) {
 	deadline := time.Now().Add(timeout)
 	var last metaResponse
+	delay := 100 * time.Millisecond
+	const maxDelay = 2 * time.Second
 	for time.Now().Before(deadline) {
 		var m metaResponse
 		if err := s.getJSON(ctx, "/api/v1/meta", &m); err != nil {
@@ -288,7 +303,10 @@ func (s *sidecar) waitReady(ctx context.Context, timeout time.Duration) (*metaRe
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(delay):
+			if delay *= 2; delay > maxDelay {
+				delay = maxDelay
+			}
 		}
 	}
 	// Report the source errors rather than just "timed out": the reason is

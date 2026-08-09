@@ -92,11 +92,33 @@ answers `200` with `"rates": {}`. A caller checking only the status code reads
 "no rates available" as success. The example demonstrates this rather than
 describing it.
 
-**3. `/healthz` is liveness, not readiness.** It answers `ok` the instant the
-listener binds, before any source has been fetched. Readiness is
-"`/api/v1/meta` reports a non-empty `currencies` list". In Go the equivalent is
-`Refresher.Ready(ctx)`, which blocks until the engine holds at least one
-currency — and does not itself fetch.
+**3. `/healthz` is liveness, not readiness — and only the library has a real
+readiness signal.** This one is a genuine point in favour of the library path,
+so it is worth stating rather than glossing.
+
+In-process, `Refresher.Ready(ctx)` blocks until the engine holds at least one
+currency, and does not itself fetch. It is an actual signal: openrate closes a
+channel the first time a non-empty snapshot lands.
+
+Over HTTP there is nothing equivalent. `/healthz` answers `ok` the instant the
+listener binds, before any source has been fetched, so the best a client can do
+is **poll `/api/v1/meta` until the currency list is non-empty** — which is what
+`examples/sidecar` does, and what every one of this suite's SDKs had to
+reimplement independently.
+
+The failure mode if you skip it is nasty, because it is a false green that
+disguises itself as user error: the sidecar starts, `/healthz` returns 200,
+every conversion answers `{"error":"unknown or unreachable currency pair"}`, and
+a program that only checks the status code **exits 0**. "Unknown pair" reads
+like a bad currency code, not like "the server has no rates yet". Fail loudly
+on an empty result; do not treat a well-formed empty answer as success.
+
+Two further traps in the polling itself, both hit by SDKs in this repo:
+`openrate serve`'s anti-scraping limiter is **120 requests per minute per IP**,
+so a 200 ms poll gets itself a `429` from the server it is waiting for — back
+off. And the meta document is **pretty-printed**, so a readiness check written
+against the compact C-ABI shape (`"currencies":[`) never matches the HTTP one
+(`"currencies": [`).
 
 One more, worth knowing when writing any client: openrate's `writeJSON` sets a
 `200` header and *then* encodes, so a mid-body encoding failure yields a
