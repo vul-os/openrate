@@ -289,7 +289,7 @@ jobs:
         working-directory: ffi
         run: |
           bash ../scripts/go-test-gate.sh \
-            --min 16 \
+            --min 22 \
             --require TestTheInternalWallHoldsForTheABI \
             --require TestHandlesAreNeverReused \
             --require TestZeroPacketsThroughTheABI \
@@ -303,6 +303,12 @@ jobs:
             --require TestRefresherFetchesOnlyWhenAskedThroughTheABI \
             --require TestTheBackgroundLoopIsOptInAndStoppable \
             --require TestAnEngineHandleIsNotARefresherHandle \
+            --require TestStartRacingCloseCannotLeaveAnUnstoppableLoop \
+            --require TestStopIsReversibleButCloseIsTerminal \
+            --require TestBuildingARefresherWhileTheEngineClosesLeavesNoOrphanHandle \
+            --require TestClosingARefresherDetachesItFromItsEngine \
+            --require TestMillisecondConfigCannotOverflowIntoATightLoop \
+            --require TestARequestTimeoutTooLargeToRepresentIsClampedNotWrapped \
             -- -race ./...
 
       - name: ShellCheck the FFI scripts
