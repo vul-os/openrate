@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-09
+
+Additive. Nothing that compiled or called against v0.1.2 changes behaviour.
+
 ### Added
 
 - **`GET /readyz` — a real readiness endpoint.** `/healthz` answers the instant
@@ -35,6 +39,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`docs/api.md` described `/healthz` as "used as a readiness probe".** That
   sentence was the defect above, written down.
+- **All fifteen SDKs now wait on `/readyz`.** Every one of them had a readiness
+  bug: `go`/`rust`/`swift` polled `/api/v1/meta` behind a backoff that existed
+  purely to dodge the 120/min limiter (both now unnecessary); `node`/`bun`/`deno`
+  discarded the cause and **exited 0** on timeout — the same false green this
+  release removes; `python`/`ruby`/`php`/`elixir` had no readiness wait in the
+  library at all, only a copy-pasted loop in each example. Timeouts now name the
+  source and its error rather than reporting an empty currency list.
+- **Two real client bugs found while doing it.** `HTTP_PROXY` was honoured for
+  loopback by python's urllib and .NET's `HttpClient`, so a user behind a proxy
+  could not reach their own child process; both now bypass it, and bun/deno
+  document `NO_PROXY=127.0.0.1` since neither has a clean per-request opt-out.
+  Three SDKs also carried a comment claiming `/healthz` "goes through the same
+  per-IP limiter as the API" — untrue, and deleted.
+- **One JSON encoding, not two.** `/readyz`'s 503 was hand-rolled and shipped
+  compact next to an indented 200. Every body now goes through one encoder.
 
 ### Added (docs)
 
@@ -396,7 +415,8 @@ reason.
 
 Initial release.
 
-[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/vul-os/openrate/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/vul-os/openrate/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/vul-os/openrate/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/vul-os/openrate/releases/tag/v0.1.0
