@@ -33,11 +33,14 @@
 
 ---
 
-**openrate** is an open-source exchange-rate engine. It ingests rates "the open
-way" — from central-bank reference files and free public venue feeds, not by
-reselling a paid API — models every currency as a **graph** rather than picking a
-single canonical base, and serves an all-pairs JSON API plus a single
-hand-written, dependency-free embedded UI from a single Go binary.
+**openrate** is an open-source exchange-rate engine, and a Go library first.
+Import it and it computes; add a `Refresher` and it fetches; add `serve` and it
+answers HTTP too, with an embedded, dependency-free UI. It ingests rates "the
+open way" — from central-bank reference files and free public venue feeds, not
+by reselling a paid API — and models every currency as a **graph** rather than
+picking a single canonical base. The self-hosted binary is one deployment of
+the library, not the only way to run it: **import it. The server is optional.
+The UI is optional.**
 
 <!-- Captured from the running binary against live ECB, Coinbase, Luno and SARB
      data — every figure below was ingested, not typed. Regenerate after any UI
@@ -83,7 +86,41 @@ rates along the shortest path between them, so:
   than implying there isn't one. See
   [the graph model](#graph-model).
 
-## Run
+## Import it
+
+```go
+import (
+	"context"
+
+	"github.com/vul-os/openrate"
+	"github.com/vul-os/openrate/fxsource"
+)
+
+e := openrate.NewEngine(openrate.EngineOptions{}) // starts nothing, opens no socket
+c, err := e.Convert("USD", "ZAR", 100)             // ErrUnknownPair until fed
+
+r := openrate.NewRefresher(e, openrate.RefreshOptions{
+	Sources: fxsource.Build("ecb,coinbase"),
+})
+go r.Run(context.Background()) // the ONLY line above that talks to the network
+
+c, err = e.Convert("USD", "ZAR", 100) // now answers from what r fetched
+```
+
+`NewEngine` on its own is inert: no goroutine, no socket, no environment read,
+ever. A host can construct one behind a feature flag that is off and be
+certain the process is unchanged — see
+[the Engine-without-a-Refresher example](#library).
+Add a `Refresher` only when — and exactly when — the process should fetch, and
+`serve.New` (below) only when it should also answer HTTP. Full guide:
+[docs/library.md](#library).
+
+## Run it as a server instead
+
+Importing the library is the primary way in; running the binary is the
+deployment option for when you want a standalone JSON API and web console
+instead of an in-process engine. Both are the same three pieces
+(`Engine`/`Refresher`/`serve`) — the binary just wires them together for you:
 
 ```bash
 go run ./cmd/openrate            # serves :8080, base ZAR, hourly refresh
@@ -126,36 +163,22 @@ never implies more than it checked.
 `bash scripts/verify.sh --selftest` runs 24 synthetic-origin cases asserting
 that each refusal still fires; CI runs it on every push.
 
-## Embed as a Go library
-
-Instead of running the binary, import the root package and run the engine
-in-process — no subprocess, same store/sources/API/hardening as `cmd/openrate`:
-
-```go
-import "github.com/vul-os/openrate"
-
-local, err := openrate.Start(openrate.Options{}) // ZAR base, hourly refresh, ephemeral port
-if err != nil {
-	log.Fatal(err)
-}
-defer local.Close()
-
-resp, _ := http.Get(local.APIBaseURL() + "/rates") // or local.BaseURL + "/healthz"
-```
-
-`Options` mirrors the binary's flags (`Addr`, `Base`, `Refresh`, `Sources`,
-`RateLimit`, `ServeUI`). `Start` returns once `/healthz` is serving. The engine's
-building blocks stay under `internal/`; this package is the supported public API.
-
 ## Deployment modes
 
-openrate ships as sovereign, self-contained infrastructure — run it two ways,
-both fully open, keyless, and free:
+openrate ships as sovereign, self-contained infrastructure — run it however
+much of it you need, all fully open, keyless, and free:
 
 | Shape | How |
 |---|---|
-| **Self-hosted binary** | `go run ./cmd/openrate` — keyless, all sources, hourly refresh |
-| **Embedded Go library** | `openrate.Start(...)` in-process — the same engine, no subprocess |
+| **Compute only** | `openrate.NewEngine(...)` — no fetching, no serving; feed it with `Load` |
+| **Compute + fetch** | add `openrate.NewRefresher(...)` — still no HTTP, in-process only |
+| **Compute + fetch + HTTP** | add `serve.New(...)` — the JSON API, and the UI if `Options.UI` is set |
+| **Self-hosted binary** | `go run ./cmd/openrate` — all three, wired together, keyless, hourly refresh |
+
+The binary is the last row, not a different thing. There is also
+`openrate.Start(...)`, the original all-in-one embedding call — it still
+works, but it is deprecated in favour of the three explicit pieces above; see
+[docs/library.md](#library) for the migration.
 
 ## API
 
@@ -231,15 +254,19 @@ not open data, so they are off unless you bring a key — see
 Because the graph prefers the freshest direct edge, `USD→ZAR` resolves to the
 live Coinbase quote (~seconds old) while `EUR/GBP/JPY→ZAR` resolve to SARB's
 authoritative direct quotes — each chosen automatically, no special-casing.
-Add a source by implementing `sources.Source` and registering it in
-`internal/sources/registry.go`. Full catalog + freshness notes: [SOURCES.md](#sources).
+Add a source by implementing `fxsource.Source` and registering it in
+`fxsource/registry.go`. Full catalog + freshness notes: [SOURCES.md](#sources).
 
 ## Web UI
 
-The interface is a single hand-written HTML document (`web/ui.html`) embedded
-in the binary via `go:embed` — inline CSS and JS, vanilla, **no build step, no
-npm, no bundler**. It has the converter (with the live grade badge and a "show
-the working" panel: graph path, hops, sources, spread, and — on a triangulated
+The interface is a single hand-written HTML document (`serve/web/ui.html`)
+embedded via `go:embed` and mounted at `/` when `Options.UI` (binary) or
+`serve.Options{UI: true}` (library) is set — inline CSS and JS, vanilla, **no
+build step, no npm, no bundler**. A build tagged `noui` compiles the embed out
+of the binary entirely instead of merely not serving it; see
+[docs/library.md](#library) for the measured size
+difference. It has the converter (with the live grade badge and a "show the
+working" panel: graph path, hops, sources, spread, and — on a triangulated
 pair — the displayed legs multiplied out against the displayed rate, residual
 included) and a sortable,
 filterable board of every pair with its grade, in a dark theme and a light
@@ -251,7 +278,7 @@ still works, it just has no page of its own right now.
 go run ./cmd/openrate    # then open http://localhost:8080 — the UI is served at "/"
 ```
 
-Editing the UI means editing `web/ui.html` directly; there is nothing to
+Editing the UI means editing `serve/web/ui.html` directly; there is nothing to
 regenerate. See [docs/web-ui.md](#web-ui).
 
 <!-- A screenshot of the interest-rate/"Policy" page used to sit here. That page
@@ -264,19 +291,23 @@ regenerate. See [docs/web-ui.md](#web-ui).
 ## Layout
 
 ```
-openrate.go       public package: embed the engine in-process (Start/Close)
-cmd/openrate      entrypoint: wires sources -> store -> api + UI
-internal/graph    currency graph, BFS all-pairs materialization
-internal/sources  pluggable FX sources (ecb, coinbase, luno, sarb, … all live)
-internal/store    ingest loop + snapshot store
-internal/quality  the grade/confidence model attached to every rate
-internal/api      JSON read endpoints
-internal/ratesapi policy-rate endpoints, /api/v1/interest/*
-web               web/ui.html — the embedded UI (plain HTML/CSS/JS, no build step, embedded via go:embed)
-site              the static site: landing, docs viewer, generated site/docs
-site/gen          regenerates site/docs from the canonical docs (CI-gated), and
-                  re-derives the landing's cross-rate arithmetic from its own digits
-scripts           release verifier + the landing's screenshot gate (both self-testing)
+openrate.go        public package: Engine (computes) + Refresher (fetches); Start (deprecated)
+fx                  the pure core: currency graph, snapshot, accuracy model, Describe
+fxsource            pluggable FX sources (ecb, coinbase, luno, sarb, … all live) + the only os.Getenv
+cmd/openrate        entrypoint: wires Engine + Refresher + serve (+ UI) together
+serve               the optional HTTP shell: JSON API, rate limiting, hardening
+serve/web           serve/web/ui.html — the embedded UI; compiled out entirely under -tags noui
+serve/interest      policy-rate endpoints, /api/v1/interest/*
+serve/ratelimit     the per-IP rate limiter
+internal/rates,     the interest-rate engine's own stack (rates, sources, store,
+  ratesources,        quality) — serve-only, not part of the importable surface
+  ratestore,
+  ratequality
+internal/redact     strips API keys that net/http echoes back into fetch errors
+site                the static site: landing, docs viewer, generated site/docs
+site/gen            regenerates site/docs from the canonical docs (CI-gated), and
+                    re-derives the landing's cross-rate arithmetic from its own digits
+scripts             release verifier + the landing's screenshot gate (both self-testing)
 ```
 
 ### Gates
@@ -289,7 +320,7 @@ build:
 |---|---|---|
 | `bash scripts/verify.sh --selftest` | a release artifact is the published bytes | 24 synthetic-origin failures |
 | `go test ./site/gen` | site/docs is generated and link-clean; the landing's §02 arithmetic is what its own printed digits produce, residual included | coverage floors on every scan |
-| `go test ./internal/graph` | a pair's rate is the product of its legs bit-for-bit, and the *displayed* legs agree only within display rounding | fails if the fixture drifts to values where rounding happens to land |
+| `go test ./fx` | a pair's rate is the product of its legs bit-for-bit, and the *displayed* legs agree only within display rounding | fails if the fixture drifts to values where rounding happens to land |
 | `node scripts/check-shots.mjs --selftest` | every capture the landing displays is its display box's shape, and at least 2x sampled | 5 deliberate breakages (crop, blur, 404, stale attrs, empty selector) |
 
 ## Documentation
@@ -300,7 +331,7 @@ Full documentation lives in **[`docs/`](https://github.com/vul-os/openrate/blob/
 |---|---|
 | [API reference](#api) | Every endpoint, params, and full response shapes |
 | [Configuration](#configuration) | Flags, env vars, and the source spec |
-| [Go library](#library) | Embed the engine in-process with `Start`/`Close` |
+| [Go library](#library) | Import `Engine`/`Refresher` directly — compute, fetch and serve as separate, opt-in steps |
 | [Graph model](#graph-model) | Why currencies are a graph, not a base |
 | [Accuracy & quality](#accuracy) | The grade/confidence model behind every rate |
 | [Sources](#sources) | Full source catalog, cadence, and provenance |
@@ -328,7 +359,7 @@ modules compiled into the binary, plus the browser assets vendored — as
 committed files, not npm packages — into the marketing site: the **Geist Sans**
 and **Geist Mono** webfonts under `site/assets/fonts/` (whose OFL-1.1 licence
 must travel with the shipped `.woff2` files) and the `highlight.js`/`marked`
-bundles under `site/assets/vendor/`. The embedded UI (`web/ui.html`) ships zero
+bundles under `site/assets/vendor/`. The embedded UI (`serve/web/ui.html`) ships zero
 npm-derived code and no webfonts — system font stacks only — so there is
 nothing of its own to attribute. Their licences (MIT, BSD, Apache-2.0, OFL-1.1)
 require the copyright notice and licence text to accompany every copy.
@@ -338,7 +369,7 @@ require the copyright notice and licence text to accompany every copy.
   `scripts/gen-notices.sh` (Go: go-licence-detector; fonts and vendored JS:
   read directly off the committed files), never hand-edited.
 - Both the binary and the marketing site serve it at **`/licenses.txt`**: the
-  binary embeds a physical copy at `web/THIRD-PARTY-NOTICES.txt`
+  binary embeds a physical copy at `serve/web/THIRD-PARTY-NOTICES.txt`
   (`web.Licenses`, linked from the UI topbar; kept byte-identical to the
   root file by a test), and the site serves its own copy the same way
   (linked from its footer).
