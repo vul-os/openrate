@@ -3,7 +3,9 @@
 openrate attaches a `quality` block to **every** rate it returns. An exchange
 rate is only as trustworthy as its provenance, so we make that explicit: a letter
 grade plus a 0–1 confidence, with the factors that produced it. The logic lives in
-`internal/quality` and is mirrored in the web **Accuracy** page.
+`fx` (`fx.Assessment`, computed by `fx.Assess`) and is mirrored in the web
+**Accuracy** page. It is importable along with everything else in `fx` — see
+[docs/library.md](docs/library.md).
 
 ## Grade bands
 
@@ -109,7 +111,7 @@ and **D** as soon as anything else is less than perfect. A defunct currency
 
 **Thin currencies.** Codes outside the ECB reference list (`KES`, `GHS`, `MAD`,
 `BWP`, `AED`, `SAR`, …) reach the graph only through the broad multi-asset feeds
-(see `fiatAllow` in `internal/sources/fiat.go`). With one feed carrying them they
+(see `fiatAllow` in `fxsource/fiat.go`). With one feed carrying them they
 are single-source by construction, so the ×0.88 factor applies and A is out of
 reach; enabling a second broad feed (`erapi`, `fawazahmed0`) is what corroborates
 them.
