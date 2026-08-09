@@ -19,11 +19,11 @@ import (
 
 	"github.com/vul-os/openrate/fxsource"
 	"github.com/vul-os/openrate/internal/api"
-	"github.com/vul-os/openrate/internal/ratelimit"
 	"github.com/vul-os/openrate/internal/ratesapi"
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
 	"github.com/vul-os/openrate/internal/store"
+	"github.com/vul-os/openrate/serve/ratelimit"
 	"github.com/vul-os/openrate/serve/web"
 )
 
