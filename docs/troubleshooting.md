@@ -130,7 +130,14 @@ you tighten `FetchTimeout`, expect SARB to be the first source to drop out.
 
 `/healthz` proves the listener is accepting connections. It has never proved a
 rate exists, and it cannot. Use `Refresher.Ready(ctx)` in-process, or poll
-`GET /api/v1/meta` and wait for a non-empty currency list.
+`GET /readyz` over HTTP and wait for a `200`.
+
+A `/readyz` `503` tells you *why* it is not ready — each source's `last_error`
+is in the body — so a stuck start prints `ecb: dial tcp: connection refused`
+rather than an unexplained timeout. (Before `/readyz` existed the advice here
+was to poll `/api/v1/meta` for a non-empty currency list. That works, but
+`/api/v1/meta` is rate-limited and `/readyz` is not, so a fast poll could take
+a `429` from the very server it was waiting for.)
 
 `Ready` does **not** fetch. Something must be refreshing, or it waits for a
 snapshot that will never arrive.
@@ -139,7 +146,8 @@ snapshot that will never arrive.
 
 The per-IP rate limiter, default 120 requests/minute on `/api/` paths. Set
 `-ratelimit 0` to disable it, or raise it. The console and its assets are never
-rate-limited, and neither is `/healthz`.
+rate-limited, and neither are `/healthz` and `/readyz` — a readiness poll cannot
+exhaust the budget it is waiting to use.
 
 ### Everything is rate-limited into one bucket behind my proxy
 

@@ -11,7 +11,8 @@ openrate serves a small, read-only JSON API under `/api/v1`. All responses are
 | `GET /api/v1/rates` | All currencies vs. a base |
 | `GET /api/v1/convert` | Convert an amount between two currencies |
 | `GET /api/v1/meta` | Sources, freshness, and currency list |
-| `GET /healthz` | Liveness probe |
+| `GET /healthz` | Liveness — the process is up |
+| `GET /readyz` | Readiness — a conversion would actually succeed |
 
 All currency codes are case-insensitive and trimmed (`zar` → `ZAR`).
 
@@ -103,8 +104,49 @@ Sources, freshness, and the list of currencies present in the snapshot.
 
 ## `GET /healthz`
 
-Always returns `200 OK` with body `ok` once the server is listening. Used as a
-readiness probe (the [Go library](#library) waits on it during `Start`).
+Always returns `200 OK` with body `ok` once the server is listening.
+
+**This is liveness, not readiness.** It answers the instant the listener binds,
+which is before any source has been fetched — so a client that treats a 200 here
+as "ready to convert" will get `unknown or unreachable currency pair` for every
+pair it asks about. Use `/readyz` to decide when to send the first
+request. Every managed sidecar in [`sdks/`](https://github.com/vul-os/openrate/blob/main/sdks) made exactly this mistake
+before `/readyz` existed.
+
+---
+
+## `GET /readyz`
+
+Whether the engine can actually serve a conversion yet.
+
+`200 OK` once the snapshot has currencies in it:
+
+```json
+{ "ready": true, "currencies": 31, "built_at": "2026-08-09T21:04:11Z", "sources": [ ... ] }
+```
+
+`503 Service Unavailable` before that, carrying **why**:
+
+```json
+{
+  "ready": false,
+  "currencies": 0,
+  "reason": "no rates yet: no source has returned a usable quote",
+  "sources": [ { "name": "ecb", "last_error": "dial tcp: connection refused" } ]
+}
+```
+
+Poll it until 200, then start converting. On timeout, print the `last_error` of
+each source rather than a bare timeout — that field is the difference between
+"openrate never became ready" and "ECB is unreachable from this host".
+
+`/readyz` sits **outside `/api/`** deliberately, so the
+[rate limiter](#configuration) never applies to it: polling readiness cannot
+exhaust the budget you are waiting to use. Polling `/api/v1/meta` — the
+workaround this endpoint replaces — could and did.
+
+In-process there is a direct equivalent and no polling: `Refresher.Ready(ctx)`
+blocks until the first non-empty snapshot. See [library.md](#library).
 
 ---
 

@@ -54,16 +54,21 @@ entirely.
 ## Two things that will bite you
 
 **`/healthz` is liveness, not readiness.** It answers before any rates have been
-fetched. A sidecar example that starts the server, sees a 200, and converts
-immediately gets `{"error":"unknown or unreachable currency pair"}` for every
-call — and exits 0. Every sidecar package here polls `/api/v1/meta` until the
-currency list is non-empty, and fails loudly with the underlying source error
-instead. In-process there *is* a real readiness signal, `Refresher.Ready(ctx)`.
+fetched. A sidecar that starts the server, sees a 200, and converts immediately
+gets `{"error":"unknown or unreachable currency pair"}` for every call — and
+exits 0. That false green is what `GET /readyz` exists to remove: it returns 200
+only once the snapshot has currencies, and its 503 carries each source's
+`last_error`, so a stuck start prints `ecb: connection refused` rather than a
+bare timeout. Every sidecar package here polls it. `/readyz` sits outside
+`/api/`, so unlike the `/api/v1/meta` poll it replaces, readiness polling never
+touches the rate limiter. In-process the equivalent is `Refresher.Ready(ctx)`,
+with no polling at all.
 
 **The JSON API rate-limits `/api/` to 120 requests/minute per IP.** That is
 anti-scraping for a public deployment and wrong for a loopback sidecar serving
 one client, so the managed-sidecar packages pass `OPENRATE_RATELIMIT=0`; pass a
-value to put it back. (`/healthz` is *not* limited — only `/api/` paths are.)
+value to put it back. Neither `/healthz` nor `/readyz` is limited — only `/api/`
+paths are — so neither a liveness check nor a readiness poll can spend it.
 
 ## Prebuilt libraries — what actually exists
 

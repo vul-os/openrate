@@ -221,7 +221,8 @@ works, but it is deprecated in favour of the three explicit pieces above; see
 | `GET /api/v1/rates?base=ZAR` | All currencies vs base; `rate` reads "1 base = rate CCY" |
 | `GET /api/v1/convert?from=USD&to=ZAR&amount=100` | Convert, with rate provenance |
 | `GET /api/v1/meta` | Sources, freshness, currency list |
-| `GET /healthz` | Liveness |
+| `GET /healthz` | Liveness — the process is up |
+| `GET /readyz` | Readiness — a conversion would succeed; 503 carries the source errors |
 
 Every rate includes `hops`, `as_of`, `age_sec`, the `path` and `sources`, plus a
 **`quality`** block (grade A–D + confidence) — see below. Full request/response
