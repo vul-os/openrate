@@ -108,8 +108,16 @@ Response (trimmed):
 
 ## Embedding
 
+The interest-rate stack (`ratesources`, `ratestore`, `serve/interest`) is
+`internal/` and serve-only — unlike the FX side, there is no importable
+`Engine`/`Refresher` pair for it today. The only in-process path is the
+deprecated `Start`, which still runs it end to end:
+
 ```go
 local, _ := openrate.Start(openrate.Options{Interest: true})
 defer local.Close()
 // GET local.APIBaseURL() + "/interest/rates"
 ```
+
+See [the library guide](#library) for why `Start` is deprecated for the FX
+engine, and note that the reason does not (yet) have a replacement here.

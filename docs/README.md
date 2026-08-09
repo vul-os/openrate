@@ -8,7 +8,7 @@ Everything you need to run, consume, embed, and extend openrate.
 |---|---|
 | [API reference](api.md) | Every endpoint, query params, and full response shapes |
 | [Configuration](configuration.md) | Flags, environment variables, and the source spec |
-| [Embed as a Go library](library.md) | Run the engine in-process with `Start`/`Close` |
+| [Embed as a Go library](library.md) | Import `Engine`/`Refresher` directly — no subprocess, no HTTP, opt in to fetching and serving separately |
 | [The graph model](graph-model.md) | Why openrate models currencies as a graph, not a base |
 | [Interest rates](interest-rates.md) | The optional policy/reference-rate engine under `/api/v1/interest/*` |
 | [Accuracy & quality](../ACCURACY.md) | The grade/confidence model behind every rate |

@@ -82,7 +82,7 @@ confidence score. See [Accuracy & quality](../ACCURACY.md).
 
 ## Adding a source
 
-Implement the `sources.Source` interface and register it in
-`internal/sources/registry.go`. Once it emits edges, the graph picks them up
+Implement the `fxsource.Source` interface and register it in
+`fxsource/registry.go`. Once it emits edges, the graph picks them up
 automatically — a fresher or more direct quote will start winning paths with no
 other changes. See [SOURCES.md](../SOURCES.md).
