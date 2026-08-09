@@ -1,4 +1,4 @@
-package ratesapi
+package interest
 
 import (
 	"context"

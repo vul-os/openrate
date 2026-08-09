@@ -1,8 +1,14 @@
-// Package ratesapi exposes read endpoints over the current interest-rate
+// Package interest exposes read endpoints over the current interest-rate
 // snapshot. Every series carries its provenance (source, age, history) and a
 // confidence grade, mirroring the FX API's freshness-first philosophy. Routes
 // live under /api/v1/interest/ so they sit alongside the FX API on one server.
-package ratesapi
+//
+// The interest-rate stack behind it (the book, its sources, its own store and
+// grading model) is still under internal/ and is reachable only through these
+// endpoints. FX is what openrate promotes as an embeddable library; interest
+// rates stay a served feature until there is a caller that wants them in
+// process.
+package interest
 
 import (
 	"encoding/json"

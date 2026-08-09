@@ -19,7 +19,7 @@ import (
 
 	"github.com/vul-os/openrate/fxsource"
 	"github.com/vul-os/openrate/internal/api"
-	"github.com/vul-os/openrate/internal/ratesapi"
+	"github.com/vul-os/openrate/serve/interest"
 	"github.com/vul-os/openrate/internal/ratesources"
 	"github.com/vul-os/openrate/internal/ratestore"
 	"github.com/vul-os/openrate/internal/store"
@@ -68,7 +68,7 @@ func main() {
 	if intSrcs := ratesources.Build(*intSpec); len(intSrcs) > 0 {
 		ist := ratestore.New(*intRefresh, intSrcs...)
 		go ist.Run(ctx)
-		ratesapi.New(ist, *cors).Routes(mux)
+		interest.New(ist, *cors).Routes(mux)
 		log.Printf("interest rates: %d source(s), refresh %s", len(intSrcs), *intRefresh)
 	}
 
