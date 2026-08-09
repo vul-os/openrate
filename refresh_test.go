@@ -72,8 +72,7 @@ func edgesAt(t time.Time) []fx.Edge {
 func TestConstructorsSendNothing(t *testing.T) {
 	src := &fakeSource{name: "fake", edges: edgesAt(fixtureTime)}
 
-	runtime.GC()
-	before := runtime.NumGoroutine()
+	before := stableGoroutines(t)
 
 	e := openrate.NewEngine(openrate.EngineOptions{Logger: quiet()})
 	r := openrate.NewRefresher(e, openrate.RefreshOptions{Sources: sources(src), Logger: quiet()})
@@ -375,4 +374,25 @@ func TestConcurrentSnapshotAndStatus(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// stableGoroutines waits until the process's goroutine count stops moving and
+// returns it. Without this the count is a flaky baseline: an earlier test in
+// the same binary (openrate.Start's refresh loop, an httptest server) can still
+// be winding down, and its exit would be misread as our constructor's doing.
+func stableGoroutines(t *testing.T) int {
+	t.Helper()
+	prev := -1
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		runtime.GC()
+		time.Sleep(25 * time.Millisecond)
+		n := runtime.NumGoroutine()
+		if n == prev {
+			return n
+		}
+		prev = n
+	}
+	t.Fatalf("goroutine count never settled (last %d); cannot measure what a constructor started", prev)
+	return 0
 }

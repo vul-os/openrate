@@ -21,8 +21,7 @@ import (
 // with Handler(), not with New() — so a caller that only wants Routes() on its
 // own mux never acquires it.
 func TestNewStartsNothing(t *testing.T) {
-	runtime.GC()
-	before := runtime.NumGoroutine()
+	before := stableGoroutines(t)
 
 	s := serve.New(openrate.NewEngine(openrate.EngineOptions{}), serve.Options{RateLimit: 60})
 	time.Sleep(50 * time.Millisecond)
@@ -302,4 +301,25 @@ func TestLegWireShapeIsStable(t *testing.T) {
 			t.Errorf("leg %d age_sec = %v, want %d (the quote is an hour old on this clock)", i, leg["age_sec"], ageSec)
 		}
 	}
+}
+
+// stableGoroutines waits until the process's goroutine count stops moving and
+// returns it. Without this the count is a flaky baseline: an earlier test in
+// the same binary (openrate.Start's refresh loop, an httptest server) can still
+// be winding down, and its exit would be misread as our constructor's doing.
+func stableGoroutines(t *testing.T) int {
+	t.Helper()
+	prev := -1
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		runtime.GC()
+		time.Sleep(25 * time.Millisecond)
+		n := runtime.NumGoroutine()
+		if n == prev {
+			return n
+		}
+		prev = n
+	}
+	t.Fatalf("goroutine count never settled (last %d); cannot measure what a constructor started", prev)
+	return 0
 }
