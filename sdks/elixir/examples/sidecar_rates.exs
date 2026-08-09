@@ -18,25 +18,24 @@ sources = System.get_env("OPENRATE_SOURCES", "ecb")
 # one client. Ask for the default back and the fan-out reports about 58/100 with
 # the rest HTTP 429; the HTTP shell enforces limits the in-process library has no
 # equivalent for, in either direction.
-{:ok, base} = Openrate.start(sources: sources, ui: false)
+{:ok, base} =
+  case Openrate.start(sources: sources, ui: false) do
+    {:ok, base} ->
+      {:ok, base}
+
+    {:error, reason} ->
+      # start/1's errors are message strings — including the /readyz reason, which
+      # is the whole point of the readiness wait. Do not inspect() it away.
+      IO.puts(:stderr, "could not start the sidecar: #{reason}")
+      System.halt(1)
+  end
+
 IO.puts("sidecar : #{base}")
 
 try do
-  # Wait for the first fetch to populate the book.
-  deadline = System.monotonic_time(:millisecond) + 60_000
-
-  meta =
-    Stream.repeatedly(fn ->
-      Process.sleep(250)
-      Openrate.meta()
-    end)
-    |> Stream.take_while(fn _ -> System.monotonic_time(:millisecond) < deadline end)
-    |> Enum.find({:error, :timeout}, fn
-      {:ok, %{"currencies" => [_ | _]}} -> true
-      _ -> false
-    end)
-
-  {:ok, meta} = meta
+  # Openrate.start/1 waited for /readyz, so the book is already populated —
+  # nothing to poll for here.
+  {:ok, meta} = Openrate.meta()
   currencies = meta["currencies"] |> Enum.reject(&(&1 == "ZAR")) |> Enum.take(20)
   IO.puts("meta    : #{length(meta["currencies"])} currencies, built #{meta["built_at"]}")
 

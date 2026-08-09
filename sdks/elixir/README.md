@@ -19,6 +19,33 @@ the Port and reaps the child.
 > exits, which is wrong for a long-lived sidecar. A `Port` gives a non-blocking,
 > supervised handle with exit notifications and automatic teardown.
 
+## Live is not ready, and `start/1` waits for both
+
+`GET /healthz` is **liveness**: the binary answers it the instant the listener
+binds, with an empty rate book behind it. `GET /readyz` is **readiness**: 200
+once the snapshot holds a currency, and 503 with a JSON body — a `reason`, plus
+a `last_error` for each source that has failed — until then.
+
+Returning from `start/1` on liveness alone is a false green. The caller converts
+immediately, gets `unknown or unreachable currency pair` for every pair, and
+reads that as a bad currency code rather than an empty book. So `start/1`
+returns only once `/readyz` says yes, and if the rates never arrive it hands
+back what the server said rather than a bare timeout:
+
+```
+could not start the sidecar: openrate has no rates after 30s: no rates yet: no source
+has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/
+eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
+```
+
+`:timeout` bounds the wait for the listener, `:ready_timeout` the wait for
+rates. Neither endpoint sits under `/api/`, and the per-IP limiter guards only
+`/api/`, so both polls are flat short intervals with no backoff — there is no
+budget to conserve. The earlier version of this SDK waited for `/healthz` and
+left readiness to the examples, which polled `/api/v1/meta` until it reported a
+currency; that worked, but it spent the rate-limited budget the caller was
+waiting to use.
+
 **No dependencies.** Not even `:inets` — `:httpc` reaches for `:ssl` and
 `:public_key` defaults before it will answer a plain-http request, so
 `Openrate.HTTP` is a thirty-line `:gen_tcp` GET instead. Every openrate API call
@@ -67,7 +94,8 @@ go build -o sdks/elixir/priv/bin/openrate ./cmd/openrate
 `Openrate.start/1` takes `:port`, `:base` (default presentation currency),
 `:sources` (comma-separated: `ecb`, `coinbase`, `luno`, `sarb`, …), `:refresh`
 (a Go duration, e.g. `"1h"`), `:ui` (default `false`), `:ratelimit`, `:env`,
-`:timeout`.
+`:timeout` (ms to wait for the listener, default `60_000`) and `:ready_timeout`
+(ms to then wait for rates, default `30_000`).
 
 `:ratelimit` **defaults to 0 here, and the binary's own default is 120** API
 requests a minute per IP. That limit is anti-scraping for a public deployment

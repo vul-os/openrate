@@ -10,6 +10,22 @@ defmodule Openrate.Sidecar do
   Why a `Port` and not `System.cmd/3`: `System.cmd/3` blocks until the process
   exits, which is wrong for a long-lived sidecar. A Port is a non-blocking,
   supervised handle with exit notifications and automatic teardown.
+
+  ## `start/1` waits twice, because there are two questions
+
+  `/healthz` is liveness: the binary answers it the instant the listener binds,
+  with an empty rate book behind it. `/readyz` is readiness: 200 once the
+  snapshot holds a currency, and 503 with a JSON body — `reason`, plus a
+  `last_error` per source — until then. Returning from `start/1` on liveness
+  alone is a false green: the caller converts immediately and gets
+  `unknown or unreachable currency pair` for every pair, which reads like a bad
+  currency code rather than an empty book. So `start/1` returns only once
+  `/readyz` says yes, and on timeout returns the server's own reasons:
+
+      {:error, "openrate has no rates after 30s: no rates yet: no source has
+       returned a usable quote (ecb: … connect: connection refused)"}
+
+  `:timeout` bounds the first wait, `:ready_timeout` the second.
   """
 
   use GenServer
@@ -52,10 +68,12 @@ defmodule Openrate.Sidecar do
         port = open_port(bin, build_env(addr, opts))
         os_pid = port_os_pid(port)
 
-        case wait_healthy(base, Keyword.get(opts, :timeout, 60_000)) do
-          :ok ->
-            {:reply, {:ok, base}, %{state | port: port, os_pid: os_pid, base: base}}
-
+        # Live first, then ready. Both, or the child is killed and the caller
+        # gets the reason rather than a sidecar it cannot use.
+        with :ok <- wait_healthy(base, Keyword.get(opts, :timeout, 60_000)),
+             :ok <- wait_ready(base, Keyword.get(opts, :ready_timeout, 30_000)) do
+          {:reply, {:ok, base}, %{state | port: port, os_pid: os_pid, base: base}}
+        else
           {:error, reason} ->
             close(port, os_pid)
             {:reply, {:error, reason}, %__MODULE__{}}
@@ -198,6 +216,14 @@ defmodule Openrate.Sidecar do
     port
   end
 
+  # Liveness. This only asks whether the listener is up; the book behind it is
+  # very probably still empty when this returns, which is what wait_ready/2 is
+  # for.
+  #
+  # 50 ms, and no backoff: /healthz is outside /api/, and the binary's per-IP
+  # limiter guards /api/ only, so a tight poll here spends nothing the caller
+  # wanted. (An earlier comment claimed the opposite and slowed the poll to
+  # 200 ms to compensate. It was wrong about the limiter.)
   defp wait_healthy(base, timeout_ms) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
     do_wait_healthy(base, deadline)
@@ -205,18 +231,78 @@ defmodule Openrate.Sidecar do
 
   defp do_wait_healthy(base, deadline) do
     if System.monotonic_time(:millisecond) > deadline do
-      {:error, "openrate did not become healthy within the timeout"}
+      {:error, "openrate did not start listening within the timeout"}
     else
       case Openrate.HTTP.get(base, "/healthz") do
         {:ok, 200, _body} ->
           :ok
 
         _ ->
-          # 200 ms, not 50: /healthz goes through the same per-IP limiter as the
-          # API, so a tight poll spends a budget the caller wanted.
-          Process.sleep(200)
+          Process.sleep(50)
           do_wait_healthy(base, deadline)
       end
     end
+  end
+
+  # Readiness — a different question, and the one that decides whether a
+  # conversion can succeed. /readyz is 200 with rates, 503 without, and the 503
+  # carries the reasons; /readyz is outside /api/ too, so this poll is also
+  # free of the limiter.
+  @ready_poll_ms 150
+
+  defp wait_ready(base, timeout_ms) do
+    deadline = System.monotonic_time(:millisecond) + timeout_ms
+    do_wait_ready(base, deadline, timeout_ms, {:transport, "openrate never answered /readyz"})
+  end
+
+  defp do_wait_ready(base, deadline, timeout_ms, {_kind, text} = why) do
+    if System.monotonic_time(:millisecond) > deadline do
+      {:error, "openrate has no rates after #{div(timeout_ms, 1000)}s: #{text}"}
+    else
+      case Openrate.HTTP.get(base, "/readyz") do
+        {:ok, 200, _body} ->
+          :ok
+
+        # The 503's BODY is the whole point of polling this endpoint —
+        # Openrate.HTTP hands it back whatever the status, so the reason is in
+        # hand without a second request.
+        {:ok, _status, body} ->
+          Process.sleep(@ready_poll_ms)
+          do_wait_ready(base, deadline, timeout_ms, {:server, not_ready_reason(body)})
+
+        # Not listening: yet, or any more. This never displaces a reason the
+        # server already gave us — "ecb: connection refused" explains more than
+        # a closed socket does.
+        {:error, reason} ->
+          Process.sleep(@ready_poll_ms)
+          do_wait_ready(base, deadline, timeout_ms, keep({:transport, inspect(reason)}, why))
+      end
+    end
+  end
+
+  defp keep({:transport, _}, {:server, _} = server), do: server
+  defp keep(new, _current), do: new
+
+  # `reason`, then `name: last_error` for every source that has one.
+  #
+  # `last_error` is `omitempty` on the wire: a source nobody has tried yet has
+  # no such key at all, so this must degrade to the reason alone rather than
+  # reporting `ecb: nil`.
+  defp not_ready_reason(body) do
+    with %{} = doc <- :json.decode(body) do
+      reason = Map.get(doc, "reason") || "not ready, and it did not say why"
+
+      details =
+        doc
+        |> Map.get("sources", [])
+        |> Enum.filter(&(Map.get(&1, "last_error") not in [nil, ""]))
+        |> Enum.map_join("; ", &"#{&1["name"]}: #{&1["last_error"]}")
+
+      if details == "", do: reason, else: "#{reason} (#{details})"
+    else
+      _ -> "not ready (/readyz answered something that was not a JSON object)"
+    end
+  rescue
+    _ -> "not ready (/readyz body was not JSON: #{String.slice(body, 0, 120)})"
   end
 end

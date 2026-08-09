@@ -30,10 +30,20 @@ defmodule Openrate do
   @doc """
   Start the sidecar (idempotent). Returns `{:ok, base_url}`.
 
+  It returns only once the child answers `GET /readyz` — i.e. once a conversion
+  would actually succeed. Waiting only for the listener (`/healthz`) is a false
+  green: the book is still empty, and every pair comes back as
+  `unknown or unreachable currency pair`. If the rates never arrive the error is
+  the server's own explanation, not a bare timeout:
+
+      {:error, "openrate has no rates after 30s: no rates yet: no source has
+       returned a usable quote (ecb: … connect: connection refused)"}
+
   Options: `:port`, `:base` (default presentation currency), `:sources`
   (comma-separated), `:refresh` (a Go duration such as `"1h"`), `:ui`
   (default `false`), `:ratelimit` (API requests/minute per IP, default `0` —
-  off; see `Openrate.Sidecar`), `:env`, `:timeout` (ms, default 60_000).
+  off; see `Openrate.Sidecar`), `:env`, `:timeout` (ms to wait for the listener,
+  default 60_000), `:ready_timeout` (ms to then wait for rates, default 30_000).
   """
   @spec start(keyword()) :: {:ok, String.t()} | {:error, term()}
   def start(opts \\ []) do

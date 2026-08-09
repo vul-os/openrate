@@ -1,6 +1,7 @@
 # SIDECAR — the SDK spawns the `openrate` binary on a loopback port through an
-# Erlang Port, waits for /healthz, and reaps it when the GenServer stops. You
-# never run a server by hand.
+# Erlang Port, waits for it to be LISTENING (/healthz) and then for it to have
+# RATES (/readyz), and reaps it when the GenServer stops. You never run a server
+# by hand.
 #
 #   cd sdks/elixir && mix run examples/sidecar_convert.exs
 #
@@ -19,7 +20,9 @@ sources = System.get_env("OPENRATE_SOURCES", "ecb")
       {:ok, base}
 
     {:error, reason} ->
-      IO.puts(:stderr, "could not start the sidecar: #{inspect(reason)}")
+      # start/1's errors are message strings — including the /readyz reason, which
+      # is the whole point of the readiness wait. Do not inspect() it away.
+      IO.puts(:stderr, "could not start the sidecar: #{reason}")
       System.halt(1)
   end
 
@@ -29,22 +32,11 @@ IO.puts("sidecar : #{base}")
 # orphaned server holding a port. Openrate.Sidecar would also reap it at VM
 # shutdown; being explicit frees the port the moment we are done.
 try do
-  # The server answers /healthz before its first fetch completes, so wait for
-  # the book rather than racing it.
-  deadline = System.monotonic_time(:millisecond) + 60_000
-
-  meta =
-    Stream.repeatedly(fn ->
-      Process.sleep(250)
-      Openrate.meta()
-    end)
-    |> Stream.take_while(fn _ -> System.monotonic_time(:millisecond) < deadline end)
-    |> Enum.find({:error, :timeout}, fn
-      {:ok, %{"currencies" => [_ | _]}} -> true
-      _ -> false
-    end)
-
-  {:ok, meta} = meta
+  # No readiness loop here: Openrate.start/1 above already waited for /readyz,
+  # so the book is populated. (This used to poll /api/v1/meta until it saw a
+  # currency — which worked, but spent the rate-limited API budget it was
+  # waiting to use.)
+  {:ok, meta} = Openrate.meta()
 
   IO.puts(
     "meta    : base #{meta["default_base"]}, #{length(meta["currencies"])} currencies " <>
