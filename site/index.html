@@ -125,9 +125,13 @@ document.documentElement.classList.add("js");
           apart those sources are, and a grade for the lot — built from central-bank files
           and free public venues, never a resold paid API.
         </p>
+        <p class="lede">
+          Import it as a Go library and it computes with no server at all — the JSON API
+          and the web UI are both optional layers you opt into, not the only way in.
+        </p>
         <div class="cta">
           <a class="btn btn-solid" href="#run">
-            Run it in one command
+            Import it, or run it in one command
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
           <a class="btn btn-ghost" href="./docs.html">Read the docs</a>
@@ -420,7 +424,7 @@ document.documentElement.classList.add("js");
      precisely what costs this quote a factor.
      Every figure is read off assets/app/converter-dark.webp (the USD → ZAR
      quote) and assets/app/board-dark.webp (the ZAR → EUR counterpoint), and
-     every factor is one internal/quality/quality.go can actually emit.
+     every factor is one fx/quality.go can actually emit.
      ═══════════════════════════════════════════════════════════════════════ -->
 <section class="sect ruled" id="spread">
   <div class="wrap rail">
@@ -786,6 +790,49 @@ $ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code><
           <li><span class="n">04</span><div><b>Fails soft</b><span>A source that errors keeps its previous edges rather than blanking the graph, and its error is redacted before it is logged so a key embedded in a URL never leaks.</span></div></li>
           <li><span class="n">05</span><div><b>Hardened by default</b><span>Per-IP rate limiting on <code>/api/</code>, a restrictive <code>robots.txt</code>, <code>no-store</code> on the API, and <code>X-Forwarded-For</code> trusted only for proxies you name.</span></div></li>
         </ol>
+      </div>
+
+      <div class="split wide-left rv">
+        <div class="code">
+          <div class="bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="ttl">main.go</span>
+          </div>
+<pre><code class="language-go">import (
+    "context"
+
+    "github.com/vul-os/openrate"
+    "github.com/vul-os/openrate/fxsource"
+)
+
+// Starts nothing: no goroutine, no socket, no environment read.
+e := openrate.NewEngine(openrate.EngineOptions{})
+c, err := e.Convert("USD", "ZAR", 100) // ErrUnknownPair until fed
+
+// Opt in to fetching — the only line here that touches the network.
+r := openrate.NewRefresher(e, openrate.RefreshOptions{
+    Sources: fxsource.Build("ecb,coinbase"),
+})
+go r.Run(context.Background())
+
+c, err = e.Convert("USD", "ZAR", 100) // now answers from what r fetched</code></pre>
+        </div>
+        <div class="copy">
+          <h3>Or skip the binary entirely</h3>
+          <p>
+            The engine, the fetcher and the HTTP shell are three separate types —
+            <code>Engine</code>, <code>Refresher</code>, <code>serve.Server</code> — and importing
+            one does not pull in the others. Construct an <code>Engine</code> behind a feature
+            flag that's off and the process is provably unchanged: nothing it does is
+            observable until something feeds it a snapshot.
+          </p>
+          <p style="margin-top:14px">
+            Add a <code>Refresher</code> only when the program should fetch, and
+            <code>serve.New</code> only when it should also answer HTTP — the binary above is
+            just those three pieces, wired together for you. Full guide:
+            <a href="./docs.html#library" style="color:var(--teal)">the embedding docs</a>.
+          </p>
+        </div>
       </div>
     </div>
   </div>
