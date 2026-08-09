@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // TwelveData — real-time FX, generous free tier (800 req/day). Set
@@ -27,7 +27,7 @@ func NewTwelveData() *TwelveData {
 
 func (t *TwelveData) Name() string { return "twelvedata" }
 
-func (t *TwelveData) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (t *TwelveData) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	if t.Key == "" {
 		return nil, fmt.Errorf("twelvedata: OPENRATE_TWELVEDATA_KEY not set")
 	}
@@ -55,11 +55,11 @@ func (t *TwelveData) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		Rate   float64 `json:"rate"`
 	}
 	now := time.Now().UTC()
-	var edges []graph.Edge
+	var edges []fx.Edge
 	add := func(sym string, rate float64) {
 		to := strings.TrimPrefix(sym, "USD/")
 		if rate > 0 && fiatAllow[to] {
-			edges = append(edges, graph.Edge{From: "USD", To: to, Rate: rate, Source: t.Name(), Time: now})
+			edges = append(edges, fx.Edge{From: "USD", To: to, Rate: rate, Source: t.Name(), Time: now})
 		}
 	}
 	var multi map[string]quote

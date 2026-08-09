@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // Polygon — Polygon.io real-time FX. Set OPENRATE_POLYGON_KEY to enable. We pull
@@ -26,7 +26,7 @@ func NewPolygon() *Polygon {
 
 func (p *Polygon) Name() string { return "polygon" }
 
-func (p *Polygon) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (p *Polygon) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	if p.Key == "" {
 		return nil, fmt.Errorf("polygon: OPENRATE_POLYGON_KEY not set")
 	}
@@ -55,7 +55,7 @@ func (p *Polygon) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		return nil, fmt.Errorf("polygon: parse: %w", err)
 	}
 	now := time.Now().UTC()
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for _, t := range r.Tickers {
 		code := strings.TrimPrefix(t.Ticker, "C:")
 		if len(code) != 6 {
@@ -73,7 +73,7 @@ func (p *Polygon) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		if t.LastQuote.T > 0 {
 			ts = time.Unix(0, t.LastQuote.T).UTC()
 		}
-		edges = append(edges, graph.Edge{From: from, To: to, Rate: mid, Source: p.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: from, To: to, Rate: mid, Source: p.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("polygon: no allowlisted pairs")

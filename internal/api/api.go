@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 	"github.com/vul-os/openrate/internal/quality"
 	"github.com/vul-os/openrate/internal/store"
 )
@@ -68,7 +68,7 @@ type rateView struct {
 
 // view builds a rate view; from/to scope the quality assessment (currency
 // caveats + cross-source corroboration) and the per-source quotes for the pair.
-func view(snap *graph.Snapshot, from, to string, p graph.Pair, now time.Time) rateView {
+func view(snap *fx.Snapshot, from, to string, p fx.Pair, now time.Time) rateView {
 	var quotes []quoteView
 	for _, q := range snap.DirectQuotes(from, to) {
 		quotes = append(quotes, quoteView{Source: q.Source, Rate: q.Rate, AgeSec: now.Sub(q.Time).Seconds()})

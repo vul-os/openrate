@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // Yahoo ingests FX quotes from Yahoo Finance's unofficial v8 chart endpoint
@@ -42,8 +42,8 @@ type yahooChart struct {
 	} `json:"chart"`
 }
 
-func (y *Yahoo) Fetch(ctx context.Context) ([]graph.Edge, error) {
-	var edges []graph.Edge
+func (y *Yahoo) Fetch(ctx context.Context) ([]fx.Edge, error) {
+	var edges []fx.Edge
 	for _, sym := range y.Symbols {
 		if len(sym) != 9 || sym[6:] != "=X" { // "USDZAR=X"
 			continue
@@ -53,7 +53,7 @@ func (y *Yahoo) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		if err != nil || price <= 0 {
 			continue // tolerate per-symbol failures (rate limits)
 		}
-		edges = append(edges, graph.Edge{From: "USD", To: to, Rate: price, Source: y.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: "USD", To: to, Rate: price, Source: y.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("yahoo: no quotes (rate-limited or blocked?)")

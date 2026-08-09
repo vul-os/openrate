@@ -13,7 +13,7 @@ package main
 //
 // and claimed the legs and the rate agreed "exactly at six decimal places".
 // The engine's invariant is that the legs multiply to the rate at FULL
-// precision (internal/graph/precision_test.go pins that, bit for bit). It says
+// precision (fx/precision_test.go pins that, bit for bit). It says
 // nothing about the rounded values a reader sees: each of those three numbers
 // is rounded once, independently, and independent roundings do not compose. On
 // a live snapshot of the default feed set, 27 of 34 two-hop crosses differed in

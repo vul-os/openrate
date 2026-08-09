@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // A rate that is not a positive finite number must never reach the wire.
@@ -26,8 +26,8 @@ import (
 // and guards only with `rate <= 0` (a test NaN fails that comparison).
 
 // poisonEdges mixes good pairs with rates no arithmetic can represent.
-func poisonEdges(bad float64) []graph.Edge {
-	return []graph.Edge{
+func poisonEdges(bad float64) []fx.Edge {
+	return []fx.Edge{
 		{From: "USD", To: "ZAR", Rate: 18.50, Source: "sarb", Time: apiTestTime},
 		{From: "USD", To: "EUR", Rate: 0.92, Source: "ecb", Time: apiTestTime},
 		{From: "USD", To: "XXX", Rate: bad, Source: "junk", Time: apiTestTime},

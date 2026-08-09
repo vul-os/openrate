@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // ECBDailyURL is the European Central Bank's daily reference file: a plain XML
@@ -41,7 +41,7 @@ type ecbEnvelope struct {
 	} `xml:"Cube>Cube"`
 }
 
-func (e *ECB) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (e *ECB) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.URL, nil)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (e *ECB) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		return nil, fmt.Errorf("ecb: parse: %w", err)
 	}
 
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for _, cube := range env.Cubes {
 		ts, perr := time.Parse("2006-01-02", cube.Time)
 		if perr != nil {
@@ -75,7 +75,7 @@ func (e *ECB) Fetch(ctx context.Context) ([]graph.Edge, error) {
 			if rerr != nil || rate <= 0 || r.Currency == "" {
 				continue
 			}
-			edges = append(edges, graph.Edge{
+			edges = append(edges, fx.Edge{
 				From: "EUR", To: r.Currency, Rate: rate, Source: e.Name(), Time: ts,
 			})
 		}

@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 var qNow = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
-// mkPair builds a graph.Pair with the given hops, sources, and AsOf timestamp.
-func mkPair(hops int, sources []string, asOf time.Time) graph.Pair {
-	return graph.Pair{Hops: hops, Sources: sources, AsOf: asOf}
+// mkPair builds a fx.Pair with the given hops, sources, and AsOf timestamp.
+func mkPair(hops int, sources []string, asOf time.Time) fx.Pair {
+	return fx.Pair{Hops: hops, Sources: sources, AsOf: asOf}
 }
 
 // ─── Freshness ───────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ func TestCorroborationZeroQuotes(t *testing.T) {
 }
 
 func TestCorroborationOneSource(t *testing.T) {
-	quotes := []graph.Quote{{Source: "sarb", Rate: 18.5}}
+	quotes := []fx.Quote{{Source: "sarb", Rate: 18.5}}
 	corr, f := corroborate(quotes)
 	if corr.Sources != 1 {
 		t.Errorf("sources = %d, want 1", corr.Sources)
@@ -176,7 +176,7 @@ func TestCorroborationOneSource(t *testing.T) {
 
 func TestCorroborationTightSpread(t *testing.T) {
 	// Spread = (18.50 - 18.48)/18.48*10000 ≈ 10.8 bps (≤ 25 → agree=true, factor=1.0).
-	quotes := []graph.Quote{
+	quotes := []fx.Quote{
 		{Source: "sarb", Rate: 18.50},
 		{Source: "ecb", Rate: 18.48},
 	}
@@ -191,7 +191,7 @@ func TestCorroborationTightSpread(t *testing.T) {
 
 func TestCorroborationWideSpreadsDisagrees(t *testing.T) {
 	// Spread = (18.50 - 17.50)/17.50*10000 ≈ 571 bps (> 50 → agree=false).
-	quotes := []graph.Quote{
+	quotes := []fx.Quote{
 		{Source: "sarb", Rate: 18.50},
 		{Source: "yahoo", Rate: 17.50},
 	}
@@ -206,7 +206,7 @@ func TestCorroborationWideSpreadsDisagrees(t *testing.T) {
 
 func TestCorroborationDuplicateSourceDeduped(t *testing.T) {
 	// Two quotes from the same source → effectively single-source.
-	quotes := []graph.Quote{
+	quotes := []fx.Quote{
 		{Source: "sarb", Rate: 18.50},
 		{Source: "sarb", Rate: 18.51}, // overwritten by the map
 	}
@@ -218,7 +218,7 @@ func TestCorroborationDuplicateSourceDeduped(t *testing.T) {
 
 func TestCorroborationZeroRateIgnored(t *testing.T) {
 	// Zero-rate quotes must be ignored (not a valid market rate).
-	quotes := []graph.Quote{
+	quotes := []fx.Quote{
 		{Source: "sarb", Rate: 0},
 		{Source: "ecb", Rate: 18.5},
 	}
@@ -297,11 +297,11 @@ func TestConfidenceClampedTo01(t *testing.T) {
 
 func TestAssessHighConfidenceCase(t *testing.T) {
 	// Fresh (<5 min), direct (1 hop), official, corroborated → must grade A.
-	quotes := []graph.Quote{
+	quotes := []fx.Quote{
 		{Source: "sarb", Rate: 18.50},
 		{Source: "ecb", Rate: 18.51},
 	}
-	p := graph.Pair{
+	p := fx.Pair{
 		Hops:    1,
 		Sources: []string{"sarb", "ecb"},
 		AsOf:    qNow.Add(-2 * time.Minute),
@@ -314,12 +314,12 @@ func TestAssessHighConfidenceCase(t *testing.T) {
 
 func TestAssessLowConfidenceCase(t *testing.T) {
 	// Stale (8 days), multi-cross (3 hops), unofficial, single source → grade D.
-	p := graph.Pair{
+	p := fx.Pair{
 		Hops:    3,
 		Sources: []string{"yahoo"},
 		AsOf:    qNow.Add(-8 * 24 * time.Hour),
 	}
-	quotes := []graph.Quote{{Source: "yahoo", Rate: 18.0}}
+	quotes := []fx.Quote{{Source: "yahoo", Rate: 18.0}}
 	a := Assess("USD", "ZAR", p, quotes, qNow)
 	if a.Grade != "D" {
 		t.Errorf("stale+multi_cross+unofficial: grade = %q, want D (conf=%.2f)", a.Grade, a.Confidence)

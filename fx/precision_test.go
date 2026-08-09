@@ -1,4 +1,4 @@
-package graph
+package fx
 
 import (
 	"math"
@@ -66,7 +66,7 @@ func fixtureGraph(t *testing.T) *Snapshot {
 	for ccy, rate := range coinbaseUSD {
 		edges = append(edges, e("USD", ccy, rate, "coinbase", tBase))
 	}
-	g := New()
+	g := NewGraph()
 	g.Replace("coinbase", edges)
 	snap := g.Materialize(tBase)
 	if len(snap.Currencies) != len(coinbaseUSD)+1 {

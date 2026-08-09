@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // FawazURL is the fawazahmed0 currency-api: a fully open, CDN-served daily feed
@@ -33,7 +33,7 @@ func NewFawaz() *Fawaz {
 
 func (f *Fawaz) Name() string { return "fawazahmed0" }
 
-func (f *Fawaz) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (f *Fawaz) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	body, err := f.get(ctx, f.URL)
 	if err != nil {
 		body, err = f.get(ctx, f.Fallback)
@@ -59,13 +59,13 @@ func (f *Fawaz) Fetch(ctx context.Context) ([]graph.Edge, error) {
 	if err := json.Unmarshal(raw["usd"], &rates); err != nil {
 		return nil, fmt.Errorf("fawazahmed0: parse usd: %w", err)
 	}
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for code, rate := range rates {
 		up := strings.ToUpper(code)
 		if !allowed(up) || rate <= 0 {
 			continue
 		}
-		edges = append(edges, graph.Edge{From: "USD", To: up, Rate: rate, Source: f.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: "USD", To: up, Rate: rate, Source: f.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("fawazahmed0: no allowlisted rates")

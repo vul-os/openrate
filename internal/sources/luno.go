@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // LunoURL is Luno's public tickers endpoint: free, no auth, real-time. Luno is a
@@ -48,7 +48,7 @@ func normSym(s string) string {
 	return s
 }
 
-func (l *Luno) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (l *Luno) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, l.URL, nil)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (l *Luno) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		return nil, fmt.Errorf("luno: parse: %w", err)
 	}
 
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for _, t := range lr.Tickers {
 		// Only keep ZAR-quoted pairs of allowlisted base assets (e.g. XBTZAR).
 		if !strings.HasSuffix(t.Pair, "ZAR") {
@@ -89,7 +89,7 @@ func (l *Luno) Fetch(ctx context.Context) ([]graph.Edge, error) {
 			ts = time.Now().UTC()
 		}
 		// 1 base = price ZAR.
-		edges = append(edges, graph.Edge{From: base, To: "ZAR", Rate: price, Source: l.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: base, To: "ZAR", Rate: price, Source: l.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("luno: no ZAR pairs")

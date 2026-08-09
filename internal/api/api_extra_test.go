@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 	"github.com/vul-os/openrate/internal/store"
 )
 
@@ -19,22 +19,22 @@ import (
 // mockFX satisfies sources.Source (structurally, no import needed).
 type mockFX struct {
 	name  string
-	edges []graph.Edge
+	edges []fx.Edge
 }
 
-func (m *mockFX) Name() string                                  { return m.name }
-func (m *mockFX) Fetch(_ context.Context) ([]graph.Edge, error) { return m.edges, nil }
+func (m *mockFX) Name() string                               { return m.name }
+func (m *mockFX) Fetch(_ context.Context) ([]fx.Edge, error) { return m.edges, nil }
 
 // testEdges are used throughout these tests.
 var apiTestTime = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-var testEdges = []graph.Edge{
+var testEdges = []fx.Edge{
 	{From: "USD", To: "ZAR", Rate: 18.50, Source: "sarb", Time: apiTestTime},
 	{From: "USD", To: "EUR", Rate: 0.92, Source: "ecb", Time: apiTestTime},
 }
 
 // populatedStore creates a store seeded from mockFX and blocks until the
 // snapshot contains at least minCurrencies currencies (or the test fails).
-func populatedStore(t *testing.T, edges []graph.Edge, minCurrencies int) (*store.Store, context.CancelFunc) {
+func populatedStore(t *testing.T, edges []fx.Edge, minCurrencies int) (*store.Store, context.CancelFunc) {
 	t.Helper()
 	ms := &mockFX{"test", edges}
 	st := store.New(time.Hour, ms)

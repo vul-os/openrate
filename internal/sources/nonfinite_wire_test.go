@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // A feed can put the literal text "NaN" or "Inf" in a rate field, and
@@ -16,7 +16,7 @@ import (
 // Every FX source guards its parse with `err != nil || rate <= 0`, which does NOT
 // catch NaN or +Inf — every comparison with NaN is false. These tests pin where
 // the value is actually stopped, so nobody deletes the guard in
-// internal/graph.adjacency believing the sources already handle it.
+// fx.adjacency believing the sources already handle it.
 
 // TestParseFloatAcceptsNonFiniteText is the premise the guard exists for. If Go
 // ever changed this, the graph guard would become dead code — and this test
@@ -26,7 +26,7 @@ func TestParseFloatAcceptsNonFiniteText(t *testing.T) {
 		v, err := strconv.ParseFloat(s, 64)
 		if err != nil {
 			t.Fatalf("strconv.ParseFloat(%q) now errors (%v) — the `rate <= 0` guard in each source "+
-				"would then be sufficient and internal/graph's finite check could be revisited", s, err)
+				"would then be sufficient and fx's finite check could be revisited", s, err)
 		}
 		if !math.IsNaN(v) && !math.IsInf(v, 0) {
 			t.Fatalf("strconv.ParseFloat(%q) = %v, expected a non-finite value", s, v)
@@ -71,7 +71,7 @@ func TestECBNonFiniteRateNeverReachesASnapshot(t *testing.T) {
 
 	// Whatever the source chose to emit, the graph is the chokepoint that must
 	// hold: no non-finite rate may appear in a materialized snapshot.
-	g := graph.New()
+	g := fx.NewGraph()
 	g.Replace("ecb", edges)
 	snap := g.Materialize(time.Now().UTC())
 

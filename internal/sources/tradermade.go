@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // TraderMade — FX-specialist live quotes. Set OPENRATE_TRADERMADE_KEY to enable.
@@ -26,7 +26,7 @@ func NewTraderMade() *TraderMade {
 
 func (t *TraderMade) Name() string { return "tradermade" }
 
-func (t *TraderMade) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (t *TraderMade) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	if t.Key == "" {
 		return nil, fmt.Errorf("tradermade: OPENRATE_TRADERMADE_KEY not set")
 	}
@@ -58,12 +58,12 @@ func (t *TraderMade) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		return nil, fmt.Errorf("tradermade: parse: %w", err)
 	}
 	now := time.Now().UTC()
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for _, q := range r.Quotes {
 		if q.Mid <= 0 || !allowed(q.Base) || !allowed(q.Quote) {
 			continue
 		}
-		edges = append(edges, graph.Edge{From: q.Base, To: q.Quote, Rate: q.Mid, Source: t.Name(), Time: now})
+		edges = append(edges, fx.Edge{From: q.Base, To: q.Quote, Rate: q.Mid, Source: t.Name(), Time: now})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("tradermade: no quotes")

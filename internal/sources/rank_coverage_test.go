@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 	"github.com/vul-os/openrate/internal/quality"
 )
 
@@ -12,7 +12,7 @@ import (
 // name, using the same public entry point the API uses.
 func classOf(name string) string {
 	now := time.Now().UTC()
-	p := graph.Pair{Rate: 1, Hops: 1, AsOf: now, Sources: []string{name}}
+	p := fx.Pair{Rate: 1, Hops: 1, AsOf: now, Sources: []string{name}}
 	return quality.Assess("USD", "ZAR", p, nil, now).SourceClass
 }
 

@@ -9,7 +9,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // Assessment is the per-rate accuracy report attached to API responses.
@@ -62,7 +62,7 @@ var defunct = map[string]string{
 }
 
 // Assess builds the accuracy report for a pair from->to.
-func Assess(from, to string, p graph.Pair, quotes []graph.Quote, now time.Time) Assessment {
+func Assess(from, to string, p fx.Pair, quotes []fx.Quote, now time.Time) Assessment {
 	conf := 1.0
 
 	// Freshness from the oldest edge on the path.
@@ -155,7 +155,7 @@ func sourceClass(sources []string) (string, float64) {
 	return classNames[min], factor
 }
 
-func corroborate(quotes []graph.Quote) (Corroboration, float64) {
+func corroborate(quotes []fx.Quote) (Corroboration, float64) {
 	// Distinct sources only.
 	seen := map[string]float64{}
 	for _, q := range quotes {

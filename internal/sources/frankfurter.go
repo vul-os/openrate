@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // FrankfurterURL is the Frankfurter public API: a clean JSON mirror of the ECB
@@ -34,7 +34,7 @@ type frankResp struct {
 	Rates map[string]float64 `json:"rates"`
 }
 
-func (f *Frankfurter) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (f *Frankfurter) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.URL, nil)
 	if err != nil {
 		return nil, err
@@ -62,12 +62,12 @@ func (f *Frankfurter) Fetch(ctx context.Context) ([]graph.Edge, error) {
 	if perr != nil {
 		ts = time.Now().UTC()
 	}
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for code, rate := range fr.Rates {
 		if rate <= 0 {
 			continue
 		}
-		edges = append(edges, graph.Edge{From: fr.Base, To: code, Rate: rate, Source: f.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: fr.Base, To: code, Rate: rate, Source: f.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("frankfurter: no rates")

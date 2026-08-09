@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // SARBURL is the South African Reserve Bank's public Web API. It returns the
@@ -55,7 +55,7 @@ type sarbItem struct {
 	Value          float64 `json:"Value"`
 }
 
-func (s *SARB) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (s *SARB) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	var body []byte
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -76,7 +76,7 @@ func (s *SARB) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		return nil, fmt.Errorf("sarb: parse: %w", err)
 	}
 
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for _, it := range items {
 		ccy, ok := sarbCodes[it.TimeseriesCode]
 		if !ok || it.Value <= 0 {
@@ -92,7 +92,7 @@ func (s *SARB) Fetch(ctx context.Context) ([]graph.Edge, error) {
 			}
 		}
 		// value = ZAR per 1 CCY  =>  1 CCY = value ZAR.
-		edges = append(edges, graph.Edge{From: ccy, To: "ZAR", Rate: it.Value, Source: s.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: ccy, To: "ZAR", Rate: it.Value, Source: s.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("sarb: no recognised ZAR series")

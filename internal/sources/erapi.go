@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // ERAPIURL is the open.er-api.com free endpoint (no key on this host). Unlike the
@@ -34,7 +34,7 @@ type erapiResp struct {
 	Rates          map[string]float64 `json:"rates"`
 }
 
-func (e *ERAPI) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (e *ERAPI) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.URL, nil)
 	if err != nil {
 		return nil, err
@@ -66,12 +66,12 @@ func (e *ERAPI) Fetch(ctx context.Context) ([]graph.Edge, error) {
 	if er.TimeLastUpdate > 0 {
 		ts = time.Unix(er.TimeLastUpdate, 0).UTC()
 	}
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for code, rate := range er.Rates {
 		if !fiatAllow[code] || rate <= 0 {
 			continue
 		}
-		edges = append(edges, graph.Edge{From: base, To: code, Rate: rate, Source: e.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: base, To: code, Rate: rate, Source: e.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("erapi: no allowlisted rates")

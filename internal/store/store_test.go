@@ -6,18 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // fakeSource is a sources.Source that returns a fixed set of edges instantly,
 // allowing tests to drive the store without real network I/O.
 type fakeSource struct {
 	name  string
-	edges []graph.Edge
+	edges []fx.Edge
 }
 
 func (f *fakeSource) Name() string { return f.name }
-func (f *fakeSource) Fetch(_ context.Context) ([]graph.Edge, error) {
+func (f *fakeSource) Fetch(_ context.Context) ([]fx.Edge, error) {
 	return f.edges, nil
 }
 
@@ -28,7 +28,7 @@ func TestSnapshotReadsDuringRefresh(t *testing.T) {
 	now := time.Now().UTC()
 	src := &fakeSource{
 		name: "fake",
-		edges: []graph.Edge{
+		edges: []fx.Edge{
 			{From: "USD", To: "ZAR", Rate: 18.5, Source: "fake", Time: now},
 			{From: "EUR", To: "USD", Rate: 1.08, Source: "fake", Time: now},
 			{From: "GBP", To: "USD", Rate: 1.27, Source: "fake", Time: now},
@@ -68,7 +68,7 @@ func TestStatusReadsDuringRefresh(t *testing.T) {
 	now := time.Now().UTC()
 	src := &fakeSource{
 		name: "fake",
-		edges: []graph.Edge{
+		edges: []fx.Edge{
 			{From: "USD", To: "ZAR", Rate: 18.0, Source: "fake", Time: now},
 		},
 	}
@@ -101,7 +101,7 @@ func TestConcurrentSnapshotAndStatus(t *testing.T) {
 	now := time.Now().UTC()
 	src := &fakeSource{
 		name: "fx",
-		edges: []graph.Edge{
+		edges: []fx.Edge{
 			{From: "USD", To: "EUR", Rate: 0.92, Source: "fx", Time: now},
 		},
 	}

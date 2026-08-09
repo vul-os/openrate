@@ -6,12 +6,12 @@ package sources
 import (
 	"context"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // Source fetches a fresh set of edges. Name must be stable: the graph keys a
 // source's edges by it so a refresh replaces them atomically.
 type Source interface {
 	Name() string
-	Fetch(ctx context.Context) ([]graph.Edge, error)
+	Fetch(ctx context.Context) ([]fx.Edge, error)
 }

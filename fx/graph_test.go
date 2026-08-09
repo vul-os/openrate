@@ -1,4 +1,4 @@
-package graph
+package fx
 
 import (
 	"math"
@@ -19,7 +19,7 @@ func e(from, to string, rate float64, src string, at time.Time) Edge {
 // ─── Self-conversion ─────────────────────────────────────────────────────────
 
 func TestSelfConversionKnownCurrency(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "ZAR", 18.5, "ecb", tBase)})
 	snap := g.Materialize(tBase)
 
@@ -41,7 +41,7 @@ func TestSelfConversionKnownCurrency(t *testing.T) {
 // Snapshot.Lookup returns ok=true for any from==to regardless of whether the
 // currency is in the graph — it's the mathematical identity.
 func TestSelfConversionUnknownCurrency(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	snap := g.Materialize(tBase)
 	p, ok := snap.Lookup("XYZ", "XYZ")
 	if !ok {
@@ -55,7 +55,7 @@ func TestSelfConversionUnknownCurrency(t *testing.T) {
 // ─── Direct rates ────────────────────────────────────────────────────────────
 
 func TestDirectRate(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "ZAR", 18.5, "ecb", tBase)})
 	snap := g.Materialize(tBase)
 
@@ -72,7 +72,7 @@ func TestDirectRate(t *testing.T) {
 }
 
 func TestInverseEdgeAutoPopulated(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "ZAR", 18.5, "ecb", tBase)})
 	snap := g.Materialize(tBase)
 
@@ -92,7 +92,7 @@ func TestInverseEdgeAutoPopulated(t *testing.T) {
 // ─── Triangulated (multi-hop) paths ─────────────────────────────────────────
 
 func TestTriangulatedTwoHops(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		e("USD", "EUR", 0.92, "ecb", tBase),
 		e("EUR", "ZAR", 20.0, "ecb", tBase),
@@ -120,7 +120,7 @@ func TestTriangulatedTwoHops(t *testing.T) {
 
 // Direct path must beat a shorter-arithmetic triangulated path.
 func TestDirectBeatsTriangulated(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		e("USD", "ZAR", 18.5, "ecb", tBase), // 1-hop direct
 		e("USD", "EUR", 0.92, "ecb", tBase), // these two produce 23.0
@@ -143,7 +143,7 @@ func TestDirectBeatsTriangulated(t *testing.T) {
 // ─── Invalid-rate filtering ──────────────────────────────────────────────────
 
 func TestZeroRateDropped(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		{From: "USD", To: "ZAR", Rate: 0, Source: "ecb", Time: tBase},
 		e("USD", "EUR", 0.92, "ecb", tBase),
@@ -159,7 +159,7 @@ func TestZeroRateDropped(t *testing.T) {
 }
 
 func TestNegativeRateDropped(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{{From: "USD", To: "ZAR", Rate: -5, Source: "ecb", Time: tBase}})
 	snap := g.Materialize(tBase)
 
@@ -173,7 +173,7 @@ func TestNegativeRateDropped(t *testing.T) {
 // When two sources publish the same pair, the fresher (later timestamp) source
 // wins because BFS visits adjacency-list entries sorted newest-first.
 func TestFreshestSourceWinsAmongSameHopCount(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "ZAR", 18.0, "ecb", tOld)})   // older
 	g.Replace("sarb", []Edge{e("USD", "ZAR", 18.9, "sarb", tNew)}) // newer
 	snap := g.Materialize(tBase)
@@ -190,7 +190,7 @@ func TestFreshestSourceWinsAmongSameHopCount(t *testing.T) {
 // ─── AsOf provenance ─────────────────────────────────────────────────────────
 
 func TestAsOfIsOldestEdgeOnPath(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		e("USD", "EUR", 0.92, "ecb", tOld), // older
 		e("EUR", "ZAR", 20.0, "ecb", tNew), // newer
@@ -209,7 +209,7 @@ func TestAsOfIsOldestEdgeOnPath(t *testing.T) {
 // ─── Unreachability ──────────────────────────────────────────────────────────
 
 func TestUnreachablePair(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "EUR", 0.92, "ecb", tBase)})
 	snap := g.Materialize(tBase)
 
@@ -219,7 +219,7 @@ func TestUnreachablePair(t *testing.T) {
 }
 
 func TestEmptyGraph(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	snap := g.Materialize(tBase)
 
 	if len(snap.Currencies) != 0 {
@@ -230,7 +230,7 @@ func TestEmptyGraph(t *testing.T) {
 // ─── Rebase ──────────────────────────────────────────────────────────────────
 
 func TestRebaseContainsAllOtherCurrencies(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		e("USD", "EUR", 0.92, "ecb", tBase),
 		e("USD", "ZAR", 18.5, "ecb", tBase),
@@ -251,7 +251,7 @@ func TestRebaseContainsAllOtherCurrencies(t *testing.T) {
 // ─── DirectQuotes ────────────────────────────────────────────────────────────
 
 func TestDirectQuotesBothDirections(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "ZAR", 18.5, "ecb", tBase)})
 	g.Replace("sarb", []Edge{e("USD", "ZAR", 18.6, "sarb", tOld)})
 	snap := g.Materialize(tBase)
@@ -266,7 +266,7 @@ func TestDirectQuotesBothDirections(t *testing.T) {
 }
 
 func TestDirectQuotesUnknownPairIsNil(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	snap := g.Materialize(tBase)
 	if q := snap.DirectQuotes("USD", "ZAR"); q != nil {
 		t.Errorf("unknown pair DirectQuotes = %v, want nil", q)
@@ -277,7 +277,7 @@ func TestDirectQuotesUnknownPairIsNil(t *testing.T) {
 
 func TestSourcesDeduplicatedOnPath(t *testing.T) {
 	// Both edges from the same source — Sources list must have exactly one entry.
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		e("USD", "EUR", 0.92, "ecb", tBase),
 		e("EUR", "ZAR", 20.0, "ecb", tBase),
@@ -291,7 +291,7 @@ func TestSourcesDeduplicatedOnPath(t *testing.T) {
 }
 
 func TestSourcesMultipleOnPath(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "EUR", 0.92, "ecb", tBase)})
 	g.Replace("sarb", []Edge{e("EUR", "ZAR", 20.0, "sarb", tBase)})
 	snap := g.Materialize(tBase)
@@ -308,7 +308,7 @@ func TestSourcesMultipleOnPath(t *testing.T) {
 // ─── Replace / clear ─────────────────────────────────────────────────────────
 
 func TestReplaceSourceClearsEdges(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{e("USD", "ZAR", 18.5, "ecb", tBase)})
 	g.Replace("ecb", nil) // clear ecb's contribution
 	snap := g.Materialize(tBase)
@@ -321,7 +321,7 @@ func TestReplaceSourceClearsEdges(t *testing.T) {
 // ─── Currencies list ─────────────────────────────────────────────────────────
 
 func TestCurrenciesAreSorted(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		e("ZAR", "USD", 0.054, "ecb", tBase),
 		e("EUR", "USD", 1.08, "ecb", tBase),
@@ -340,7 +340,7 @@ func TestCurrenciesAreSorted(t *testing.T) {
 // ─── Legs provenance ─────────────────────────────────────────────────────────
 
 func TestLegsCarryProvenance(t *testing.T) {
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		e("USD", "EUR", 0.92, "ecb", tBase),
 		e("EUR", "ZAR", 20.0, "ecb", tBase),

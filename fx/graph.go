@@ -1,12 +1,17 @@
-// Package graph models currencies as a graph rather than a single canonical
-// base. Each known rate is a directed Edge; a conversion between any two
-// currencies is the product of rates along the shortest path between them.
+// Package fx is openrate's pure core: the currency graph, the all-pairs
+// snapshot materialized from it, and the accuracy model attached to every rate.
+// It is importable by any Go program, imports nothing outside the standard
+// library, opens no sockets, reads no environment, and starts no goroutines.
+//
+// Currencies are modelled as a graph rather than a single canonical base. Each
+// known rate is a directed Edge; a conversion between any two currencies is the
+// product of rates along the shortest path between them.
 //
 // This is deliberate: there is no "one true base". Sources publish in their own
 // native base (ECB in EUR, SARB in ZAR, a crypto venue in USDT) and we keep
 // those edges as-is. The materialized all-pairs Matrix is a *derived view*, so
 // any currency — ZAR included — can be the presentation base for free.
-package graph
+package fx
 
 import (
 	"math"
@@ -48,7 +53,7 @@ type Pair struct {
 // not compose: multiplying the printed legs reproduces the printed rate only to
 // within display rounding, and on real rates it usually differs in the last
 // place. Anything that shows a reader the legs and the rate together must say
-// so or show the residual — see internal/graph/precision_test.go, which pins
+// so or show the residual — see fx/precision_test.go, which pins
 // both the exact invariant and the bound on the display one.
 type Leg struct {
 	From   string    `json:"from"`
@@ -115,7 +120,7 @@ type Graph struct {
 	bySource map[string][]Edge
 }
 
-func New() *Graph {
+func NewGraph() *Graph {
 	return &Graph{bySource: map[string][]Edge{}}
 }
 

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // CoinbaseURL is Coinbase's public exchange-rates endpoint: free, no auth, and
@@ -39,7 +39,7 @@ type coinbaseResp struct {
 // Fetch emits USD-base edges (1 USD = rate CCY) for the allowlisted currencies.
 // Coinbase gives no timestamp; the feed is live, so we stamp now — which is the
 // point: these edges read as seconds-old next to ECB's day-old reference.
-func (c *Coinbase) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (c *Coinbase) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, nil)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (c *Coinbase) Fetch(ctx context.Context) ([]graph.Edge, error) {
 	}
 
 	now := time.Now().UTC()
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for code, s := range cr.Data.Rates {
 		if !allowed(code) {
 			continue
@@ -71,7 +71,7 @@ func (c *Coinbase) Fetch(ctx context.Context) ([]graph.Edge, error) {
 		if perr != nil || rate <= 0 {
 			continue
 		}
-		edges = append(edges, graph.Edge{From: "USD", To: code, Rate: rate, Source: c.Name(), Time: now})
+		edges = append(edges, fx.Edge{From: "USD", To: code, Rate: rate, Source: c.Name(), Time: now})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("coinbase: no allowlisted rates")

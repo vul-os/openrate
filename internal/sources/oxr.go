@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // OXR — Open Exchange Rates. Paid (free tier hourly; ~$12/mo for 60s updates),
@@ -26,7 +26,7 @@ func NewOXR() *OXR {
 
 func (o *OXR) Name() string { return "oxr" }
 
-func (o *OXR) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (o *OXR) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	if o.Key == "" {
 		return nil, fmt.Errorf("oxr: OPENRATE_OXR_APP_ID not set")
 	}
@@ -57,12 +57,12 @@ func (o *OXR) Fetch(ctx context.Context) ([]graph.Edge, error) {
 	if r.Timestamp > 0 {
 		ts = time.Unix(r.Timestamp, 0).UTC()
 	}
-	var edges []graph.Edge
+	var edges []fx.Edge
 	for code, rate := range r.Rates {
 		if !fiatAllow[code] || rate <= 0 {
 			continue
 		}
-		edges = append(edges, graph.Edge{From: base, To: code, Rate: rate, Source: o.Name(), Time: ts})
+		edges = append(edges, fx.Edge{From: base, To: code, Rate: rate, Source: o.Name(), Time: ts})
 	}
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("oxr: no allowlisted rates")

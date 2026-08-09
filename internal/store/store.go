@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 	"github.com/vul-os/openrate/internal/redact"
 	"github.com/vul-os/openrate/internal/sources"
 )
@@ -24,8 +24,8 @@ type SourceStatus struct {
 
 type Store struct {
 	mu       sync.RWMutex
-	g        *graph.Graph
-	snap     *graph.Snapshot
+	g        *fx.Graph
+	snap     *fx.Snapshot
 	srcs     []sources.Source
 	status   map[string]*SourceStatus
 	interval time.Duration
@@ -33,7 +33,7 @@ type Store struct {
 
 func New(interval time.Duration, srcs ...sources.Source) *Store {
 	st := &Store{
-		g:        graph.New(),
+		g:        fx.NewGraph(),
 		srcs:     srcs,
 		status:   map[string]*SourceStatus{},
 		interval: interval,
@@ -46,7 +46,7 @@ func New(interval time.Duration, srcs ...sources.Source) *Store {
 }
 
 // Snapshot returns the current immutable all-pairs view.
-func (s *Store) Snapshot() *graph.Snapshot {
+func (s *Store) Snapshot() *fx.Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.snap
@@ -68,7 +68,7 @@ func (s *Store) Status() []SourceStatus {
 func (s *Store) refresh(ctx context.Context) {
 	type result struct {
 		name  string
-		edges []graph.Edge
+		edges []fx.Edge
 		err   error
 	}
 	results := make(chan result, len(s.srcs))

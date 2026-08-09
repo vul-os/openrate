@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vul-os/openrate/internal/graph"
+	"github.com/vul-os/openrate/fx"
 )
 
 // BoCURL is the Bank of Canada Valet API — the cleanest documented central-bank
@@ -37,7 +37,7 @@ type bocResp struct {
 	Observations []map[string]json.RawMessage `json:"observations"`
 }
 
-func (b *BoC) Fetch(ctx context.Context) ([]graph.Edge, error) {
+func (b *BoC) Fetch(ctx context.Context) ([]fx.Edge, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.URL, nil)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (b *BoC) Fetch(ctx context.Context) ([]graph.Edge, error) {
 
 	// Merge across observations (chronological): keep the newest non-empty value
 	// per currency, so a sparse partial latest row doesn't drop the others.
-	latest := map[string]graph.Edge{}
+	latest := map[string]fx.Edge{}
 	for _, obs := range br.Observations {
 		ts := time.Now().UTC()
 		if d, ok := obs["d"]; ok {
@@ -95,13 +95,13 @@ func (b *BoC) Fetch(ctx context.Context) ([]graph.Edge, error) {
 				continue
 			}
 			// value = CAD per 1 CCY  =>  1 CCY = rate CAD.
-			latest[ccy] = graph.Edge{From: ccy, To: "CAD", Rate: rate, Source: b.Name(), Time: ts}
+			latest[ccy] = fx.Edge{From: ccy, To: "CAD", Rate: rate, Source: b.Name(), Time: ts}
 		}
 	}
 	if len(latest) == 0 {
 		return nil, fmt.Errorf("boc: no FX series")
 	}
-	edges := make([]graph.Edge, 0, len(latest))
+	edges := make([]fx.Edge, 0, len(latest))
 	for _, e := range latest {
 		edges = append(edges, e)
 	}

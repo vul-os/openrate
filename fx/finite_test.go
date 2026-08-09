@@ -1,4 +1,4 @@
-package graph
+package fx
 
 import (
 	"encoding/json"
@@ -48,7 +48,7 @@ func TestNonFiniteEdgeNeverEntersGraph(t *testing.T) {
 			continue // finite and positive: admitted, covered below
 		}
 		t.Run(name, func(t *testing.T) {
-			g := New()
+			g := NewGraph()
 			g.Replace("bad", []Edge{{From: "USD", To: "ZAR", Rate: rate, Source: "bad", Time: now}})
 			snap := g.Materialize(now)
 			if p, ok := snap.Lookup("USD", "ZAR"); ok {
@@ -68,7 +68,7 @@ func TestPoisonedEdgeDoesNotBlankTheSnapshot(t *testing.T) {
 	now := time.Now().UTC()
 	for name, rate := range nonFinite() {
 		t.Run(name, func(t *testing.T) {
-			g := New()
+			g := NewGraph()
 			g.Replace("bad", []Edge{{From: "USD", To: "ZAR", Rate: rate, Source: "bad", Time: now}})
 			g.Replace("good", []Edge{
 				{From: "USD", To: "EUR", Rate: 0.92, Source: "good", Time: now},
@@ -88,7 +88,7 @@ func TestPoisonedEdgeDoesNotBlankTheSnapshot(t *testing.T) {
 // asserts the arithmetic never produced a non-finite number.
 func TestEveryMaterializedRateIsFinite(t *testing.T) {
 	now := time.Now().UTC()
-	g := New()
+	g := NewGraph()
 	g.Replace("ecb", []Edge{
 		{From: "EUR", To: "USD", Rate: 1.08, Source: "ecb", Time: now},
 		{From: "EUR", To: "ZAR", Rate: 19.8, Source: "ecb", Time: now},
@@ -143,7 +143,7 @@ func TestEveryMaterializedRateIsFinite(t *testing.T) {
 // non-finite inverse.
 func TestInverseEdgeIsFiniteOrDropped(t *testing.T) {
 	now := time.Now().UTC()
-	g := New()
+	g := NewGraph()
 	g.Replace("s", []Edge{{From: "A", To: "B", Rate: math.SmallestNonzeroFloat64, Source: "s", Time: now}})
 	snap := g.Materialize(now)
 	if _, ok := snap.Lookup("B", "A"); ok {
