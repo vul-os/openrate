@@ -34,6 +34,10 @@ recommendation for every non-Go host, and it is not a compromise — it is
 simpler, it has none of the costs in step 4, and it makes openrate
 independently restartable and upgradable.
 
+Bindings for both of those live in [`sdks/`](https://github.com/vul-os/openrate/blob/main/sdks) — C, C++, Go, Python,
+Ruby, PHP, Rust, Java, Elixir — and every one implements both modes, so
+choosing again later is a constructor change rather than a rewrite.
+
 **4. Not Go, and the per-call cost genuinely matters?**
 Use the [C ABI](#c-abi). In-process conversion measured **3.7 µs mean**
 against **33.5 µs** for the same conversion over a warm loopback HTTP

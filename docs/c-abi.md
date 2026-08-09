@@ -158,16 +158,34 @@ A fuller one, exercising every error path, is
 
 ## Per-language bindings
 
-**There are no published per-language SDKs in this repository today.** When
-they land they will live outside `ffi/` and bind against
-`ffi/include/openrate.h`, and each one's README is expected to say, for that
-language, whether direct or sidecar is the better default — honestly, including
-when the answer is "use the sidecar".
+Bindings live in [`sdks/`](../sdks), outside `ffi/`, and each binds against
+`ffi/include/openrate.h`. Every one offers **both** modes — direct, over the
+shared library, and sidecar, over loopback — and each README says which is the
+better default *for that language*, including when the answer is "use the
+sidecar".
 
-Until then, binding the six functions above is a short afternoon in any
-language with an FFI: `ctypes`/`cffi` in Python, `libc`/`bindgen` in Rust,
-`ffi-napi` in Node, JNA in Java, `Fiddle` in Ruby, `P/Invoke` in .NET. The ABI
-is six functions and a JSON document; there is nothing clever to reproduce.
+| Language | README |
+|---|---|
+| C | [`sdks/c`](../sdks/c/README.md) — the ground truth; every other binding is doing what `direct_convert.c` does |
+| C++ | [`sdks/cpp`](../sdks/cpp/README.md) — header-only C++17 RAII wrapper |
+| Go | [`sdks/go`](../sdks/go/README.md) — no FFI, no shared library, no platform matrix: you import a package |
+| Python | [`sdks/python`](../sdks/python/README.md) |
+| Ruby | [`sdks/ruby`](../sdks/ruby/README.md) |
+| PHP | [`sdks/php`](../sdks/php/README.md) |
+| Rust | [`sdks/rust`](../sdks/rust/README.md) |
+| Java | [`sdks/java`](../sdks/java/README.md) |
+| Elixir | [`sdks/elixir`](../sdks/elixir/README.md) |
+
+Two of those deserve a pointer of their own. **Go is not an FFI binding at
+all** — Go programs import the library, so none of the costs on this page apply
+to them; see [Embed as a Go library](library.md). And **Elixir declines to
+build a NIF**, on the grounds that a crash inside a NIF takes the BEAM down
+with it; its README argues the case rather than assuming it.
+
+If your language is not listed, binding the six functions above is a short
+afternoon anywhere with an FFI: `ctypes`/`cffi`, `libc`/`bindgen`, `ffi-napi`,
+JNA, `Fiddle`, `P/Invoke`. The ABI is six functions and a JSON document; there
+is nothing clever to reproduce.
 
 openrate and [llmux](https://github.com/vul-os/llmux) deliberately expose the
 **same ABI shape** — integer handles, JSON in and JSON out, one dispatch

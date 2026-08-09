@@ -142,6 +142,11 @@ plumbing through rather than discarding: `rate.legs` (the actual path taken and
 the arithmetic along it) and `rate.quality` (grade, confidence, freshness,
 corroboration and any caveats). See [Accuracy & quality](../ACCURACY.md).
 
+You do not have to write that by hand. [`sdks/`](../sdks) carries bindings for
+C, C++, Go, Python, Ruby, PHP, Rust, Java and Elixir, each implementing **both**
+the sidecar and the in-process path behind the same API — so the choice below
+is a constructor change, not a rewrite.
+
 If — and only if — the per-call cost matters to you, there is an in-process
 option: [Use it from another language](c-abi.md). Read its cost list first; it
 is not fork-safe, and that rules it out for a lot of hosts.

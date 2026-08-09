@@ -44,6 +44,7 @@ library-vs-sidecar question before you write any code.
 | Document | Purpose |
 |---|---|
 | [`ffi/README.md`](../ffi/README.md) | The C ABI reference: every function, the memory rules, the measured numbers |
+| [`sdks/`](../sdks) | Per-language bindings — C, C++, Go, Python, Ruby, PHP, Rust, Java, Elixir — each offering both the sidecar and the in-process path |
 | [`SECURITY.md`](../SECURITY.md) | Disclosure policy |
 | [`CHANGELOG.md`](../CHANGELOG.md) | Release history |
 | [`ROADMAP.md`](../ROADMAP.md) | What is planned, and what is deliberately not |
