@@ -8,15 +8,24 @@ import (
 	"testing"
 )
 
-// A shared library has no checkout to read a VERSION file from, so the version
-// openrate_abi_version() reports is compiled in — in three places, because the
-// C header has to carry a compile-time copy too or a consumer has nothing to
-// compare the runtime value against.
+// A shared library has no checkout to read a VERSION file from at RUNTIME, so
+// the version openrate_abi_version() reports is compiled in. It used to be
+// compiled in three times — a Go constant here, the VERSION file, and the C
+// header's macro — and in v0.1.3 the release bumped one of the three, so a host
+// comparing 0.1.3 against 0.1.2 concluded its library was stale when it was not.
 //
-// Three copies of a string drift. These tests are what stops a release bumping
-// one and forgetting the others, which would leave a host comparing 0.1.3
-// against 0.1.2 and concluding its library was stale when it was not — or, far
-// worse, comparing 0.1.2 against 0.1.2 while the library was genuinely old.
+// Two of those three are now one. The build has a checkout even though the
+// library does not: /version.go embeds VERSION at compile time and Version here
+// is that value, reached through this module's `replace` directive. The header's
+// macro cannot join in (the C preprocessor cannot read a file) and is generated
+// from the same value by `go generate ./...` in the root module.
+//
+// These tests are what proves the chain actually connects. They cannot import
+// the generator — internal/abiheader sits behind Go's internal wall, and this
+// module is deliberately OUTSIDE the library's import-path prefix so that it is
+// held to the same surface a third-party embedder has — so the header check
+// below is an independent re-reading of the file, not a call into the thing
+// that wrote it.
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
@@ -41,13 +50,19 @@ func TestVersionMatchesTheVERSIONFile(t *testing.T) {
 	}
 	if Version != want {
 		t.Fatalf("ffi/abi.Version is %q but VERSION says %q.\n"+
-			"openrate_abi_version() exists so a host can detect a stale library on its load "+
-			"path; a version that does not track the release makes that detection wrong in "+
-			"both directions.", Version, want)
+			"Version is supposed to BE openrate.Version, i.e. this very file's contents. If they "+
+			"disagree, one of the three links is broken — the //go:embed in /version.go, the "+
+			"TrimSpace, or the `replace github.com/vul-os/openrate => ../` in this module's "+
+			"go.mod, which is what makes the library build against the working tree rather than "+
+			"the last published tag.", Version, want)
 	}
 }
 
-// abiVersionMacro pulls OPENRATE_ABI_VERSION out of the hand-written header.
+// abiVersionMacro pulls OPENRATE_ABI_VERSION out of the header. This is a
+// second, independent reading of the line internal/abiheader generates — this
+// module cannot import that package (see the note at the top of the file), and
+// a check that called the generator to validate the generator's own output
+// would agree with itself no matter what either of them did.
 var abiVersionMacro = regexp.MustCompile(`(?m)^#define\s+OPENRATE_ABI_VERSION\s+"([^"]*)"`)
 
 func TestHeaderDeclaresTheSameVersion(t *testing.T) {

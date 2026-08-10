@@ -111,7 +111,13 @@ extern "C" {
  *
  *   if (strcmp(openrate_abi_version(), OPENRATE_ABI_VERSION) != 0) { ... }
  *
- * KEEP IN SYNC WITH: /VERSION and ffi/abi/version.go. Tests fail if they drift.
+ * GENERATED — do not edit this one line by hand. Everywhere else openrate's
+ * version is derived: /version.go embeds the VERSION file at compile time and
+ * ffi/abi/version.go is that value, so the string the library reports cannot
+ * disagree with the release it was built from. The C preprocessor cannot read a
+ * file, so this macro has to be a literal; it is written from that same derived
+ * value by `go generate ./...` (see /internal/abiheader). scripts/check-ffi.sh
+ * refuses to build a library from a checkout where the two disagree.
  */
 #define OPENRATE_ABI_VERSION "0.1.6"
 

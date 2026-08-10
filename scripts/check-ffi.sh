@@ -14,7 +14,7 @@
 # build tag that quietly excluded the cgo layer.
 #
 # So this script does what a consumer does, and then does the thing a consumer
-# cannot: it deliberately breaks the library four ways and requires the smoke
+# cannot: it deliberately breaks the library five ways and requires the smoke
 # test to notice each one. A passing smoke test only means something if it is
 # capable of failing, and "capable of failing" is a claim that has to be run.
 #
@@ -53,6 +53,28 @@ dl_flags=()
 [ "$goos" = "linux" ] && dl_flags=(-ldl)
 
 echo "check-ffi: host $goos, compiler $($cc --version 2>/dev/null | head -1)"
+echo
+
+# --- 0. the generated header line ---------------------------------------------
+#
+# openrate_abi_version()'s string is derived: /version.go embeds VERSION at
+# compile time and ffi/abi/version.go is that value, so it cannot lag a release.
+# The header's OPENRATE_ABI_VERSION macro cannot be derived the same way — the C
+# preprocessor cannot read a file, and a consumer needs a literal to compare the
+# runtime string against — so it is GENERATED from that same value.
+#
+# A generated file is only worth generating if something refuses to proceed when
+# the checkout disagrees with what generation would produce. This is that
+# refusal, and it is placed BEFORE the build on purpose: no shared library gets
+# built out of a tree whose header lies about it. (The smoke test in step 1
+# catches the same disagreement a second way, by strcmp'ing the header it was
+# compiled against with the library it loaded. Both are kept: this one gives the
+# one-line diagnosis and the fix, that one proves the property on the artifact.)
+
+echo "==> the header's version macro is what \`go generate\` would write"
+if ! (cd "$root" && go run ./internal/abiheader/gen -check); then
+  fail "ffi/include/openrate.h is stale. Run \`go generate ./...\` and commit the result."
+fi
 echo
 
 # --- 1. the library and the smoke test ---------------------------------------
@@ -117,7 +139,7 @@ fi
 # the SAME smoke binary to reject it. A mutation the smoke test does not notice
 # is a property nobody is checking.
 
-echo "==> selftest: breaking the library four ways, each must be caught"
+echo "==> selftest: breaking the library five ways, each must be caught"
 
 mutations=0
 missed=0
@@ -160,8 +182,19 @@ mutate "ffi/abi/engine.go" \
   "every conversion returns twice the right answer"
 
 mutate "ffi/abi/version.go" \
-  's|^const Version = .*|const Version = "9.9.9"|' \
+  's|^var Version = openrate\.Version$|var Version = openrate.Version + "-mutant"|' \
   "the library reports a version the header does not"
+
+# The two cases above and below are not the same case. The one above breaks the
+# ABI's copy of the version; this one breaks the LIBRARY's, one module away, and
+# requires the shared library to have picked it up. That is the property the
+# whole derivation rests on — that the string compiled into the .so comes from
+# the VERSION file of the checkout the go.mod `replace` points at, not from
+# anything anybody typed in ffi/. If this mutation is MISSED, the derivation is
+# decorative and the ABI version is coming from somewhere else.
+mutate "version.go" \
+  's|^var Version = strings\.TrimSpace(versionFile)$|var Version = strings.TrimSpace(versionFile) + "-mutant"|' \
+  "the library's own version string is not what reaches the ABI"
 
 mutate "ffi/abi/engine.go" \
   's|return nil, fmt\.Errorf("openrate: unknown engine method.*|return marshal(map[string]any{})|' \
@@ -175,4 +208,43 @@ echo
 if [ "$missed" -gt 0 ]; then
   fail "the smoke test did not notice $missed of $mutations deliberate defects. It passes on a clean build, but that pass is not evidence."
 fi
-echo "check-ffi: OK — $mutations mutations, all caught. The smoke test is capable of failing."
+
+# --- 4. the header gate can fail ----------------------------------------------
+#
+# Step 0 passed. That is worth nothing until it is shown to be capable of
+# failing: a stale-header check that answers OK for every input is precisely
+# the shape of guard this repository has shipped before.
+#
+# The gate is pointed at a COPY of the tree with the macro bumped, so the real
+# checkout is never touched. The control runs first — an unmodified copy must
+# pass through the same -root path — because if the copy were malformed the
+# mutation would "fail" for the wrong reason and prove nothing.
+
+echo "==> selftest: the header gate must reject a stale header"
+
+hdrwork="$work/hdr"
+mkdir -p "$hdrwork/ffi/include"
+cp "$root/VERSION" "$hdrwork/VERSION"
+cp "$root/ffi/include/openrate.h" "$hdrwork/ffi/include/openrate.h"
+
+if ! (cd "$root" && go run ./internal/abiheader/gen -check -root "$hdrwork") >"$work/hdr-control.log" 2>&1; then
+  fail "the control failed: an unmodified copy of the header does not pass the gate, so the
+mutation below would fail for a reason that has nothing to do with staleness:
+$(cat "$work/hdr-control.log")"
+fi
+echo "    control: an unmodified copy passes"
+
+sed 's|^#define OPENRATE_ABI_VERSION .*|#define OPENRATE_ABI_VERSION "9.9.9"|' \
+  "$root/ffi/include/openrate.h" > "$hdrwork/ffi/include/openrate.h"
+if cmp -s "$root/ffi/include/openrate.h" "$hdrwork/ffi/include/openrate.h"; then
+  fail "the header mutation changed nothing — the sed expression no longer matches the #define, so this case tests an unmodified header"
+fi
+
+if (cd "$root" && go run ./internal/abiheader/gen -check -root "$hdrwork") >"$work/hdr-mutant.log" 2>&1; then
+  fail "the header gate accepted a header declaring 9.9.9. It is not checking what it claims to,
+and a release could ship a header that disagrees with the library it describes."
+fi
+echo "    caught  a header macro that disagrees with the library"
+echo
+
+echo "check-ffi: OK — $mutations mutations plus the header gate, all caught. The checks are capable of failing."
