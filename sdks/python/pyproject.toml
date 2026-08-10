@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-# Published as vulos-openrate; the import package is still `openrate`.
-name = "vulos-openrate"
+# Published as vul-os-openrate; the import package is still `openrate`.
+name = "vul-os-openrate"
 version = "0.1.8"
 description = "Currency conversion with an auditable rate path — in your process, or as a local sidecar."
 readme = "README.md"

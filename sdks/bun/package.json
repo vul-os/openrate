@@ -1,5 +1,5 @@
 {
-  "name": "@vulos/openrate-bun",
+  "name": "@vul-os/openrate-bun",
   "version": "0.1.8",
   "description": "openrate for Bun \u2014 the C ABI in-process, or the sidecar over loopback.",
   "type": "module",

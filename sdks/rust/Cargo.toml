@@ -1,7 +1,7 @@
 [package]
-# Published as vulos-openrate — crates.io has no namespaces, and the whole
+# Published as vul-os-openrate — crates.io has no namespaces, and the whole
 # suite is scoped under Vulos. See [lib]: the library is still `openrate`.
-name = "vulos-openrate"
+name = "vul-os-openrate"
 version = "0.1.8"
 edition = "2021"
 description = "Currency conversion with provenance — embedded in-process over the C ABI, or as a supervised sidecar."

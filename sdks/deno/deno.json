@@ -1,5 +1,5 @@
 {
-  "name": "@vulos/openrate",
+  "name": "@vul-os/openrate",
   "version": "0.1.8",
   "exports": "./mod.ts",
   "license": "MIT OR Apache-2.0",

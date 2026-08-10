@@ -32,7 +32,7 @@ defmodule Openrate.MixProject do
   defp package do
     [
       # OTP app atom stays :openrate; only the Hex name is scoped.
-      name: "vulos_openrate",
+      name: "vul_os_openrate",
       licenses: ["MIT"],
       links: %{
         "Homepage" => "https://vulos.org/projects/openrate/",

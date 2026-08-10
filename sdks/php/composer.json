@@ -1,5 +1,5 @@
 {
-  "name": "vulos/openrate",
+  "name": "vul-os/openrate",
   "description": "Open FX rates from open sources \u2014 embedded locally, as a managed sidecar or in-process through the C ABI.",
   "type": "library",
   "license": "MIT",
