@@ -36,6 +36,11 @@
  *     the shell drifted away from the left edge.
  *   • The sidebar's five groups and the DOCS array's `group` fields are the
  *     same fact written twice.
+ *   • Page one of the docs is the README, generated verbatim — masthead and
+ *     all — and the viewer strips that masthead before rendering it. The rule
+ *     EXECUTES the stripper against the bytes that ship rather than grepping
+ *     for it, because the failure it guards is a transform that is present and
+ *     does nothing.
  *
  * This is deliberately a STATIC check. It parses the shipped bytes; it does not
  * launch a browser (scripts/check-shots.mjs does that, and needs Playwright,
@@ -45,7 +50,7 @@
  * is missing is the failure mode this file is written against.
  *
  *   node scripts/check-docs-chrome.mjs            # check what ships
- *   node scripts/check-docs-chrome.mjs --selftest # break it seventeen ways, require seventeen failures
+ *   node scripts/check-docs-chrome.mjs --selftest # break it twenty-one ways, require twenty-one failures
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -310,6 +315,78 @@ export function check(files) {
     fail("site/assets/site.css has no `prefers-reduced-motion: reduce` block — the docs animate scroll, reveals and the guilloché");
   }
 
+  /* 7 ── page one of the docs opens with documentation, not with the
+   * repository's front door a second time.
+   *
+   * site/docs/overview.md is README.md, generated verbatim, and a README opens
+   * with a centred logo tile, the wordmark, the tagline, a row of ten links and
+   * two lines of small print. The docs header already carries that mark and
+   * wordmark and the sidebar already IS that row of links, so at 390 a reader
+   * who clicked "Docs" got a full screen of identity before one line of prose.
+   * docs.html strips it at render time (see the MASTHEAD block there).
+   *
+   * EXECUTED, not grepped. The function is lifted out of docs.html between its
+   * markers and run against the bytes overview.md actually ships, because the
+   * failure this guards against is precisely a transform that is present in the
+   * source and does nothing to the input — and a regex over docs.html cannot
+   * tell those apart. quickstart.md is the control: a page with no masthead
+   * must come back byte-identical, so a function that simply deletes the top of
+   * every document fails here too. */
+  const docsSrc = byName["docs.html"];
+  const overview = byName["docs/overview.md"];
+  const control = byName["docs/quickstart.md"];
+  if (docsSrc === undefined || overview === undefined || control === undefined) {
+    fail("site/docs.html, site/docs/overview.md or site/docs/quickstart.md is missing — the masthead rule verified NOTHING");
+  } else {
+    // From the end of the comment that opens with MASTHEAD-BEGIN to the
+    // MASTHEAD-END marker: exactly the function, with no prose either side.
+    const region = /MASTHEAD-BEGIN[\s\S]*?\*\/([\s\S]*?)\/\* MASTHEAD-END \*\//.exec(docsSrc);
+    // The head of overview.md — everything before its first thematic break —
+    // is this rule's subject. If the generator stops emitting a centred
+    // masthead there is nothing left to strip, and a rule with no subject
+    // passes while checking nothing; so the subject is asserted first.
+    const headEnd = overview.split("\n").findIndex((l) => /^\s*---\s*$/.test(l));
+    const head = headEnd < 0 ? "" : overview.split("\n").slice(0, headEnd).join("\n");
+    const centred = (head.match(/align="center"/g) || []).length;
+    if (centred < 4) {
+      fail(`site/docs/overview.md opens with ${centred} centred block(s) before its first rule (expected at least 4) — the masthead rule has no subject and verified nothing`);
+    } else if (!region) {
+      fail("site/docs.html has no /* MASTHEAD-BEGIN … MASTHEAD-END */ block — the README's masthead would render verbatim as page one of the docs");
+    } else if (!/\bstripMasthead\s*\(\s*await\s+fetchDoc/.test(docsSrc)) {
+      fail("site/docs.html defines stripMasthead but never calls it on the fetched markdown — the masthead would still render");
+    } else {
+      let strip = null;
+      try {
+        strip = runInNewContext(region[1] + "\n;stripMasthead", {});
+      } catch (e) {
+        fail(`site/docs.html's MASTHEAD block could not be evaluated (${e.message}) — it would not run in a browser either`);
+      }
+      if (typeof strip === "function") {
+        let out = null;
+        try { out = strip(overview); } catch (e) { fail(`stripMasthead threw on site/docs/overview.md: ${e.message}`); }
+        if (out) {
+          const newHeadEnd = out.md.split("\n").findIndex((l) => /^\s*---\s*$/.test(l));
+          const newHead = newHeadEnd < 0 ? out.md : out.md.split("\n").slice(0, newHeadEnd).join("\n");
+          if (out.dropped < 3) fail(`stripMasthead dropped ${out.dropped} block(s) from overview.md; the masthead is the logo tile, the link row and two <sub> lines, so at least 3 must go`);
+          if (/align="center"/.test(newHead)) fail("stripMasthead left a centred block at the top of overview.md — the README masthead still renders as page one");
+          if (/<img\b/i.test(newHead)) fail("stripMasthead left the logo tile at the top of overview.md — the docs header already shows that mark");
+          if (/<sub\b/i.test(newHead)) fail("stripMasthead left the release/licence small print at the top of overview.md");
+          if (!/<h1[^>]*>openrate<\/h1>/.test(newHead)) fail("stripMasthead removed overview.md's <h1> — every other page of these docs opens with a title and this one must too");
+          if (!/ZAR-anchored exchange rates/.test(newHead)) fail("stripMasthead removed overview.md's one-line lede");
+          // The body must survive intact: a transform that trims the whole
+          // head would satisfy everything above.
+          if (!out.md.includes("is an open-source exchange-rate engine")) fail("stripMasthead ate the first line of overview.md's prose");
+          if (out.md.length < overview.length * 0.9) fail(`stripMasthead removed ${overview.length - out.md.length} of ${overview.length} bytes from overview.md — it is trimming documentation, not a masthead`);
+        }
+        let ctl = null;
+        try { ctl = strip(control); } catch (e) { fail(`stripMasthead threw on site/docs/quickstart.md: ${e.message}`); }
+        if (ctl && (ctl.md !== control || ctl.dropped !== 0)) {
+          fail("stripMasthead altered site/docs/quickstart.md, which has no masthead — it is trimming the top of every document rather than the README's front door");
+        }
+      }
+    }
+  }
+
   return failures;
 }
 
@@ -351,6 +428,14 @@ function selftest() {
     ["the highlight bundle is emptied of a grammar the docs use", edit("assets/vendor/highlight.min.js", (t) => t.replace(/registerLanguage\("c"/g, 'registerLanguage("czz"').replace(/"c",/g, '"czz",')), /fences `c`|does not carry/],
     ["the highlight bundle stops being loadable", edit("assets/vendor/highlight.min.js", (t) => "throw new Error('boom');" + t), /could not be evaluated/],
     ["the reduced-motion block is dropped", edit("assets/site.css", (t) => t.replace("@media (prefers-reduced-motion: reduce)", "@media (min-width: 1px)")), /prefers-reduced-motion/],
+    // rule 7 — the README's masthead, five ways to get it wrong
+    ["the masthead strip is defined but never called", edit("docs.html", (t) => t.replace("marked.parse(stripMasthead(await fetchDoc(doc.slug)).md)", "marked.parse(await fetchDoc(doc.slug))")), /never calls it/],
+    ["the masthead strip becomes a no-op", edit("docs.html", (t) => t.replace("  const lines = md.split(\"\\n\");", "  return none;\n  const lines = md.split(\"\\n\");")), /dropped 0 block/],
+    ["the masthead strip eats the title and the lede too", edit("docs.html", (t) => t.replace("    if (!text) { dropped++; continue; }", "    if (true) { dropped++; continue; }")), /removed overview\.md's <h1>/],
+    ["the masthead strip starts trimming every document", edit("docs.html", (t) => t
+      .replace('  if (!/align="center"/.test(head)) return none;', "  if (false) return none;")
+      .replace('    if (!/align="center"/.test(code)) { if (code.trim()) kept.push(block); continue; }', "    if (false) { continue; }")), /altered site\/docs\/quickstart\.md/],
+    ["overview.md stops carrying a masthead, leaving the rule with no subject", edit("docs/overview.md", (t) => t.replace(/ align="center"/g, "")), /has no subject/],
     ["the site walker stops finding files", [base[0]], /verified almost nothing/],
   ];
 
