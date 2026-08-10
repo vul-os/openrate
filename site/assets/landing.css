@@ -264,8 +264,59 @@ html.js .hero .docket { animation-delay: .3s; }
 .split.flip > .copy { order: 2; }
 /* §07's terminal carries long install lines and needs the wide half. */
 .split.wide-left { grid-template-columns: minmax(0, 1.14fr) minmax(0, .86fr); align-items: start; }
+/* The two halves of §07's first row have no relationship in height: the
+   terminal is eleven lines and the numbered steps beside it are five, and at
+   1440 that left ~330px of the left column as bare page — a hole, not a
+   margin. The fix is not to pad the transcript out. It is to stop the plate
+   being a grid cell that ends where its text ends: a terminal window is one of
+   the few objects on this page whose empty lower half is not a void but the
+   window itself, so the plate stretches to the row and the <pre> takes up the
+   slack. Nothing is added to the transcript, and the row now closes on both
+   sides.
+
+   `align-self`, not `align-items` on the row — the second wide-left row (main.go
+   against its prose) is already within 12px of square, and stretching it would
+   change nothing there anyway, but the intent belongs on the plate. Below 900px
+   the grid is one column and the row height IS the plate height, so this is
+   inert. */
+.split.wide-left > .code { align-self: stretch; display: flex; flex-direction: column; }
+.split.wide-left > .code > pre { flex: 1 1 auto; }
 .split .copy h3 { margin-bottom: 14px; }
 .split .copy p { font-size: 15px; line-height: 1.75; }
+
+/* ── .split.capfoot: the caption belongs to the row, not to one column ─────
+   §02's second row is a tall figure against shorter prose. Measured at 1440,
+   the plate is 568px and the prose is 487px — 82px apart, which centring
+   absorbs without anyone noticing. The other 195px was the figcaption, the
+   longest on the page, stacked under the plate in the left column alone; that
+   is what pushed the row to 778 and left the prose floating in ~145px of air
+   at each end.
+
+   So the caption is lifted out of the left column and run under both halves,
+   two columns wide. It still captions the figure it is in — <figure> goes
+   display:contents so the plate and the caption become items of the row's own
+   grid, which changes where they are painted and not what they belong to.
+   `columns: 2` is not decoration either: 11.5px mono set across a 1000px
+   measure is unreadable, and the pair of columns lands the caption at the
+   measure it already had.
+
+   Confined to ≥901px on purpose. Below that the split is a single column, the
+   figure must go back to being a normal box, and there is nothing to balance. */
+@media (min-width: 901px) {
+  /* row-gap, not the row's shared `gap`: 57.6px between two columns is a
+     column gutter, and the same 57.6px between a figure and its own caption
+     reads as a page break. The columns keep the gutter; the caption gets a
+     caption's distance. */
+  .split.capfoot { row-gap: clamp(16px, 1.8vw, 22px); }
+  .split.capfoot > figure { display: contents; }
+  .split.capfoot > figure > .plate { grid-column: 1; grid-row: 1; }
+  .split.capfoot > .copy { grid-column: 2; grid-row: 1; order: 0; }
+  .split.capfoot > figure > .figcap {
+    grid-column: 1 / -1; grid-row: 2; max-width: none;
+    columns: 2; column-gap: clamp(26px, 4vw, 60px);
+    margin-top: 0;
+  }
+}
 @media (max-width: 900px) {
   /* minmax(0,1fr), never a bare 1fr: a bare 1fr is minmax(auto,1fr), so one
      white-space:nowrap label inside the track raises the track's min-content
