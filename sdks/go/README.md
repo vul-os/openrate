@@ -80,6 +80,13 @@ rates(XXX): refused — 404 Not Found /api/v1/rates?base=XXX: {"error":"unknown 
 
 Not stylistic. Each of these has bitten something.
 
+There used to be a third: `GET /api/v1/rates?base=XXX` answered `200` with
+`"rates": {}` where `Engine.Rates("XXX")` returned `ErrUnknownBase`. As of
+**0.1.6 it is a `404`** whose body is `{"error":"unknown base currency"}` —
+`ErrUnknownBase`'s own text — so one string matches in either mode. A snapshot
+with no currencies *at all* is still `200` with an empty book on both surfaces:
+that is "nothing yet", which is what `/readyz` is for.
+
 **1. `convert` nests its provenance over HTTP and does not in Go.**
 `Engine.Convert` returns a flat `fx.Conversion` — `.Rate`, `.Hops`, `.Path`,
 `.Quality` at the top level. `GET /api/v1/convert` returns

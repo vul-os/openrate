@@ -324,9 +324,10 @@ public final class Engine: @unchecked Sendable {
 
     /// `{"base":"ZAR"}` → every known currency against that base.
     ///
-    /// An unknown base is an **error** here, where `GET /api/v1/rates` answers
-    /// `200` with an empty book. That is the one deliberate difference between
-    /// the two surfaces, and the ABI follows the Go library.
+    /// An unknown base is an **error** here, and a `404` carrying the same
+    /// `unknown base currency` text over HTTP. An engine holding no rates at
+    /// all returns an empty book and no error on either surface — that is a
+    /// readiness question, not a bad request.
     public func rates(_ requestJSON: String? = nil) throws -> String {
         try call("rates", requestJSON)
     }

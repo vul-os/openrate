@@ -296,6 +296,7 @@ jobs:
             --require TestEngineConstructionThroughTheABIStartsNoGoroutine \
             --require TestWireParityWithTheHTTPAPI \
             --require TestWireParityCheckCanFail \
+            --require TestWireParityForAnUnknownBase \
             --require TestMetaReportsRefresherStatusLikeTheHTTPAPI \
             --require TestVersionMatchesTheVERSIONFile \
             --require TestHeaderDeclaresTheSameVersion \

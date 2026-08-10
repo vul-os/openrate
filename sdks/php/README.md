@@ -311,9 +311,10 @@ spawns has no such gap.
 5. **No rate limiting, no CORS, no auth on the direct boundary.** Those live in
    `openrate serve`'s HTTP shell. In-process you are inside the trust boundary
    and the library does not pretend otherwise.
-6. **One deliberate behavioural difference from HTTP:** `rates` with an unknown
-   base is an *error* through the C ABI, where `GET /api/v1/rates` answers 200
-   with an empty book. The library follows the Go API, not the endpoint.
+6. **No behavioural difference from HTTP.** `rates` with an unknown base is an
+   *error* through the C ABI and a `404 {"error":"unknown base currency"}` over
+   HTTP. Until 0.1.6 the endpoint answered `200` with an empty book instead;
+   that was the only place the two surfaces disagreed.
 
 ### PHP-specific FFI behaviour worth knowing
 

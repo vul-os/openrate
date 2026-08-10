@@ -351,13 +351,15 @@ int main(int argc, char **argv) {
 	}
 	http_response_free(&r);
 
-	/* An unknown BASE, though, answers 200 with an empty book — where direct
-	 * mode raises. That is the one deliberate difference between the modes. */
+	/* An unknown BASE is refused the same way, in both modes. It used to be
+	 * the one place they differed: this answered 200 with an empty book, which
+	 * is also what a server that has not fetched yet answers. */
 	if (http_request(port, "GET", "/api/v1/rates?base=XXX", NULL, NULL, &r, errbuf,
 	                 sizeof(errbuf)) == 0) {
-		printf("unknown base  HTTP %d with an empty book (direct mode errors instead —\n",
-		       r.status);
-		printf("              the one deliberate difference between the two modes)\n");
+		char message[256] = "";
+		json_string(r.body, "error", message, sizeof(message));
+		printf("unknown base  HTTP %d: %s (direct mode raises the same refusal)\n",
+		       r.status, message);
 		http_response_free(&r);
 	}
 

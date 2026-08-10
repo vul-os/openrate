@@ -77,21 +77,37 @@ func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
 	snap := s.engine.Snapshot()
 	now := s.now().UTC()
 
-	// NOTE — an unknown base is NOT rejected here, and that is a standing
-	// inconsistency rather than an oversight. Rebase yields nothing for a base
-	// the snapshot does not know, so ?base=ZZZ answers 200 with `"rates":{}`,
-	// which a caller checking only the status code reads as "no rates
-	// available". [openrate.Engine.Rates] and the C ABI both return
-	// ErrUnknownBase for the same input.
+	// A base the snapshot has never heard of is a 404, the same answer
+	// [openrate.Engine.Rates] and the C ABI have always given it.
 	//
-	// It stays because it is a published contract, not an accident: sdks/go,
-	// sdks/python and sdks/deno each document the difference in their README,
-	// two of their example programs demonstrate it deliberately, and the ABI's
-	// own comment cites the HTTP behaviour as the thing it is departing from.
-	// Aligning it is a wire change that has to land together with those, which
-	// makes it a decision for the API contract and not a fix to make quietly
-	// inside the serving layer. TestRatesUnknownBaseKeepsItsDocumentedShape
-	// pins it so it cannot drift either way unnoticed.
+	// This endpoint used to answer 200 with `"rates":{}` instead, and that was a
+	// published contract rather than an oversight — five SDKs documented the
+	// difference and two example programs demonstrated it. It was still the
+	// wrong contract, for three reasons that outlast the cost of changing it:
+	//
+	//   - `base` is not a filter over a collection, it is the pivot of the
+	//     computation. Every entry of the response is defined as "1 base = rate
+	//     units of X", so a base that does not exist does not describe a table
+	//     with no rows in it — it makes the whole document's own definition
+	//     false, while echoing the invented code back in the "base" field as
+	//     though it were real.
+	//   - The 200 was indistinguishable from a cold start. A server that has
+	//     never fetched answers 200 with `"rates":{}` for EVERY base, which is
+	//     why /readyz exists at all; overloading the same response with "your
+	//     currency code is wrong" left a caller no way to tell a typo from a
+	//     feed outage.
+	//   - /convert already rejects the identical input. Since unknown codes
+	//     became a 404 there, "NOTACCY" meant two different things at two
+	//     endpoints of one API version.
+	//
+	// A snapshot with NO currencies is still 200 with an empty book: that is
+	// "nothing yet", a readiness question, and /readyz is the endpoint that
+	// answers it. Same condition as Engine.Rates, to the operator.
+	if len(snap.Currencies) > 0 && !snap.Has(base) {
+		writeAPIError(w, fx.ErrUnknownBase)
+		return
+	}
+
 	rates := map[string]rateView{}
 	for ccy := range snap.Rebase(base) {
 		c, err := fx.Describe(snap, base, ccy, 1, now)
@@ -188,12 +204,13 @@ func parseAmount(raw string) (float64, error) {
 }
 
 // writeAPIError is the one error path for the read endpoints, so a refusal
-// cannot drift in shape between them: an unknown pair is a 404, every other
-// refusal is a 400, and the body is the sentinel's own text — the same string
-// fx exports and the C ABI wraps, so a client can match on it.
+// cannot drift in shape between them: a currency the snapshot does not know is
+// a 404 — whether it was named as a pair or as a base — every other refusal is
+// a 400, and the body is the sentinel's own text, the same string fx exports
+// and the C ABI wraps, so a client can match on it.
 func writeAPIError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest
-	if errors.Is(err, fx.ErrUnknownPair) {
+	if errors.Is(err, fx.ErrUnknownPair) || errors.Is(err, fx.ErrUnknownBase) {
 		status = http.StatusNotFound
 	}
 	http.Error(w, `{"error":"`+err.Error()+`"}`, status)

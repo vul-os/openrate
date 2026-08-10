@@ -366,9 +366,10 @@ export class Engine implements Disposable {
 
   /**
    * The whole book against one base. `rates[X].rate` reads as
-   * "1 base = rate units of X". Identical to `GET /api/v1/rates`, with one
-   * deliberate difference: an unknown base is an error here, where the HTTP
-   * endpoint answers 200 with an empty book. The library follows the Go API.
+   * "1 base = rate units of X". Identical to `GET /api/v1/rates`, including
+   * the error path: an unknown base is an error here and a 404 carrying the
+   * same text over HTTP. An engine holding no rates at all returns an empty
+   * book and no error on either — that is a readiness question.
    */
   rates(base?: string): RatesResult {
     return callSyncRaw(this.#lib, this.#live(), "rates", base === undefined ? {} : { base }) as RatesResult;

@@ -158,8 +158,9 @@ struct OpenRateDirect {
         #expect(try eng.convert(#"{"from":"EUR","to":"ZAR","amount":100}"#).contains("\"hops\":2"))
     }
 
-    /// The ABI and the HTTP API deliberately disagree here. This pins the ABI side
-    /// so a future change to either surface cannot drift silently.
+    /// This pins the ABI side of a refusal all three surfaces now share. The HTTP
+    /// API used to answer 200 with an empty book instead; it answers 404 as of
+    /// 0.1.6, and openrate's own `TestWireParityForAnUnknownBase` asserts the pair.
     @Test func anUnknownBaseIsAnErrorOverTheABI() throws {
         guard let path = library() else { return }
         let eng = try Engine(libraryPath: path, configJSON: #"{"quiet":true}"#)

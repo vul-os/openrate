@@ -273,13 +273,13 @@ func (o *engineObj) rates(req []byte) ([]byte, error) {
 	snap := o.e.Snapshot()
 	now := o.now().UTC()
 
-	// The one deliberate difference from GET /api/v1/rates, and it is a
-	// difference in the ERROR path only: the HTTP handler answers 200 with an
-	// empty book for a base the snapshot does not know, while [openrate.Engine.Rates]
-	// returns ErrUnknownBase. The ABI follows the library, because a caller who
-	// asked for rates against "ZZZ" and got `{}` has been told nothing. A
-	// snapshot with no currencies at all is still "nothing yet" rather than a
-	// bad request, exactly as the library has it.
+	// A base the snapshot has never heard of is refused, because a caller who
+	// asked for rates against "ZZZ" and got `{}` has been told nothing. This
+	// used to be the ABI's one deliberate departure from GET /api/v1/rates,
+	// which answered 200 with an empty book; the HTTP handler now refuses it
+	// too, on the same condition, so all three surfaces agree. A snapshot with
+	// no currencies at all is still "nothing yet" rather than a bad request,
+	// exactly as the library has it.
 	if len(snap.Currencies) > 0 && !snap.Has(base) {
 		return nil, fmt.Errorf("openrate: rates base %s: %w", base, openrate.ErrUnknownBase)
 	}

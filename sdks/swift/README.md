@@ -72,7 +72,7 @@ load:      {"built_at":"2026-08-08T16:00:00Z","currencies":["EUR","GBP","USD","Z
 USD->ZAR:  result=1842.0000000000002 rate=18.42 hops=1 via USD->ZAR grade=C
 EUR->ZAR:  result=2001.3330000000003 rate=20.013330000000003 hops=2 via EUR->USD->ZAR grade=C
 JPY->ZAR:  openrate: convert JPY->ZAR: unknown or unreachable currency pair
-rates XXX: openrate: rates base XXX: unknown base currency   (HTTP would answer 200 with an empty book)
+rates XXX: openrate: rates base XXX: unknown base currency   (HTTP answers 404 with the same text)
 rates ZAR: 1588 bytes
 
 no Refresher was constructed, so this process opened no socket.
@@ -93,7 +93,7 @@ readyz:    {"built_at":"2026-08-09T21:03:25.482267Z","currencies":30,"ready":tru
 meta:      {"built_at":"2026-08-09T21:03:25.482267Z","currencies":["AUD","BRL","CAD","CHF","CNY","CZK","DKK","EUR","GBP","HKD","HUF","IDR","ILS","INR","ISK","JPY","KRW","MXN","MYR","NOK","NZD…
 EUR->USD:  result=115.35 rate=1.1535 hops=1 grade=C
 rates EUR: 24279 bytes
-rates XXX: HTTP 200, empty book = true   (the C ABI returns "unknown base currency")
+rates XXX: HTTP 404: {"error":"unknown base currency"}   (the C ABI returns the same "unknown base currency")
 bogus:     HTTP 404: {"error":"unknown or unreachable currency pair"}
 stopped:   child reaped
 ```

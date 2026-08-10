@@ -105,14 +105,13 @@ do {
         print("JPY->ZAR:  \(error)")
     }
 
-    // An unknown base is an ERROR over the ABI, where GET /api/v1/rates answers
-    // 200 with an empty book. The one deliberate difference between the two
-    // surfaces; the ABI follows the Go library.
+    // An unknown base is an ERROR over the ABI, and a 404 carrying the same
+    // text over HTTP. It used to be the one place the two surfaces disagreed.
     do {
         _ = try eng.rates(#"{"base":"XXX"}"#)
         print("rates XXX: UNEXPECTEDLY answered")
     } catch {
-        print("rates XXX: \(error)   (HTTP would answer 200 with an empty book)")
+        print("rates XXX: \(error)   (HTTP answers 404 with the same text)")
     }
 
     print("rates ZAR: \(try eng.rates(#"{"base":"ZAR"}"#).count) bytes")

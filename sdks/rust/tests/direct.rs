@@ -104,8 +104,9 @@ fn load_then_convert_including_a_triangulated_pair() {
     assert!(cross.contains("\"hops\":2"), "{cross}");
 }
 
-/// The ABI and the HTTP API deliberately disagree here, and this pins the ABI
-/// side so a future change to either surface cannot drift silently.
+/// This pins the ABI side of a refusal all three surfaces now share. The HTTP
+/// API used to answer 200 with an empty book instead; it answers 404 as of
+/// 0.1.6, and openrate's own `TestWireParityForAnUnknownBase` asserts the pair.
 #[test]
 fn an_unknown_base_is_an_error_over_the_abi() {
     let Some(path) = library() else { return };

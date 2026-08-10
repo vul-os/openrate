@@ -68,13 +68,18 @@ do {
     // ------------------------------------------------------------------ rates
     print("rates EUR: \(try sc.rates(base: "EUR").count) bytes")
 
-    // The deliberate difference, demonstrated rather than described. Over the C
-    // ABI this same request is an error; here it is a 200 with an empty book,
-    // and a client that checks only the status code reads that as success.
-    let bogus = compact(try sc.rates(base: "XXX"))
-    print(
-        "rates XXX: HTTP 200, empty book = \(bogus.contains("\"rates\":{}"))   "
-            + "(the C ABI returns \"unknown base currency\")")
+    // The alignment, demonstrated rather than described. This request is an
+    // error over the C ABI and a 404 here, and both carry the same sentence —
+    // it used to be a 200 with an empty book, which a client checking only the
+    // status code read as success.
+    do {
+        let bogus = compact(try sc.rates(base: "XXX"))
+        print("rates XXX: UNEXPECTEDLY answered: \(first(bogus, 80))")
+    } catch {
+        print(
+            "rates XXX: \(error)   "
+                + "(the C ABI returns the same \"unknown base currency\")")
+    }
 
     // ------------------------------------------------------------ error path
     do {

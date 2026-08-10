@@ -276,9 +276,11 @@ impl Sidecar {
 
     /// `GET /api/v1/rates?base=`.
     ///
-    /// **An unknown base answers `200` with an empty book here**, where the
-    /// library and the C ABI both return an error. A caller that checks only
-    /// the status code will read "no rates" as success.
+    /// **An unknown base answers `404 {"error":"unknown base currency"}`**, the
+    /// same refusal the library and the C ABI give. Until 0.1.6 it answered
+    /// `200` with an empty book, which a caller checking only the status code
+    /// read as success — and which a server that had not fetched yet also
+    /// answers. A snapshot with no currencies at all is still `200`.
     pub fn rates(&self, base: &str) -> Result<String> {
         let url = format!("{}/api/v1/rates?base={}", self.base_url, urlencode(base));
         Ok(http::get(&url, self.timeout)?)

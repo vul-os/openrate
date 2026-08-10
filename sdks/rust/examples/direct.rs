@@ -90,12 +90,11 @@ fn run() -> Result<(), Error> {
         Err(e) => println!("JPY->ZAR:  {e}"),
     }
 
-    // An unknown base is an ERROR over the ABI, where GET /api/v1/rates answers
-    // 200 with an empty book. The one deliberate difference between the two
-    // surfaces; the ABI follows the Go library.
+    // An unknown base is an ERROR over the ABI, and a 404 carrying the same
+    // text over HTTP. It used to be the one place the two surfaces disagreed.
     match eng.rates(Some(r#"{"base":"XXX"}"#)) {
         Ok(r) => println!("rates XXX: UNEXPECTEDLY answered: {}", first(&r, 80)),
-        Err(e) => println!("rates XXX: {e}   (HTTP would answer 200 with an empty book)"),
+        Err(e) => println!("rates XXX: {e}   (HTTP answers 404 with the same text)"),
     }
 
     let zar = eng.rates(Some(r#"{"base":"ZAR"}"#))?;

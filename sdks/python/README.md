@@ -148,10 +148,12 @@ carries a Python copy.
 It is a diagnostic, and it is what makes leak-freedom checkable: the test suite
 asserts the count returns to its starting value after every test.
 
-**One deliberate difference between the modes.** `Engine.rates("XXX")` on an
-unknown base raises; `Client.rates("XXX")` answers 200 with an empty book. Direct
-mode follows the Go library, the HTTP endpoint follows HTTP. Nothing else
-differs.
+**The two modes answer identically.** `Engine.rates("XXX")` on an unknown base
+raises, and since 0.1.6 `Client.rates("XXX")` raises too — the endpoint answers
+`404 {"error":"unknown base currency"}` where it used to answer `200` with an
+empty book, which was indistinguishable from a server that had not fetched yet.
+A snapshot holding no currencies at all is still an empty book and no error in
+both modes: that is a readiness question, and `/readyz` answers it.
 
 **There is no `openrate_stream`.** openrate answers from a snapshot it already
 holds, so there is no incremental operation to stream and no callback API here.

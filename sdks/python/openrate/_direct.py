@@ -384,9 +384,10 @@ class Engine(_Handle):
     def rates(self, base: str | None = None) -> Any:
         """The whole book against ``base``. Identical to ``GET /api/v1/rates``.
 
-        ``rates[X].rate`` reads as "1 base = rate units of X". An unknown base is
-        an error here, where the HTTP endpoint answers 200 with an empty book —
-        the one deliberate difference, and it follows the Go library.
+        ``rates[X].rate`` reads as "1 base = rate units of X". An unknown base
+        is an error here, and a ``404`` carrying the same text over HTTP. An
+        engine holding no rates at all returns an empty book and no error on
+        either surface: that is a readiness question, not a bad request.
         """
         return self.call("rates", {"base": base} if base else {})
 

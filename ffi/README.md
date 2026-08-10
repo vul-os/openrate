@@ -221,12 +221,23 @@ order is not part of either contract. The parity test compares by value for that
 reason, and five mutations prove it can still tell two documents apart. Omitted
 currencies mean the engine's default base; an omitted amount means 1.
 
-`rates` has **one deliberate difference**: an unknown base is an error here,
-where `GET /api/v1/rates` answers 200 with an empty book. The ABI follows
-`Engine.Rates`, on the grounds that a caller who asked for rates against `ZZZ`
-and got `{}` has been told nothing. An engine holding *no* rates at all still
-returns an empty book and no error, because "nothing yet" is a readiness
-question rather than a bad request.
+`rates` refuses a base the snapshot has never heard of, on the grounds that a
+caller who asked for rates against `ZZZ` and got `{}` has been told nothing. An
+engine holding *no* rates at all still returns an empty book and no error,
+because "nothing yet" is a readiness question rather than a bad request.
+
+Both of the ABI's deliberate differences from HTTP are gone as of 0.1.6, and in
+both cases HTTP moved:
+
+- `convert` with an unknown currency code was always an error here, while
+  `GET /api/v1/convert` answered `200` with `rate: 1` and a quality grade for
+  `?from=NOTACCY&to=NOTACCY`. Fixed in 0.1.5.
+- `rates` with an unknown base was always an error here, while
+  `GET /api/v1/rates?base=ZZZ` answered `200` with an empty book —
+  indistinguishable from a server that had not fetched yet. `GET` now answers
+  `404 {"error":"unknown base currency"}`. Fixed in 0.1.6.
+
+So the ABI, the HTTP API and `Engine.Rates` now agree on every input.
 
 `load` has no HTTP counterpart — the server is read-only. It is the zero-network
 path: install rates you obtained yourself, from a file, a cache, your own feed.

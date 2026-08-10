@@ -449,9 +449,10 @@ impl Engine {
 
     /// `{"base":"ZAR"}` → every known currency against that base.
     ///
-    /// An unknown base is an **error** here, where the HTTP endpoint answers
-    /// `200` with an empty book. That is the one deliberate difference between
-    /// the two surfaces, and the ABI follows the Go library rather than HTTP.
+    /// An unknown base is an **error** here, and a `404` carrying the same
+    /// `unknown base currency` text over HTTP. An engine holding no rates at
+    /// all returns an empty book and no error on either surface — that is a
+    /// readiness question, not a bad request.
     pub fn rates(&self, request_json: Option<&str>) -> Result<String> {
         self.call("rates", request_json)
     }

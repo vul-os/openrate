@@ -329,8 +329,8 @@ public:
 		return detail::unwrap(try_convert(from, to, amount));
 	}
 	/// Identical to GET /api/v1/rates. rates[X].rate reads as
-	/// "1 base = rate units of X". An unknown base is an error here, where the
-	/// HTTP endpoint answers 200 with an empty book — the one deliberate
+	/// "1 base = rate units of X". An unknown base is an error here, and a 404
+	/// carrying the same text over HTTP — there is no longer any deliberate
 	/// difference between the modes, and it follows the Go library.
 	std::string rates(std::string_view base = {}) const {
 		return detail::unwrap(try_rates(base));

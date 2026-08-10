@@ -200,8 +200,9 @@ class EngineMethods(DirectTestBase):
         self.assertEqual(meta["sources"], [], "an engine nobody refreshes has no sources")
 
     def test_an_unknown_base_is_an_error_here(self):
-        """The one deliberate difference from the HTTP endpoint, which answers
-        200 with an empty book. Direct mode follows the Go library."""
+        """The HTTP endpoint refuses the same input with a 404 since 0.1.6; it
+        used to answer 200 with an empty book. Direct mode follows the Go
+        library and always has."""
         with self.loaded_engine() as engine:
             with self.assertRaises(OpenRateError):
                 engine.rates("XXX")

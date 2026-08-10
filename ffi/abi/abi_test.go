@@ -265,8 +265,10 @@ func TestLoadThenConvertIsTheWholeZeroNetworkPath(t *testing.T) {
 	}
 }
 
-// TestRatesRejectsAnUnknownBase pins the one deliberate difference from the
-// HTTP API, so that it stays deliberate.
+// TestRatesRejectsAnUnknownBase pins the ABI's half of a contract all three
+// surfaces now share. It used to be the ABI's one deliberate difference from
+// the HTTP API; HTTP moved to match it in 0.1.6, and
+// TestWireParityForAnUnknownBase asserts the two together.
 func TestRatesRejectsAnUnknownBase(t *testing.T) {
 	h := mustNew(t, `{"base":"ZAR","quiet":true}`)
 	defer Close(h)
@@ -284,8 +286,8 @@ func TestRatesRejectsAnUnknownBase(t *testing.T) {
 		t.Fatalf("load: %v", err)
 	}
 	if _, err := Call(h, "rates", `{"base":"ZZZ"}`); err == nil {
-		t.Error("rates against a base the snapshot does not know succeeded; the ABI follows " +
-			"Engine.Rates here, not the HTTP handler's 200-with-an-empty-book")
+		t.Error("rates against a base the snapshot does not know succeeded; every surface — the ABI, " +
+			"Engine.Rates and GET /api/v1/rates — refuses this input")
 	} else if !strings.Contains(err.Error(), openrate.ErrUnknownBase.Error()) {
 		t.Errorf("error is %q; want ErrUnknownBase's text", err)
 	}

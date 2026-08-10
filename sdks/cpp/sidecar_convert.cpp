@@ -399,13 +399,13 @@ int main(int argc, char **argv) {
 			std::cout << "error         HTTP " << r.status << ": " << peek(r.body, "error") << "\n";
 		}
 
-		// An unknown BASE, though, answers 200 with an empty book — where direct
-		// mode raises. That is the one deliberate difference between the modes.
+		// An unknown BASE is refused the same way, in both modes. It used to be
+		// the one place they differed: this answered 200 with an empty book,
+		// which is also what a server that has not fetched yet answers.
 		{
 			const Response r = http_get(port, "/api/v1/rates?base=XXX");
-			std::cout << "unknown base  HTTP " << r.status << " with " << count(r.body, "\"hops\":")
-			          << " rates (direct mode errors instead — the one\n"
-			          << "              deliberate difference between the two modes)\n";
+			std::cout << "unknown base  HTTP " << r.status << ": " << peek(r.body, "error")
+			          << " (direct mode raises the same refusal)\n";
 		}
 
 		std::cout << "\n" << (managed ? "sidecar stopped" : "left the remote server alone") << "\n";

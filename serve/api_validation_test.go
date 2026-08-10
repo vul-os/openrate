@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/vul-os/openrate"
 )
 
 // Input validation on the read endpoints. Every case here is a request that used
@@ -171,58 +173,86 @@ func TestConvertAmountCasesAreDistinct(t *testing.T) {
 	}
 }
 
-// /rates has the same SHAPE of hole as the convert bug — Rebase yields nothing
-// for a base it does not know, so ?base=NOTACCY answers 200 with an empty book,
+// /rates had the same SHAPE of hole as the convert bug — Rebase yields nothing
+// for a base it does not know, so ?base=NOTACCY answered 200 with an empty book,
 // which is also exactly what a server holding no rates answers — but unlike the
-// convert bug it is a published contract. sdks/go, sdks/python and sdks/deno
-// document the difference from the library in their READMEs, two of their
-// example programs demonstrate it on purpose (sdks/go's sidecar example FAILS if
-// the request returns anything but 200), and ffi/abi cites it as the behaviour
-// it deliberately departs from. Aligning it with Engine.Rates means changing
-// those in the same commit, so it is an API-contract decision rather than a fix
-// to make inside serve.
+// convert bug it was a published contract: five SDKs documented the difference
+// from the library and two example programs demonstrated it on purpose.
 //
-// This test pins the shipped behaviour in BOTH directions so the decision, when
-// it is taken, is taken deliberately.
-func TestRatesUnknownBaseKeepsItsDocumentedShape(t *testing.T) {
-	srv := apiServer(t, populatedEngine(t, testEdges, 3))
+// It is now a 404 on all three surfaces. `base` is the pivot of the response,
+// not a filter over it: every entry means "1 base = rate units of X", so an
+// unknown base does not describe an empty table, it makes the document's own
+// definition false while echoing the invented code back as if it were real. The
+// 200 was also indistinguishable from a cold start, which answers 200 with an
+// empty book for every base — the exact ambiguity /readyz was added to resolve.
+//
+// This test pins the aligned contract, and the next one pins the case that must
+// NOT be swept up with it.
+func TestRatesUnknownBaseIsRefusedLikeTheLibrary(t *testing.T) {
+	engine := populatedEngine(t, testEdges, 3)
+	srv := apiServer(t, engine)
 
 	code, body := getBody(t, srv.URL, "/api/v1/rates?base=NOTACCY")
-	if code != http.StatusOK {
-		t.Errorf("/rates?base=NOTACCY: status = %d, want 200 — this is the documented cross-SDK contract; "+
-			"changing it means changing sdks/{go,python,deno} and ffi/abi in the same commit: %s",
+	if code != http.StatusNotFound {
+		t.Errorf("/rates?base=NOTACCY: status = %d, want 404 — an unknown base is refused here exactly as "+
+			"Engine.Rates and the C ABI refuse it, and as /convert already refuses the same code: %s",
 			code, truncate([]byte(body)))
 	}
-	var unknown struct {
-		Base  string         `json:"base"`
-		Rates map[string]any `json:"rates"`
+	// The body is the sentinel's own text, so a client can match one string
+	// across the HTTP API, the library and the ABI.
+	var refusal struct {
+		Error string `json:"error"`
 	}
-	if err := json.Unmarshal([]byte(body), &unknown); err != nil {
-		t.Fatalf("/rates?base=NOTACCY: decode: %v", err)
+	if err := json.Unmarshal([]byte(body), &refusal); err != nil {
+		t.Fatalf("/rates?base=NOTACCY: decode %q: %v", body, err)
 	}
-	if unknown.Base != "NOTACCY" || len(unknown.Rates) != 0 {
-		t.Errorf("/rates?base=NOTACCY: base %q with %d pairs, want the echoed base and an empty book",
-			unknown.Base, len(unknown.Rates))
+	if refusal.Error != openrate.ErrUnknownBase.Error() {
+		t.Errorf("/rates?base=NOTACCY: error = %q, want ErrUnknownBase's own text %q",
+			refusal.Error, openrate.ErrUnknownBase.Error())
+	}
+	// And nothing that looks like an answer came with it: no echoed base, no
+	// book. The old response carried both.
+	if strings.Contains(body, `"rates"`) || strings.Contains(body, `"base"`) {
+		t.Errorf("/rates?base=NOTACCY: the refusal still carries the shape of an answer: %s", truncate([]byte(body)))
 	}
 
-	// Known bases, including the default and a lower-case spelling, carry a real
-	// book — so the empty one above is genuinely the unknown-base answer and not
-	// a broken fixture.
-	for _, q := range []string{"", "?base=USD", "?base=usd", "?base=ZAR"} {
+	// THE alignment assertion: for the very same engine, the HTTP layer and the
+	// library must agree on every base — one refuses exactly when the other
+	// does. This is what the three-surface disagreement cost, so it is asserted
+	// rather than described.
+	bases := []string{"", "USD", "usd", "ZAR", "EUR", "NOTACCY", "notaccy", "ZZZ", " zar "}
+	agreed := 0
+	for _, b := range bases {
+		q := ""
+		if b != "" {
+			q = "?base=" + url.QueryEscape(b)
+		}
 		code, body := getBody(t, srv.URL, "/api/v1/rates"+q)
-		if code != http.StatusOK {
-			t.Fatalf("/rates%s: status = %d, want 200 — the guard is refusing a known base: %s",
-				q, code, truncate([]byte(body)))
+		_, libErr := engine.Rates(b)
+		httpRefused := code != http.StatusOK
+		libRefused := libErr != nil
+		if httpRefused != libRefused {
+			t.Errorf("base %q: HTTP answered %d and Engine.Rates returned %v — the two surfaces disagree "+
+				"about whether this base exists: %s", b, code, libErr, truncate([]byte(body)))
+			continue
 		}
-		var out struct {
-			Rates map[string]any `json:"rates"`
+		agreed++
+		if !httpRefused {
+			var out struct {
+				Rates map[string]any `json:"rates"`
+			}
+			if err := json.Unmarshal([]byte(body), &out); err != nil {
+				t.Fatalf("/rates%s: decode: %v", q, err)
+			}
+			// A known base has to carry a real book, or "they agree" would be
+			// satisfied by an endpoint that answers 200 with nothing.
+			if len(out.Rates) == 0 {
+				t.Fatalf("/rates%s: served an empty book for a base both surfaces accept", q)
+			}
 		}
-		if err := json.Unmarshal([]byte(body), &out); err != nil {
-			t.Fatalf("/rates%s: decode: %v", q, err)
-		}
-		if len(out.Rates) == 0 {
-			t.Fatalf("/rates%s: served an empty book for a known base", q)
-		}
+	}
+	if agreed != len(bases) || agreed != 9 {
+		t.Fatalf("compared %d of 9 bases across the two surfaces", agreed)
 	}
 }
 

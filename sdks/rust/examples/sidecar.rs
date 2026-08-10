@@ -95,20 +95,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let rates = sc.rates("EUR")?;
     println!("rates EUR: {} bytes", rates.len());
 
-    // The deliberate difference, demonstrated rather than described. Over the
-    // C ABI this same request is an error; here it is a 200 with an empty book,
-    // and a client that checks only the status code reads that as success.
-    let bogus = sc.rates("XXX")?;
-    // NOTE the `compact` call. openrate's HTTP API PRETTY-PRINTS (`"rates": {}`)
-    // while its C ABI does not (`"rates":{}`), so a substring check written
-    // against one shape silently never matches the other. This example's old
-    // readiness check hit exactly that and timed out against a server that was
-    // serving 30 currencies the whole time — readiness is a status code now,
-    // but every other reader of this JSON still has to normalise first.
-    let empty = openrate::sidecar::compact(&bogus).contains("\"rates\":{}");
-    println!(
-        "rates XXX: HTTP 200, empty book = {empty}   (the C ABI returns \"unknown base currency\")"
-    );
+    // The alignment, demonstrated rather than described. This request is an
+    // error over the C ABI and a 404 here, and both carry the same sentence —
+    // it used to be a 200 with an empty book, which a client checking only the
+    // status code read as success.
+    match sc.rates("XXX") {
+        Ok(v) => println!(
+            "rates XXX: UNEXPECTEDLY answered: {}",
+            first(&openrate::sidecar::compact(&v), 80)
+        ),
+        Err(e) => println!(
+            "rates XXX: {}   (the C ABI returns the same \"unknown base currency\")",
+            first(&e.to_string(), 160)
+        ),
+    }
 
     // ----------------------------------------------------------- error path
     // A pair the server cannot reach is a 404 with a JSON error body, and the

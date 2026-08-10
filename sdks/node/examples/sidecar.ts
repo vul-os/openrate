@@ -66,8 +66,8 @@ try {
   const meta = (await side.meta()) as { default_base: string; sources: { name: string; edges?: number }[] };
   console.log(`meta        default base ${meta.default_base}, sources ${JSON.stringify(meta.sources)}`);
 
-  // The error path. Unlike the library, the HTTP endpoint answers 200 with an
-  // empty book for an unknown base — but an unknown *pair* is still an error.
+  // The error path, and it is now the same one in both transports: an unknown
+  // base is a 404 here and an error in the library, as an unknown *pair* always was.
   try {
     await side.convert("XXX", "ZAR", 1);
     console.log("error       UNEXPECTED: an unknown currency converted");

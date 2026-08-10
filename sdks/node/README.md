@@ -280,10 +280,11 @@ for a public deployment and there is no stranger here to throttle, while a
 legitimate batch of conversions would sail past it and take a 429 from our own
 sidecar. Pass `env: { OPENRATE_RATELIMIT: "120" }` to put it back.
 
-One deliberate difference between the two transports, worth knowing before you
-port code between them: **an unknown `base` is an error in the library and a 200
-with an empty book over HTTP.** The library follows the Go API. An unknown
-*pair* is an error in both.
+The two transports answer identically, including on the error path. **An
+unknown `base` is an error in the library and a `404` over HTTP**, carrying the
+same `unknown base currency` text; until 0.1.6 the endpoint answered `200` with
+an empty book, which was indistinguishable from a server that had not fetched
+yet. An unknown *pair* is an error in both.
 
 ---
 

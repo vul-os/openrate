@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/vul-os/openrate"
 	"github.com/vul-os/openrate/fxsource"
 	"github.com/vul-os/openrate/serve"
 )
@@ -163,6 +165,61 @@ func TestWireParityCheckCanFail(t *testing.T) {
 					"mutated: %s", mut.name, broken)
 			}
 		})
+	}
+}
+
+// TestWireParityForAnUnknownBase covers the one input where these two surfaces
+// used to disagree on purpose, and no longer do.
+//
+// It is separate from the table above because the parity helper compares
+// SUCCESSFUL documents and t.Fatals on any non-200 — which is exactly what both
+// sides now answer here. The refusals cannot be compared field for field (the
+// ABI has no status codes and returns an error string, HTTP returns a status
+// and a JSON body), so what is asserted is the part a client actually matches
+// on: both refuse, and both name ErrUnknownBase's own text.
+func TestWireParityForAnUnknownBase(t *testing.T) {
+	h, srv := parityFixture(t)
+
+	viaABI, abiErr := Call(h, "rates", `{"base":"NOTACCY"}`)
+	if abiErr == nil {
+		t.Fatalf("the ABI accepted an unknown base and answered %s", viaABI)
+	}
+	if !strings.Contains(abiErr.Error(), openrate.ErrUnknownBase.Error()) {
+		t.Errorf("the ABI refused with %q, which does not carry ErrUnknownBase's text %q",
+			abiErr, openrate.ErrUnknownBase.Error())
+	}
+
+	resp, err := http.Get(srv.URL + "/api/v1/rates?base=NOTACCY") //nolint:noctx // a test against its own httptest server
+	if err != nil {
+		t.Fatalf("GET /api/v1/rates?base=NOTACCY: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET /api/v1/rates?base=NOTACCY: status %d, want 404 — the HTTP API is answering an "+
+			"input the ABI refuses: %s", resp.StatusCode, body)
+	}
+	var refusal struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &refusal); err != nil {
+		t.Fatalf("decode refusal %s: %v", body, err)
+	}
+	if refusal.Error != openrate.ErrUnknownBase.Error() {
+		t.Errorf("HTTP refused with %q and the ABI with %q; a client matching one string has to match "+
+			"the same one on both", refusal.Error, abiErr)
+	}
+
+	// The control: a base BOTH surfaces know still parses as a full book on
+	// each, so the agreement above is not two surfaces that refuse everything.
+	if _, err := Call(h, "rates", `{"base":"EUR"}`); err != nil {
+		t.Fatalf("the ABI refused a known base: %v", err)
+	}
+	if got := get(t, srv.URL+"/api/v1/rates?base=EUR"); !strings.Contains(got, `"hops"`) {
+		t.Fatalf("HTTP served no rates for a known base: %s", got)
 	}
 }
 

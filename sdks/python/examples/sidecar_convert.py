@@ -85,11 +85,15 @@ def main(argv: list[str]) -> int:
         print(f"rates         {len(book['rates'])} currencies against ZAR; "
               f"first few: {', '.join(sample)}")
 
-        # The one deliberate difference between the two modes: an unknown base
-        # answers 200 with an empty book here, where Engine.rates() raises.
-        empty = client.rates("XXX")
-        print(f"unknown base  HTTP 200 with {len(empty['rates'])} rates "
-              f"(direct mode raises instead — the one deliberate difference)")
+        # An unknown base is refused in BOTH modes. It used to be the one place
+        # they disagreed: this answered 200 with an empty book, which is also
+        # what a server that has not fetched yet answers.
+        try:
+            empty = client.rates("XXX")
+            print(f"unknown base  HTTP 200 with {len(empty['rates'])} rates "
+                  f"— the server did NOT refuse an unknown base")
+        except OpenRateSidecarError as exc:
+            print(f"unknown base  {exc} (direct mode raises the same way)")
 
         # An unknown pair is a 404 with a JSON body, where direct mode raises
         # OpenRateError carrying plain text. Same failure, two shapes.

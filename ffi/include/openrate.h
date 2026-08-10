@@ -169,9 +169,11 @@ uint64_t openrate_refresher_new(uint64_t engine, const char *config_json, char *
  *   "rates"    {"base":"ZAR"}
  *              -> {"base","built_at","rates":{"USD":{...},...}}
  *              Identical to GET /api/v1/rates. rates[X].rate reads as
- *              "1 base = rate units of X". An unknown base is an error here,
- *              where the HTTP endpoint answers 200 with an empty book — the one
- *              deliberate difference, and it follows the Go library.
+ *              "1 base = rate units of X". A base the snapshot has never heard
+ *              of is an error, exactly as it is over HTTP (404) and in the Go
+ *              library (ErrUnknownBase). An engine holding NO rates at all
+ *              still returns an empty book and no error: that is "nothing yet",
+ *              a readiness question, not a bad request.
  *
  *   "meta"     {} -> {"default_base","built_at","currencies","sources"}
  *              Identical to GET /api/v1/meta. "sources" carries the fetch

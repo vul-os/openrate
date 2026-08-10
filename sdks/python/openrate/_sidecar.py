@@ -318,8 +318,10 @@ class Client:
     def rates(self, base: str | None = None) -> Any:
         """``GET /api/v1/rates``.
 
-        One deliberate difference from direct mode: an unknown base answers 200
-        with an empty book here, where ``Engine.rates`` raises.
+        An unknown base is refused, exactly as ``Engine.rates`` refuses it: the
+        endpoint answers ``404 {"error": "unknown base currency"}``. An engine
+        holding no rates at all still returns an empty book and no error — that
+        is "nothing yet", which ``ready()`` is the question for.
         """
         return self._get("/api/v1/rates", base=base)
 
