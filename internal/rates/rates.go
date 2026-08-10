@@ -41,6 +41,39 @@ type Observation struct {
 	Source string    `json:"source"`          // source name
 }
 
+// MaxLevel bounds the magnitude of a level this model will admit. It is the
+// band openrate publishes interest rates in, and it lives HERE — at the point
+// observations enter — rather than only at the point they are graded.
+//
+// The band exists because a level has to be bounded in magnitude, not merely
+// finite: the corroboration arithmetic in internal/ratequality diverges long
+// before float64 does. (max-min)*100 is +Inf for any pair of levels more than
+// ~1.8e306 apart, and rounding for publication multiplies by 100 again, so a
+// single absurd value from one source produced a number json.Marshal refuses
+// and a 500 on a series whose only problem was that one value.
+//
+// It used to be enforced only in ratequality, one layer away from where the
+// data arrives. That left Materialize admitting any finite value, so a
+// published Series.Value could be 1e300 — encodable, and therefore not a fault
+// today, but an invariant held by the consumer of the model rather than by the
+// model. ratequality still applies it, because Assess takes a Series a caller
+// may have built by hand; this is the line the ingest path holds.
+//
+// Unlike an FX rate, a level is a percentage and is routinely negative (the ECB
+// deposit rate sat at -0.5 for years), so the band is symmetric about zero and
+// the lower end must stay open — there is no reciprocal here to protect. Real
+// policy and reference rates live in about [-5, 1000]; the loose end is
+// Type == "index", where a level is an index reading rather than a percentage
+// and can carry many digits. 1e12 leaves nine orders of magnitude of headroom
+// over any index level a feed publishes, and anything past it is a parse or
+// scaling error, not a rate.
+const MaxLevel = 1e12
+
+// UsableLevel reports whether a published level is inside that band. NaN fails
+// (every comparison with NaN is false) and so does ±Inf, so this subsumes the
+// finiteness test that used to stand alone here.
+func UsableLevel(v float64) bool { return math.Abs(v) <= MaxLevel }
+
 // Quote is one source's most-recent value for a series, used to measure
 // cross-source agreement (corroboration).
 type Quote struct {
@@ -136,10 +169,14 @@ func (b *Book) Materialize(now time.Time) *Snapshot {
 	groups := map[string]*group{}
 	for _, obs := range b.bySource {
 		for _, o := range obs {
-			// Skip empty series and non-finite values: a NaN/Inf would survive
-			// JSON marshaling as an error and blank the whole API response, so the
-			// model refuses to admit one regardless of which source emitted it.
-			if o.Series == "" || math.IsNaN(o.Value) || math.IsInf(o.Value, 0) {
+			// Skip empty series and levels outside the published band. NaN/Inf
+			// are the obvious half — BIS emits a literal "NaN" for missing days,
+			// and either token makes the JSON encoder fail mid-response — but a
+			// finite absurdity is admitted just as readily by a parser that
+			// mis-scales a field, and it diverges the corroboration arithmetic
+			// downstream all the same. See MaxLevel: the model refuses both,
+			// regardless of which source emitted them.
+			if o.Series == "" || !UsableLevel(o.Value) {
 				continue
 			}
 			g := groups[o.Series]

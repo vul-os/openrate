@@ -199,27 +199,25 @@ func grade(conf float64) string {
 // which under serve's encode-then-write is a 500 on a series whose only problem
 // is one absurd value from one source.
 //
-// Unlike an FX rate, a level is a percentage and is routinely negative (the ECB
-// deposit rate sat at -0.5 for years), so the band is symmetric about zero and
-// the lower end must stay open — there is no reciprocal here to protect. Real
-// policy and reference rates live in about [-5, 1000]; the loose end is
-// Type == "index", where a level is an index reading rather than a percentage
-// and can carry many digits. 1e12 leaves nine orders of magnitude of headroom
-// over any index level a feed publishes, and anything past it is a parse or
-// scaling error, not a rate.
+// The band itself is [rates.MaxLevel]'s, referenced rather than repeated. It
+// used to be declared here, which put the invariant one layer away from where
+// the data arrives: rates.Materialize admitted any finite value, so a published
+// Series.Value could be 1e300 and only the grading refused it. Materialize now
+// applies the same bound at ingest. This check STAYS, because Assess takes a
+// [rates.Series] directly and nothing about that type says its values came
+// through Materialize — a caller can build one, and the ABI's and the API's
+// shapes both let one be handed in.
 //
 // Worst case with |v| <= 1e12 over n sources: (max-min)*100 <= 2e14,
 // sum <= n*1e12 (+Inf needs n > 1.8e296: unreachable), mean <= 1e12, and
 // round2's largest intermediate is 2e16 — 292 orders of magnitude below
 // overflow, so every field of Corroboration is finite by construction.
-const maxLevel = 1e12
+const maxLevel = rates.MaxLevel
 
-// usableLevel reports whether a published level is inside that band. NaN fails
-// (every comparison with NaN is false) and so does ±Inf, so this subsumes the
-// finiteness test.
-func usableLevel(v float64) bool {
-	return math.Abs(v) <= maxLevel
-}
+// usableLevel reports whether a published level is inside that band. It is
+// [rates.UsableLevel]: one predicate, so the grading layer and the ingest layer
+// cannot come to disagree about what a rate is.
+func usableLevel(v float64) bool { return rates.UsableLevel(v) }
 
 // boundedBps is the second line of defence on the dispersion figure. usableLevel
 // caps it at 2e14, so this cannot fire today; it is here so that widening the

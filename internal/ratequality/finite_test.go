@@ -167,9 +167,16 @@ func TestEveryCorroborationFieldIsFinite(t *testing.T) {
 	b.Replace("sarbrates", []rates.Observation{
 		{Series: "za.policy", Area: "ZA", Type: rates.TypePolicy, Value: 7.24, Date: finNow, Source: "sarbrates"},
 	})
-	// Two sources publishing nonsense that is nevertheless finite, so
-	// rates.Materialize keeps it. Their difference is what overflows:
-	// (1e307 - -1e307) * 100 is +Inf.
+	// Two sources publishing nonsense that is nevertheless finite. Their
+	// difference is what used to overflow: (1e307 - -1e307) * 100 is +Inf.
+	//
+	// Materialize now drops these at ingest, which is the point of the bound
+	// moving to rates.MaxLevel — so this walk asserts the OUTER layer of the
+	// two, that a snapshot built the ordinary way never reaches Assess with a
+	// level that could diverge. The inner layer, Assess refusing them on a
+	// Series a caller built by hand, is TestAssessEncodesForAdversarialLevels
+	// above, and it is still needed: nothing about rates.Series says its values
+	// came through Materialize.
 	b.Replace("junk-high", []rates.Observation{
 		{Series: "za.policy", Area: "ZA", Type: rates.TypePolicy, Value: 1e307, Date: finNow, Source: "junk-high"},
 		{Series: "us.policy", Area: "US", Type: rates.TypePolicy, Value: 1e307, Date: finNow, Source: "junk-high"},
@@ -191,6 +198,17 @@ func TestEveryCorroborationFieldIsFinite(t *testing.T) {
 		assertAssessmentEncodes(t, a)
 		if a.Corroboration.Sources > 2 {
 			t.Errorf("%s: corroboration counts %d sources; the junk level is not corroboration", id, a.Corroboration.Sources)
+		}
+		// And the junk never got in at all — the series does not list the
+		// sources that published it, and its own headline value is a real one.
+		for _, src := range s.Sources {
+			if strings.HasPrefix(src, "junk-") {
+				t.Errorf("%s lists %q among its sources; Materialize admitted a level outside the band, "+
+					"so the invariant is being held by the grading layer alone again", id, src)
+			}
+		}
+		if !usableLevel(s.Value) {
+			t.Errorf("%s published headline value %v, which is outside the band", id, s.Value)
 		}
 	}
 	// Coverage: a change that empties the book must not let this pass vacuously.
