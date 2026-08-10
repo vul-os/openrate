@@ -32,6 +32,21 @@
  *   3. The twelve code-palette roles clear 4.5:1 against --code-bg, which is
  *      the table site.css writes out in prose.
  *
+ * WHAT IT CANNOT SEE — read this before trusting a green run
+ * ──────────────────────────────────────────────────────────
+ * Colour that is not written as colour. This file reads hex values, so
+ * `opacity` is invisible to it by construction: --text-2 can clear 4.5:1
+ * against --ink in every theme while an ancestor at `opacity: .55` composites
+ * that same text onto that same background at half strength. Nothing in any
+ * VALUE here is wrong; the pixels are. That is not hypothetical — this gate
+ * was green through a nav measuring 3.54:1 on screen. The same hole swallows
+ * rgba() and any color-mix() resolving to an alpha.
+ *
+ * scripts/check-contrast-rendered.mjs closes it, by loading the real pages in
+ * a browser and composing opacity, alpha and backdrop the way the compositor
+ * does. The two are complements, not alternatives: this one is fast, needs no
+ * browser, and pins the token table itself; that one measures what is read.
+ *
  * COVERAGE FLOORS
  * ───────────────
  * Every count this walks is asserted against a floor. A parser that stops

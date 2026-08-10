@@ -353,7 +353,7 @@ jobs:
   # width. This job is the check that does not need one, and its --selftest pass
   # breaks the page five ways first to prove the refusals still fire.
   landing-shots:
-    name: Landing screenshots — frame drift & pixel density
+    name: Browser gates — screenshot fidelity & composited contrast
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -375,3 +375,20 @@ jobs:
       # then runs the real matrix (every capture x 4 widths x both themes).
       - name: Every capture is its box's shape, and at least 2x sampled
         run: node scripts/check-shots.mjs --selftest
+
+      # The companion to check-contrast.mjs in the site job above, and the
+      # reason it is here instead of there: this one needs a browser, because
+      # it measures the pixels the compositor produces rather than the hex
+      # values in the stylesheet.
+      #
+      # That distinction is the whole point. The token gate cannot see
+      # `opacity` — it was green through a nav that measured 3.54:1 on screen,
+      # because nothing in any colour VALUE was wrong. Same blindness for
+      # rgba() and for any color-mix() that resolves to an alpha.
+      #
+      # --selftest first, and it fades a paragraph with opacity as its opening
+      # case: if that stops being refused, the hole this gate closes is open.
+      - name: Text contrast measured from composited pixels, not tokens
+        run: |
+          node scripts/check-contrast-rendered.mjs --selftest
+          node scripts/check-contrast-rendered.mjs

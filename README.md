@@ -413,6 +413,8 @@ build:
 | `go test ./site/gen` | site/docs is generated and link-clean; the landing's §02 arithmetic is what its own printed digits produce, residual included | coverage floors on every scan |
 | `go test ./fx` | a pair's rate is the product of its legs bit-for-bit, and the *displayed* legs agree only within display rounding | fails if the fixture drifts to values where rounding happens to land |
 | `node scripts/check-shots.mjs --selftest` | every capture the landing displays is its display box's shape, and at least 2x sampled | 5 deliberate breakages (crop, blur, 404, stale attrs, empty selector) |
+| `node scripts/check-contrast.mjs --selftest` | every muted text tier clears WCAG AA against all three page backgrounds in both themes, and every exception names a claim it still has to meet | 6 mutations, including a stale exception and a scanner that stops matching |
+| `node scripts/check-contrast-rendered.mjs --selftest` | the same floor measured from **composited pixels** — the only gate that sees `opacity`, `rgba()` and alpha-resolving `color-mix()`, which the token reader above is blind to by construction | 7 deliberate breakages, opening with an opacity fade that leaves every token untouched; plus a positive control, because a gate that refuses everything also refuses every mutation |
 | `bash scripts/check-ffi.sh --selftest` | the C ABI really loads, converts, and refuses a stale library; the shared library carries no console bytes | 4 deliberate defects, each rebuilt via `go build -overlay` and required to be caught |
 
 ## Documentation

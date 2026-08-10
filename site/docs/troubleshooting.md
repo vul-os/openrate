@@ -501,6 +501,11 @@ three together, so this can only mean two different builds.
   breaks them deliberately and requires the break to be caught:
   `scripts/check-ffi.sh --selftest`, `scripts/verify.sh --selftest`,
   `node scripts/check-contrast.mjs --selftest`,
+  `node scripts/check-contrast-rendered.mjs --selftest`,
   `node scripts/check-docs-chrome.mjs --selftest`.
+  The two contrast gates are complements, not duplicates: the first reads the
+  stylesheet's colour values, the second loads the pages in a browser and
+  measures the pixels after `opacity` and alpha have been composited. Only the
+  second can see a fade.
 - Security issues go through [SECURITY.md](https://github.com/vul-os/openrate/blob/main/SECURITY.md), not the issue
   tracker.
