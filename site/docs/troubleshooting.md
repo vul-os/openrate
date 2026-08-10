@@ -49,11 +49,23 @@ asymmetry: an engine holding **no** rates at all returns an empty map and **no
 error** — "nothing yet" is a readiness question, not a bad request — while an
 engine that does hold rates and is asked for an unknown base gets an error.
 
-`GET /api/v1/rates` differs here: it answers `200` with an empty book rather
-than erroring. The C ABI follows `Engine.Rates`, not the HTTP endpoint, on the
-grounds that a caller who asked for rates against `ZZZ` and got `{}` has been
-told nothing. This is [documented as the one intentional
-divergence](c-abi.md).
+**All three surfaces now agree, input for input.** `GET /api/v1/rates?base=ZZZ`
+answers `404` with `unknown base currency` — the library's own sentinel text —
+as of 0.1.6. It used to answer `200` with an empty book, and that was the last
+intentional divergence between the HTTP API, `Engine.Rates` and the C ABI;
+`/convert` lost its equivalent in 0.1.5.
+
+The argument for moving it is not consistency for its own sake. `base` is the
+**pivot** of that response rather than a filter over it: every entry means "1
+base = rate units of X", so an unknown base does not describe an empty table, it
+makes the document's own definition false while echoing the invented code back
+as if it were real. And `200` with `{}` is exactly what a cold engine answers
+for *every* base, so a caller had no way to tell a typo from a feed that had not
+landed yet.
+
+A snapshot holding **no** currencies is still `200` with an empty book on all
+three. That is the "nothing yet" case above, and [`/readyz`](#api)
+is the question for it.
 
 ### `ErrInvalidAmount` / `ErrAmountOutOfRange`
 

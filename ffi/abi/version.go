@@ -13,4 +13,4 @@ package abi
 // release that bumps one and not the others fails the build.
 //
 // KEEP IN SYNC WITH: /VERSION and ffi/include/openrate.h.
-const Version = "0.1.5"
+const Version = "0.1.6"

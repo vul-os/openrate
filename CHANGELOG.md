@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-08-10
+
+### Changed
+
+- **BREAKING (HTTP API): `GET /api/v1/rates` with a base the snapshot does not
+  know is now `404 {"error":"unknown base currency"}`.** It answered `200` with
+  `"rates": {}`, which a caller checking only the status code read as "no rates
+  available" — and which is also exactly what a server that has not fetched yet
+  answers, so the two were indistinguishable.
+
+  `base` is not a filter over a collection; it is the pivot of the computation.
+  Every entry means "1 base = rate units of X", so an unknown base does not
+  describe an empty table — it makes the document's own definition false while
+  echoing the invented code back in the `base` field. `Engine.Rates` and the C
+  ABI have always refused it, and `/convert` has since 0.1.5, so one API version
+  gave `NOTACCY` two different meanings at two endpoints.
+
+  A snapshot with genuinely *no* currencies is still `200` with an empty book on
+  all three surfaces. That is "nothing yet", and `/readyz` is the question for
+  it. `ffi/include/openrate.h` and the eleven SDKs that documented the old
+  behaviour moved in the same commit.
+- **The interest-rate `[-1e12, 1e12]` band is applied at ingest** by
+  `rates.Materialize`, not only by the grading layer. A source publishing a
+  mis-scaled level no longer reaches a published `Series`, is not counted as
+  corroboration, and a series with no admissible observation is dropped rather
+  than published. `ratequality` keeps its own check, because `Assess` takes a
+  `Series` a caller may have built by hand.
+
+### Security
+
+- **DNS rebinding.** 0.1.5 refused redirects, but nothing pinned the resolved
+  address: a hostname answering with a public IP on the first lookup and
+  `169.254.169.254` on the second still reached the metadata service. A source
+  *hostname* must now resolve to a public address. An **IP literal** in a
+  configured URL is dialled as written — that split is what makes the guard
+  complete without refusing an operator's deliberately-private feed — and a host
+  named in `HTTP(S)_PROXY` skips the check, because with a proxy the name is
+  resolved at the far end and the check would protect nothing. Opt out with
+  `OPENRATE_ALLOW_PRIVATE_SOURCES=1`.
+
+  The refusal **names no address**. `Dialer.Control` is the right hook, but its
+  `*net.OpError` carries the address it refused, and that string reaches the
+  unauthenticated `/readyz` and `/api/v1/meta`.
+
+### Fixed
+
+- **C ABI: `openrate_close()` now cancels and waits for an in-flight `"refresh"`
+  or `"ready"`**, so neither can put a request on the wire or write into an
+  engine after the close has returned. A plain `closed` flag was tried and
+  rejected on evidence: it is check-then-act and still leaked on 21 of 2001
+  races. A fetch that ignores cancellation delays the close — that is the
+  guarantee working, not a hang. `"stop"` remains reversible.
+
 ## [0.1.5] - 2026-08-10
 
 A security release. Three HTTP responses change shape — see Changed.
@@ -507,7 +560,8 @@ reason.
 
 Initial release.
 
-[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/vul-os/openrate/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/vul-os/openrate/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/vul-os/openrate/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/vul-os/openrate/compare/v0.1.2...v0.1.3
