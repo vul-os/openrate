@@ -49,17 +49,25 @@
 //
 // WHAT IS EXEMPT, AND HOW IT SAYS SO
 // ──────────────────────────────────
-// `aria-hidden="true"`, on the element or any ancestor. That is not a waiver
-// list maintained beside the check — it is the page stating, in the markup, in
-// the place a screen reader also reads, that the glyph carries no meaning. The
-// five `<i aria-hidden="true">·</i>` separators in §04's grade breakdown are
-// the whole of it today.
+// Text that is BOTH `aria-hidden="true"` (on itself or an ancestor) AND
+// carries no letter or digit. The five `<i aria-hidden="true">·</i>`
+// separators in §04's grade breakdown are the whole of it here.
 //
-// A list that lives beside the check goes stale silently. This cannot: delete
-// the attribute and the element is measured again from the next run.
+// Both halves are load-bearing, and the second was learned the hard way from a
+// sibling repo. aria-hidden means "not exposed to assistive tech" — it does
+// NOT mean "not visible". llmux marks its explanatory diagrams aria-hidden;
+// exempting on the attribute alone silently dropped 135 elements reading
+// things like "channel bank · 6 candidates" and "$0 / $5" out of the
+// measurement. Every one of those is read by a sighted user, and WCAG 1.4.3 is
+// about what is seen.
 //
-// The exemption is capped anyway (MAX_EXEMPT_FRACTION). Blanketing the page in
-// aria-hidden to quiet this gate fails it.
+// This is not a waiver list beside the check, which is a thing that rots. It
+// is the page stating the claim in the markup, and only for glyphs that say
+// nothing. Delete the attribute, or put a word inside it, and the element is
+// measured again from the next run.
+//
+// The exemption is capped anyway (MAX_EXEMPT_FRACTION), and the selftest
+// asserts that blanketing real prose in aria-hidden does NOT hide it.
 //
 // WHY REDUCED MOTION
 // ──────────────────
@@ -335,9 +343,20 @@ const MEASURE = function measure(AA) {
 
     textAccum += text + "";
 
-    // aria-hidden, on self or any ancestor: the markup's own claim that this
-    // glyph carries no meaning.
-    if (el.closest('[aria-hidden="true"]')) { exempt++; continue; }
+    // Incidental text: aria-hidden AND carrying no letter or digit. BOTH
+    // conditions, because aria-hidden alone is the wrong test and it took a
+    // sibling repo to show it. llmux marks its explanatory diagrams
+    // aria-hidden — 135 elements reading "channel bank · 6 candidates",
+    // "projected +$1.20 · stays under", "$0 / $5". aria-hidden means "not
+    // exposed to assistive tech", NOT "not visible": a sighted reader reads
+    // every word of that, and WCAG 1.4.3 is about what is seen. Exempting on
+    // the attribute alone dropped 135 real strings out of the measurement and
+    // called the result thorough.
+    //
+    // Requiring the text to be punctuation-only keeps the exemption to what it
+    // was always meant to cover — the · and | separators between items — and
+    // nothing that says anything.
+    if (el.closest('[aria-hidden="true"]') && !/[\p{L}\p{N}]/u.test(text)) { exempt++; continue; }
 
     // chain, outermost first, with cumulative opacity at each step
     const chain = [];
@@ -634,18 +653,23 @@ const SELFTEST_CASES = [
     expect: "colour",
   },
   {
-    name: "the whole page hidden from the gate with aria-hidden",
-    css: null,
+    // The exemption's own abuse case. Every <p> is made illegible AND marked
+    // aria-hidden; the gate must still refuse it, because those paragraphs
+    // contain words and a sighted reader still has to read them. If this ever
+    // stops being refused, aria-hidden has become a way to switch the gate off
+    // one element at a time.
+    name: "aria-hidden does not exempt real prose from the measurement",
+    css: "p { color: #2f3436 }",
     attr: true,
-    matches: "section *",
-    expect: "exempt",
+    matches: "p",
+    expect: "contrast",
   },
 ];
 
 async function selftest(browser, base) {
   let refused = 0;
   for (const c of SELFTEST_CASES) {
-    const { ctx, page } = await openPage(browser, `${base}/index.html`, "dark", 1440, c.attr ? null : c.css);
+    const { ctx, page } = await openPage(browser, `${base}/index.html`, "dark", 1440, c.css);
 
     // The mutation must actually land on this page, or the case proves nothing.
     const hit = await page.evaluate((sel) => document.querySelectorAll(sel).length, c.matches);
@@ -664,7 +688,7 @@ async function selftest(browser, base) {
       }, c.matches);
     }
     const res = await page.evaluate(MEASURE, { normal: AA_NORMAL, large: AA_LARGE });
-    const problems = judge("selftest", res, c.attr ? 0 : MIN_ELEMENTS_LANDING, { collectOnly: true });
+    const problems = judge("selftest", res, MIN_ELEMENTS_LANDING, { collectOnly: true });
     await ctx.close();
     const got = problems.map((p) => p.kind);
     if (got.includes(c.expect)) {
