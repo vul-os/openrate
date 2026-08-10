@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-10
+
+A security release. Three HTTP responses change shape — see Changed.
+
+### Security
+
+- **Blind-SSRF oracle via `/readyz`.** None of the 16 HTTP clients set
+  `CheckRedirect`, so the default policy followed up to 10 hops to any host,
+  including `169.254.169.254` and loopback — and the resulting error landed in
+  `Status.LastError`, published unauthenticated at `/readyz` and
+  `/api/v1/meta`. All clients now refuse redirects. jsDelivr's `@latest` was
+  checked on the network first and resolves server-side, so no allow-list was
+  needed. The refusal uses `ErrUseLastResponse` rather than returning an error,
+  because net/http wraps a returned error in a `*url.Error` **carrying the
+  attacker-chosen Location** — the exact string that would have reached
+  `/readyz`.
+- **ECB and Frankfurter had no currency allow-list** where every other adapter
+  does. A compromised feed injecting ~30k codes drives the N×N BFS to OOM.
+- **IPv6 rate-limit buckets were per /128**: 1000 requests from one /64 at
+  `rpm=1` were all allowed. Now /64 for IPv6, /32 for IPv4, with `::ffff:`
+  unmapped. The bucket map is capped at 65536, and **only a bucket refilled to
+  full is evictable** — a naive LRU would evict the attacker's drained bucket
+  first and hand back the allowance.
+
+### Fixed
+
+- **A finite rate could produce an unencodable response.** `usable` admitted any
+  positive finite value, so two sources quoting one pair at `1e-306` and `16.5`
+  made the spread `+Inf`. v0.1.4 turned that from a silent empty 200 into a 500;
+  this bounds the input that causes it. FX rates are admitted in
+  **`[1e-18, 1e18]`** — symmetric in log space, so the band is closed under
+  reciprocal, which is what makes edge admission bidirectional. The previous
+  guard admitted values whose inverse overflowed, so `A→B` existed and `B→A`
+  did not. Interest levels are `[-1e12, 1e12]`, symmetric about zero because
+  policy rates are legitimately negative.
+- **Four C ABI lifecycle bugs.** A `"start"` racing `openrate_close` left a
+  refresh loop nothing could stop — reproduced making 5,166 requests in the
+  half-second *after* close returned, with `openrate_open_handles()` reporting
+  0. Under `-race` that reproduces 31.7% of the time while the detector itself
+  reports nothing, because it is not a data race. Also: refreshers orphaned by
+  a racing engine close, refreshers never detached from their engine, and an
+  `interval_ms` overflow that turned the most conservative cadence a host can
+  ask for into a 1 ms one.
+- **The Yahoo adapter had never emitted a single edge.** Its length check was
+  unsatisfiable — `"USDZAR=X"` is 8 characters and the check demanded 9 — behind
+  an error message that read as a transient upstream problem. A second bug was
+  found while fixing it: `From` was hard-coded `"USD"`, so a configured
+  `EURGBP=X` would have produced a wrong `USD→GBP` edge. The feed stays opt-in.
+
+### Changed
+
+- **`/api/v1/convert` with an unknown currency code returns 404**, not 200 with
+  rate 1 and grade B. The library and the C ABI both already refused it; only
+  the HTTP layer did not. **`/api/v1/rates?base=…` deliberately keeps the old
+  behaviour** — it is a published contract asserted across five SDKs and the
+  docs, and changing it belongs in one commit that moves all of them together.
+  Both are now pinned by tests.
+- **An out-of-range `amount` returns 400.** `1e999` silently became `1.0`.
+- Clients sharing a /64 now share a rate-limit budget.
+- C ABI: `"start"` on a closed handle returns an error; `"meta"`'s `sources`
+  covers open refreshers only; `interval_ms`/`fetch_timeout_ms` above
+  9223372036854 are refused rather than wrapping.
+
 ## [0.1.4] - 2026-08-10
 
 ### Fixed
@@ -444,7 +507,8 @@ reason.
 
 Initial release.
 
-[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/vul-os/openrate/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/vul-os/openrate/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/vul-os/openrate/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/vul-os/openrate/compare/v0.1.1...v0.1.2
