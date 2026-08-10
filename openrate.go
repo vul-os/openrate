@@ -75,6 +75,18 @@ type Local struct {
 	bg sync.WaitGroup
 }
 
+// buildSources is how Start turns its source spec into sources. It is a
+// variable for one reason: without it, Start could only ever be exercised
+// against the real registry, which meant the unit suite made live requests to
+// ecb.europa.eu on every run. That is slow, it makes CI depend on a central
+// bank's uptime, and its cancelled connections leaked goroutines into the next
+// test and turned a neighbouring assertion flaky twice.
+//
+// Nothing in production reassigns it. The only substitute is in export_test.go,
+// which is compiled into the test binary and nowhere else, so this adds no
+// public API to a constructor that is already deprecated.
+var buildSources = fxsource.FromEnvSpec
+
 // Start builds the engine, launches it in a background goroutine, and returns
 // once it is serving (the /healthz endpoint responds OK).
 //
@@ -93,7 +105,7 @@ type Local struct {
 // serve.New when it should also answer HTTP. Start keeps working, built on
 // exactly those three pieces, so nothing that depends on it breaks.
 func Start(opts Options) (*Local, error) {
-	srcs := fxsource.FromEnvSpec(opts.Sources)
+	srcs := buildSources(opts.Sources)
 	if len(srcs) == 0 {
 		return nil, fmt.Errorf("openrate: no valid sources configured (spec=%q)", opts.Sources)
 	}
