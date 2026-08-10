@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-08-10
+
+### Fixed
+
+- **The embedded console stamped a theme the reader never chose.** `ui.html`
+  called `applyTheme(currentTheme())` on load, and that wrote `localStorage`, so
+  simply opening the console recorded an explicit preference — which then
+  outranked the operating system on every later visit, on the console *and* on
+  the marketing site, since the two deliberately share the `or-theme` key. The
+  site had the identical bug in `site.js`.
+
+  A stored theme and an accidental one were indistinguishable after the fact, so
+  the key could not be repaired in place. Both surfaces now write
+  `or-theme-set` **only on a click**, and an unmarked value is treated as the
+  accident it probably was: the machine's preference wins. A reader who did
+  genuinely choose pays one click, once.
+
+  Verified in a browser across six states — a legacy stored dark on a light
+  machine now resolves light, while an explicitly chosen dark still resolves
+  dark.
+
+- **The console's theme is now applied before first paint** and its sun/moon
+  glyph comes from CSS on `[data-theme]` rather than a deferred `innerHTML`
+  swap, so a reader on a light machine no longer sees the wrong glyph until
+  script runs.
+
+- **Light-theme nav links measured 3.54:1 against a real backdrop.** The header
+  is 82% paper over a blur and the code panels are fixed-dark in both themes, so
+  with a panel scrolled under the glass the effective ground is
+  `rgb(200,199,194)`. Against flat `--paper` the same token is 5.2:1, which is
+  why `check-contrast` — which reads tokens, not composited pixels — was green
+  throughout. Now `--text-2`: 6.68:1 worst case.
+
 ## [0.1.7] - 2026-08-10
 
 ### Changed
@@ -589,7 +622,8 @@ reason.
 
 Initial release.
 
-[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/vul-os/openrate/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/vul-os/openrate/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/vul-os/openrate/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/vul-os/openrate/compare/v0.1.4...v0.1.5
