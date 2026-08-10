@@ -54,6 +54,24 @@ All currencies expressed against a base. Each `rate` reads as
 }
 ```
 
+Returns **`404`** with `{"error":"unknown base currency"}` when the snapshot has
+never heard of `base`. Since 0.1.6; it previously answered `200` with an empty
+`rates` object, which is what `openrate.Engine.Rates` and the C ABI had always
+refused.
+
+**`base` is the pivot of this document, not a filter over it.** Every entry
+means "1 base = rate units of X", so an unknown base does not describe a table
+that happens to have no rows — it makes the response's own definition false,
+while echoing the invented code back in the `base` field as though it were real.
+And the old `200` was indistinguishable from a cold start, which answers `200`
+with an empty book for *every* base: that ambiguity is why `/readyz` exists, and
+overloading the same response with "your currency code is wrong" left a caller
+no way to tell a typo from a feed outage.
+
+**A snapshot with no currencies at all is still `200` with an empty book**, on
+all three surfaces. That is "nothing yet" — a readiness question, not a bad
+request. Ask [`/readyz`](#get-readyz).
+
 ---
 
 ## `GET /api/v1/convert`

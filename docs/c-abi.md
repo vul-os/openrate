@@ -194,7 +194,8 @@ obvious order cannot leave a ticker running.
 honour them. They are what a binding author has to be able to rely on.
 
 **`openrate_close()` is terminal, and it waits.** When it returns, any
-background loop on that handle has been cancelled *and* has exited, so a host
+background loop on that handle has been cancelled *and* has exited, and any
+blocking call in flight on it has been cancelled *and* has returned — so a host
 that closes everything and then unloads the library has no thread of ours left
 in its address space. `"stop"` is the reversible one: a stopped refresher can be
 started again, a closed one cannot.
@@ -206,6 +207,22 @@ could reach to stop; it was reproduced making 5,166 requests in the half-second
 *after* close returned, with `openrate_open_handles()` already reporting 0.
 Starting an already-running refresher is also an error rather than a second
 loop.
+
+**`"refresh"` cannot outlive the handle it was called on** (0.1.6). A close
+landing between the handle lookup and the method call used to leave a single
+fetch running against a retired handle — writing into an engine the host may
+already have closed, and putting a request on the wire *after*
+`openrate_close()` returned. A refresh already in flight is now cancelled and
+then **waited for**, and `"ready"` is cancelled the same way. So a fetch that
+ignores cancellation **delays the close** rather than outliving it: if
+`openrate_close()` takes a moment on a stuck source, that is the guarantee
+working, not a hang.
+
+A `closed` check at the top of `"refresh"` would not have fixed this, which is
+worth saying because it is the obvious fix: it is pure check-then-act, and the
+close can land immediately after the check passes. The fix is a refcount the
+close waits on. `"stop"` remains the reversible one — a stopped refresher can be
+started again, and refreshed again.
 
 **A close racing a call resolves one of exactly two ways and never a third:**
 either the call runs to completion and the close then tears the object down, or

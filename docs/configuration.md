@@ -16,6 +16,7 @@ variable. Real environment variables and flags both win over a `.env` file.
 | `-ratelimit` | `OPENRATE_RATELIMIT` | `120` | API requests/minute per client network prefix — `/64` for IPv6, `/32` for IPv4 (anti-scraping; `0` disables) |
 | `-cors-origin` | `OPENRATE_CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` for the JSON API |
 | `-trusted-proxies` | `OPENRATE_TRUSTED_PROXIES` | _(none)_ | Comma-separated proxy IPs/CIDRs whose `X-Forwarded-For` is trusted for rate-limiting |
+| _(env only)_ | `OPENRATE_ALLOW_PRIVATE_SOURCES` | _(unset)_ | `1` lets a source **hostname** resolve to a private, loopback or link-local address. Off by default — see [Outbound dial policy](#outbound-dial-policy) |
 
 ```bash
 # flags
@@ -96,6 +97,42 @@ trusted proxy — not the left-most. Standard reverse proxies (nginx's
 `$proxy_add_x_forwarded_for`, Cloudflare) *append* the address they observed
 rather than replacing the header, so the genuine client sits to the right and
 the forgeable, client-supplied hops sit to the left.
+
+## Outbound dial policy
+
+Two rules govern where a rate-feed client may connect, and neither is
+configurable per source.
+
+**No redirects, ever.** All sixteen outbound clients refuse to follow one. Every
+endpoint openrate ships answers `200` directly, so no source needs it, and a
+feed that tries produces `<source>: status 302` — a refusal that deliberately
+does not echo the redirect target.
+
+**A source *hostname* must resolve to a public address.** A private, loopback or
+link-local result is refused before connect. This is the DNS-rebinding half: a
+name that answers a public address on the lookup an operator does by hand and
+`169.254.169.254` on the one the process does would otherwise reach the cloud
+metadata service on the first fetch. **A host allow-list cannot close that**, because
+the name in the allow-list is the name that rebinds.
+
+Two deliberate exceptions keep the check complete without being noisy:
+
+- **An IP literal in a configured URL is dialled as written.** `http://10.4.2.9/rates`
+  is your own decision, and an exact address cannot rebind — there is no second
+  lookup to differ from the first.
+- **A host named in `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` skips the check**,
+  because the transport dials the proxy and the proxy resolves the feed. An
+  ordinary corporate proxy on a private address is not the attack.
+
+The refusal reads *"refusing to connect: this source's hostname resolved to a
+non-public address (loopback, link-local or private)"* and **names no address**,
+on purpose: it reaches `Status.LastError`, which `/readyz` and `/api/v1/meta`
+publish without authentication, so echoing the resolved IP would leak either
+your internal addressing or a confirmation to whoever chose it.
+
+If a source of yours genuinely is on a private network **and is reached by
+name**, set `OPENRATE_ALLOW_PRIVATE_SOURCES=1`. That is the only way past it, it
+has to be set deliberately, and the default is safe.
 
 ## The source spec
 

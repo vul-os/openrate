@@ -153,6 +153,34 @@ straight back out of the public API as a blind-SSRF oracle.
 If a feed you configured genuinely moved, update its URL. There is no flag to
 re-enable following.
 
+### `refusing to connect: this source's hostname resolved to a non-public address`
+
+The other half of the same story, added in 0.1.6. Refusing redirects stops a
+feed *steering* openrate somewhere else; it pins nothing about where the feed's
+own hostname points. So a name that answers a public address on the lookup you
+did by hand and `169.254.169.254` on the one the process does reached the cloud
+metadata service on the very first fetch — and the outcome came back out through
+`Status.LastError`, which `/readyz` and `/api/v1/meta` publish unauthenticated.
+A host allow-list cannot close that: the name in the allow-list is the name that
+rebinds.
+
+**The message names no address on purpose** — it is published unauthenticated,
+so printing the resolved IP would leak your internal addressing, or confirm to
+an attacker that their rebind landed. Resolve the hostname yourself to see where
+it actually points.
+
+Three things this does *not* refuse:
+
+- **An IP literal in the configured URL.** `http://10.4.2.9/rates` dials as
+  written. You named an exact address, and an exact address cannot rebind.
+- **A host named in `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`.** The transport
+  dials the proxy and the proxy resolves the feed.
+- **Anything, if `OPENRATE_ALLOW_PRIVATE_SOURCES=1`.** Set that only when a
+  source of yours really is on a private network *and* is reached by name.
+
+If your tests point an adapter at an `httptest` server, they are unaffected:
+`httptest` serves on the `127.0.0.1` literal.
+
 ### ECB or Frankfurter is quoting fewer currencies than I expect
 
 Both now filter to openrate's currency allow-list, as every other adapter

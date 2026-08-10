@@ -48,11 +48,23 @@ asymmetry: an engine holding **no** rates at all returns an empty map and **no
 error** — "nothing yet" is a readiness question, not a bad request — while an
 engine that does hold rates and is asked for an unknown base gets an error.
 
-`GET /api/v1/rates` differs here: it answers `200` with an empty book rather
-than erroring. The C ABI follows `Engine.Rates`, not the HTTP endpoint, on the
-grounds that a caller who asked for rates against `ZZZ` and got `{}` has been
-told nothing. This is [documented as the one intentional
-divergence](c-abi.md).
+**All three surfaces now agree, input for input.** `GET /api/v1/rates?base=ZZZ`
+answers `404` with `unknown base currency` — the library's own sentinel text —
+as of 0.1.6. It used to answer `200` with an empty book, and that was the last
+intentional divergence between the HTTP API, `Engine.Rates` and the C ABI;
+`/convert` lost its equivalent in 0.1.5.
+
+The argument for moving it is not consistency for its own sake. `base` is the
+**pivot** of that response rather than a filter over it: every entry means "1
+base = rate units of X", so an unknown base does not describe an empty table, it
+makes the document's own definition false while echoing the invented code back
+as if it were real. And `200` with `{}` is exactly what a cold engine answers
+for *every* base, so a caller had no way to tell a typo from a feed that had not
+landed yet.
+
+A snapshot holding **no** currencies is still `200` with an empty book on all
+three. That is the "nothing yet" case above, and [`/readyz`](api.md#get-readyz)
+is the question for it.
 
 ### `ErrInvalidAmount` / `ErrAmountOutOfRange`
 
@@ -139,6 +151,34 @@ straight back out of the public API as a blind-SSRF oracle.
 
 If a feed you configured genuinely moved, update its URL. There is no flag to
 re-enable following.
+
+### `refusing to connect: this source's hostname resolved to a non-public address`
+
+The other half of the same story, added in 0.1.6. Refusing redirects stops a
+feed *steering* openrate somewhere else; it pins nothing about where the feed's
+own hostname points. So a name that answers a public address on the lookup you
+did by hand and `169.254.169.254` on the one the process does reached the cloud
+metadata service on the very first fetch — and the outcome came back out through
+`Status.LastError`, which `/readyz` and `/api/v1/meta` publish unauthenticated.
+A host allow-list cannot close that: the name in the allow-list is the name that
+rebinds.
+
+**The message names no address on purpose** — it is published unauthenticated,
+so printing the resolved IP would leak your internal addressing, or confirm to
+an attacker that their rebind landed. Resolve the hostname yourself to see where
+it actually points.
+
+Three things this does *not* refuse:
+
+- **An IP literal in the configured URL.** `http://10.4.2.9/rates` dials as
+  written. You named an exact address, and an exact address cannot rebind.
+- **A host named in `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`.** The transport
+  dials the proxy and the proxy resolves the feed.
+- **Anything, if `OPENRATE_ALLOW_PRIVATE_SOURCES=1`.** Set that only when a
+  source of yours really is on a private network *and* is reached by name.
+
+If your tests point an adapter at an `httptest` server, they are unaffected:
+`httptest` serves on the `127.0.0.1` literal.
 
 ### ECB or Frankfurter is quoting fewer currencies than I expect
 
