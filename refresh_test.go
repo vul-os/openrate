@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -72,29 +73,17 @@ func edgesAt(t time.Time) []fx.Edge {
 func TestConstructorsSendNothing(t *testing.T) {
 	src := &fakeSource{name: "fake", edges: edgesAt(fixtureTime)}
 
-	before := stableGoroutines(t)
+	before := openrateGoroutines()
 
 	e := openrate.NewEngine(openrate.EngineOptions{Logger: quiet()})
 	r := openrate.NewRefresher(e, openrate.RefreshOptions{Sources: sources(src), Logger: quiet()})
 	_ = r
 
-	// Give anything that was going to start a chance to start, then let the
-	// count SETTLE before reading it — the same treatment the baseline gets.
-	//
-	// Measuring the baseline carefully and then the result carelessly is what
-	// made this flaky in CI under -race. TestStartServesAndCloses runs a real
-	// engine against the real ECB source; the request is cancelled at Close,
-	// but net/http's dial and DNS goroutines for it (net.doBlockingWithCtx is
-	// parked in an uninterruptible syscall) outlive that by a wide margin under
-	// the race detector. A fixed 50ms sleep is not long enough, and those
-	// goroutines then get counted as something these two constructors started.
-	//
-	// Settling is the right answer rather than a longer sleep: the invariant is
-	// that a constructor starts nothing PERSISTENT, and anything transient from
-	// a neighbouring test is noise this must not read as signal.
+	// Give anything that was going to start a chance to start.
 	time.Sleep(50 * time.Millisecond)
-	if after := stableGoroutines(t); after > before {
-		t.Errorf("constructing an Engine and a Refresher started %d goroutine(s)", after-before)
+	runtime.GC()
+	if after := openrateGoroutines(); after > before {
+		t.Errorf("constructing an Engine and a Refresher started %d goroutine(s) running openrate code", after-before)
 	}
 	if n := src.fetches.Load(); n != 0 {
 		t.Errorf("constructors called Fetch %d time(s); they must never touch the network", n)
@@ -388,23 +377,34 @@ func TestConcurrentSnapshotAndStatus(t *testing.T) {
 	wg.Wait()
 }
 
-// stableGoroutines waits until the process's goroutine count stops moving and
-// returns it. Without this the count is a flaky baseline: an earlier test in
-// the same binary (openrate.Start's refresh loop, an httptest server) can still
-// be winding down, and its exit would be misread as our constructor's doing.
-func stableGoroutines(t *testing.T) int {
-	t.Helper()
-	prev := -1
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		runtime.GC()
-		time.Sleep(25 * time.Millisecond)
-		n := runtime.NumGoroutine()
-		if n == prev {
-			return n
+// openrateGoroutines counts the goroutines currently running code from THIS
+// module — not the process's total.
+//
+// The total is the wrong instrument and CI proved it twice. This package's
+// tests reach the real ECB endpoint (TestStartServesAndCloses), and a cancelled
+// request does not take its plumbing with it: net/http finishes the dial it
+// already started, then parks a readLoop on the resulting connection, and
+// net.doBlockingWithCtx sits in a syscall nothing can interrupt. Those appear
+// AFTER a baseline is taken and then never move — so "wait for the count to
+// settle" does not help either. A goroutine blocked in a syscall is the most
+// stable thing in the process.
+//
+// What the test actually claims is narrower than "no new goroutines anywhere":
+// it claims that constructing an Engine and a Refresher starts no goroutine
+// running OUR code. So count that. A frame is ours when its package path is
+// github.com/vul-os/openrate followed by "." or "/" — which matches the library
+// and its subpackages, and deliberately does not match openrate_test, whose
+// underscore keeps the test's own goroutine out of the count.
+func openrateGoroutines() int {
+	buf := make([]byte, 1<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+	n := 0
+	for _, block := range strings.Split(string(buf), "\n\ngoroutine ") {
+		if ourFrame.MatchString(block) {
+			n++
 		}
-		prev = n
 	}
-	t.Fatalf("goroutine count never settled (last %d); cannot measure what a constructor started", prev)
-	return 0
+	return n
 }
+
+var ourFrame = regexp.MustCompile(`github\.com/vul-os/openrate[./]`)
