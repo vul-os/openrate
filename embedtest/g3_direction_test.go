@@ -36,9 +36,18 @@ func TestG3ImportDirection(t *testing.T) {
 		{mod + "/fx", []string{mod + "/fx"},
 			"fx is the pure core: a graph, a snapshot and an accuracy model. It must be " +
 				"importable by a host that wants arithmetic and nothing else."},
-		{mod + "/fxsource", []string{mod + "/fx", mod + "/fxsource"},
+		{mod + "/fxsource", []string{mod + "/fx", mod + "/fxsource", mod + "/internal/safedial"},
 			"fxsource fetches and emits fx.Edge. It must never learn about the engine, " +
-				"the server or the console."},
+				"the server or the console. internal/safedial is allowed because it is " +
+				"BENEATH fxsource, not beside it: it decides which addresses an outbound " +
+				"dial may reach, knows nothing about rates, and is asserted below to " +
+				"import nothing else in this repo. Sharing it is what stops the dial " +
+				"policy from being copied into fxsource and internal/ratesources and " +
+				"drifting between the two."},
+		{mod + "/internal/safedial", []string{mod + "/internal/safedial"},
+			"safedial is the bottom of the stack: a destination policy over net and " +
+				"net/http. If it grows an intra-repo dependency, it is no longer beneath " +
+				"the packages that import it and the allowance above stops being true."},
 		{mod + "/serve/web", []string{mod + "/serve/web"},
 			"serve/web is a leaf holding one embedded HTML file. Anything it imports is " +
 				"something a -tags noui build cannot drop."},

@@ -3,6 +3,8 @@ package ratesources
 import (
 	"net/http"
 	"time"
+
+	"github.com/vul-os/openrate/internal/safedial"
 )
 
 // noRedirect is the CheckRedirect policy every outbound source client uses.
@@ -29,13 +31,20 @@ import (
 func noRedirect(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 
 // newClient builds the standard outbound client for a source adapter: a hard
-// overall timeout and a refusal to follow redirects.
+// overall timeout, a refusal to follow redirects, and openrate's dial policy.
+//
+// The dial policy is the other half of the same SSRF story noRedirect covers:
+// refusing redirects says nothing about where the source's own hostname
+// resolves, and a name that answers 169.254.169.254 on the second lookup
+// reaches the cloud metadata service. safedial.Transport refuses a resolved
+// private, loopback or link-local destination; see that package.
 func newClient(timeout time.Duration) *http.Client {
-	return &http.Client{Timeout: timeout, CheckRedirect: noRedirect}
+	return &http.Client{Timeout: timeout, Transport: safedial.Transport(), CheckRedirect: noRedirect}
 }
 
 // newClientWithTransport is newClient for adapters that need a tuned transport
-// (the SARB host is slow enough to need a bounded dial).
+// (the SARB host is slow enough to need a bounded dial). The caller owns that
+// transport and applies safedial.DialContext to its dialer itself.
 func newClientWithTransport(timeout time.Duration, rt http.RoundTripper) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: rt, CheckRedirect: noRedirect}
 }

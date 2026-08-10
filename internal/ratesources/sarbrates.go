@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vul-os/openrate/internal/rates"
+	"github.com/vul-os/openrate/internal/safedial"
 )
 
 // SARBRatesURL is the South African Reserve Bank's public rate-reform endpoint.
@@ -52,7 +53,7 @@ func NewSARBRates() *SARBRates {
 	// The SARB host is slow and intermittently drops TCP connects; bound each dial
 	// so a failed attempt fails fast and Fetch can retry within the store budget.
 	transport := &http.Transport{
-		DialContext:         (&net.Dialer{Timeout: 13 * time.Second}).DialContext,
+		DialContext:         safedial.DialContext(&net.Dialer{Timeout: 13 * time.Second}),
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
 	return &SARBRates{

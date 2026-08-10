@@ -3,6 +3,8 @@ package fxsource
 import (
 	"net/http"
 	"time"
+
+	"github.com/vul-os/openrate/internal/safedial"
 )
 
 // noRedirect is the CheckRedirect policy every outbound feed client uses.
@@ -31,13 +33,24 @@ import (
 func noRedirect(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 
 // newClient builds the standard outbound client for a feed adapter: a hard
-// overall timeout and a refusal to follow redirects.
+// overall timeout, a refusal to follow redirects, and openrate's dial policy.
+//
+// The transport is where the second half of the SSRF story lives. noRedirect
+// stops a feed steering this process elsewhere; it pins nothing about where the
+// feed's OWN hostname points, so a name that resolves publicly once and to
+// 169.254.169.254 the next time reached the metadata service. safedial.Transport
+// refuses a resolved private, loopback or link-local destination — see that
+// package for the policy and for the operator's opt-out. Every adapter here
+// gets it because every adapter is built through this function, and
+// TestEverySourceClientRefusesAPrivateDestination counts them.
 func newClient(timeout time.Duration) *http.Client {
-	return &http.Client{Timeout: timeout, CheckRedirect: noRedirect}
+	return &http.Client{Timeout: timeout, Transport: safedial.Transport(), CheckRedirect: noRedirect}
 }
 
 // newClientWithTransport is newClient for the adapters that need a tuned
-// transport (SARB's slow host needs a bounded dial).
+// transport (SARB's slow host needs a bounded dial). The caller owns that
+// transport, so the caller applies the dial policy to it — safedial.DialContext
+// wrapping its net.Dialer, exactly as safedial.Transport does for the default.
 func newClientWithTransport(timeout time.Duration, rt http.RoundTripper) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: rt, CheckRedirect: noRedirect}
 }

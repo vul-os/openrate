@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vul-os/openrate/fx"
+	"github.com/vul-os/openrate/internal/safedial"
 )
 
 // SARBURL is the South African Reserve Bank's public Web API. It returns the
@@ -40,7 +41,7 @@ func NewSARB() *SARB {
 	// Bound each dial to ~13s so a failed attempt fails fast, and let Fetch retry
 	// a few times — three bounded attempts fit inside the store's per-fetch budget.
 	transport := &http.Transport{
-		DialContext:         (&net.Dialer{Timeout: 13 * time.Second}).DialContext,
+		DialContext:         safedial.DialContext(&net.Dialer{Timeout: 13 * time.Second}),
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
 	return &SARB{URL: SARBURL, Client: newClientWithTransport(20*time.Second, transport)}
