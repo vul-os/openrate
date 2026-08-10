@@ -33,6 +33,28 @@ between the two currencies.
    matters because fiat quotes freeze on weekends. See
    [the as-of contract](api.md) for what that means for a consumer.
 
+## Which quotes become edges
+
+A quote becomes an edge only if its rate lands in **`[1e-18, 1e18]`**. Anything
+outside — zero, negative, `NaN`, `±Inf`, or a finite but absurd magnitude — is
+dropped, and no edge is created in either direction.
+
+Before 0.1.5 the test was merely "positive and finite", which was not enough
+twice over. Two sources quoting one pair at `16.5` and `1e-306` made the quality
+model's spread `+Inf`, a token `json.Marshal` refuses, and `/api/v1/rates`
+builds every pair into one map — so a single poisoned pair emptied the table for
+every base. And the old guard admitted values whose *reciprocal* overflowed, so
+`A→B` existed while `B→A` did not.
+
+The band is **symmetric in log space**, which is the property that matters: it
+is closed under reciprocal, so admitting an edge admits its inverse, and edge
+admission is bidirectional by construction rather than by luck.
+
+Interest-rate levels are bounded the same way for the same reason, but the band
+is `[-1e12, 1e12]` — symmetric about **zero**, not about 1. A level is a
+percentage, is routinely negative (the ECB deposit rate sat at −0.5 for years),
+and has no reciprocal to protect. See [interest rates](interest-rates.md).
+
 ## Precision: the product is exact, the display is not
 
 `rate` is the product of `legs[].rate` **exactly**. Not "to within an epsilon":

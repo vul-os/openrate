@@ -97,7 +97,7 @@ pair* for every pair and still exit 0, so it waits for both and prints the
 openrate has no rates after 30s: no rates yet: no source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
 ```
 
-Neither endpoint is under `/api/`, and the per-IP limiter guards only `/api/`,
+Neither endpoint is under `/api/`, and the limiter guards only `/api/`,
 so readiness polling spends nothing from the budget the first real call wants —
 hence a flat 150 ms poll with no backoff. The child is spawned with
 `OPENRATE_RATELIMIT=0` for a related reason: it serves exactly one client over

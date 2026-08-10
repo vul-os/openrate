@@ -14,7 +14,7 @@ own, and openrate's shared library exists for exactly one platform.
 
 **There is one thing only the direct path can give you, and it is not speed:**
 an engine that provably sends no packets. If that is what you are buying, read
-[Direct](#direct-mode) rather than this table.
+[Direct](#direct--orgvulosopenrateopenratedirect) rather than this table.
 
 ```sh
 sdks/java/run-examples.sh            # both

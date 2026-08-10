@@ -171,12 +171,20 @@ func TestReadyzEncodesTheSameWayReadyOrNot(t *testing.T) {
 
 // A body json cannot encode must not surface as a successful empty response.
 //
-// The security review reproduced this: two sources quoting the same pair at
-// 16.5 and 1e-306 make quality's spread-in-basis-points +Inf, json.Marshal
-// refuses it, and the old writeJSON had already sent 200 + Content-Type before
-// the encoder ran — so the encoder's error was discarded and the client got a
-// 200 with a zero-length body. /api/v1/rates builds every pair into one map, so
-// a single poisoned pair emptied the table for every base.
+// The security review reproduced this with rates: two sources quoting the same
+// pair at 16.5 and 1e-306 made quality's spread-in-basis-points +Inf,
+// json.Marshal refused it, and the old writeJSON had already sent 200 +
+// Content-Type before the encoder ran — so the encoder's error was discarded and
+// the client got a 200 with a zero-length body. /api/v1/rates builds every pair
+// into one map, so a single poisoned pair emptied the table for every base.
+//
+// That specific input is no longer reachable: since 0.1.5 ratequality admits FX
+// rates only in [1e-18, 1e18], so 1e-306 never enters the graph and the +Inf
+// spread cannot be constructed from real quotes. This test does NOT depend on
+// it — it plants an unencodable body directly, which is the general property
+// (any value the encoder refuses must be a 500, not an empty 200) and stays
+// live regardless of what the rate band admits. Do not weaken it to match the
+// narrower input guard; the two are layers, and this is the outer one.
 //
 // It is also the exact hazard slipscan's OpenRate client carries defensive
 // decoding for, quoting openrate's own `_ = enc.Encode(v)`. Encoding into a

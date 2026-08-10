@@ -35,6 +35,13 @@ the two currencies there is no answer to give.
 - Exotic and thinly-traded currencies are the usual case. `fawazahmed0` covers
   roughly 400 of them.
 
+**A code the snapshot has never heard of is also `ErrUnknownPair`, including
+when both sides are the same unknown code.** Since 0.1.5 `GET
+/api/v1/convert?from=NOTACCY&to=NOTACCY` returns `404`; before that it returned
+`200` with `rate: 1`, `hops: 0` and grade `B`, because the identity is returned
+for `from == to` whatever the string is. The library and the C ABI always
+refused it — only the HTTP layer did not. `USD→USD` is unchanged.
+
 ### `ErrUnknownBase` from `Rates(base)`
 
 The snapshot knows *some* currencies but not that one. Note the deliberate
@@ -50,9 +57,16 @@ divergence](c-abi.md).
 
 ### `ErrInvalidAmount` / `ErrAmountOutOfRange`
 
-`ErrInvalidAmount` is a non-finite amount (`Inf`, `NaN`). Over HTTP these are
-rejected with `400`; an *unparseable* amount falls back to `1` instead, which
-is a deliberate difference — a typo should not 400 a dashboard.
+`ErrInvalidAmount` is a non-finite amount (`Inf`, `NaN`) or one outside float64
+range (`1e999`). Over HTTP both are rejected with `400`; an *unparseable* amount
+(`notanumber`) falls back to `1` instead, which is a deliberate difference — a
+typo should not 400 a dashboard.
+
+The out-of-range case is new in 0.1.5. `strconv.ParseFloat("1e999")` returns
+`+Inf` **together with** `strconv.ErrRange`, and the endpoint tested only for a
+nil error — so the `+Inf` was discarded with the error and the request quietly
+converted `1.0`. A caller asking about 1e999 units got a successful-looking
+answer about one.
 
 `ErrAmountOutOfRange` means `amount × rate` has no representable float64.
 
@@ -108,6 +122,32 @@ That is the designed behaviour, twice over:
 `last_error`. Errors are redacted before they are logged, so an API key
 embedded in a source URL never reaches the log.
 
+### A source fails with `status 301` / `status 302`
+
+Since 0.1.5 **no outbound feed client follows redirects.** All sixteen refuse,
+with no per-source exception and no host allow-list to keep correct: every
+endpoint openrate ships answers `200` directly, so none of them needs one.
+
+The refusal is deliberately shaped so it does *not* echo the redirect target.
+The client hands the 3xx back unchanged, the adapter's ordinary status check
+rejects it, and you get `<source>: status 302` — which tells you the feed tried
+to redirect without printing where. That matters because `last_error` is
+published unauthenticated at `/readyz` and `/api/v1/meta`: before this, a feed
+that was compromised, DNS-hijacked or merely misconfigured could point openrate
+at `169.254.169.254`, an internal admin port or a neighbouring container, and
+the resulting `*url.Error` — carrying the attacker-chosen `Location` — came
+straight back out of the public API as a blind-SSRF oracle.
+
+If a feed you configured genuinely moved, update its URL. There is no flag to
+re-enable following.
+
+### ECB or Frankfurter is quoting fewer currencies than I expect
+
+Both now filter to openrate's currency allow-list, as every other adapter
+already did. A code the allow-list does not contain is dropped rather than
+turned into an edge. Without it a compromised feed injecting tens of thousands
+of invented codes drives the N×N graph search into memory exhaustion.
+
 ### A paid source is being called that I never configured
 
 Only `fxsource.FromEnv` and `FromEnvSpec` read the environment; `Build` never
@@ -145,19 +185,38 @@ snapshot that will never arrive.
 
 ### `429` from the API
 
-The per-IP rate limiter, default 120 requests/minute on `/api/` paths. Set
-`-ratelimit 0` to disable it, or raise it. The console and its assets are never
-rate-limited, and neither are `/healthz` and `/readyz` — a readiness poll cannot
-exhaust the budget it is waiting to use.
+The rate limiter, default 120 requests/minute on `/api/` paths per client
+network prefix. Set `-ratelimit 0` to disable it, or raise it. The console and
+its assets are never rate-limited, and neither are `/healthz` and `/readyz` — a
+readiness poll cannot exhaust the budget it is waiting to use.
+
+### Someone else's traffic is eating my budget
+
+Since 0.1.5 the limiter buckets by **network prefix**, not by individual
+address: a `/64` for IPv6, a `/32` for IPv4, with `::ffff:`-mapped addresses
+unmapped first. **Clients sharing a `/64` share a budget.** If several machines
+sit behind one IPv6 prefix — a home LAN, an office, or a provider that carves
+each VM out of a shared `/64` — their requests count against the same 120/min,
+and a busy neighbour can spend it. The `/128` bucketing this replaced meant the
+limit never bound on an IPv6 client at all, which is why it changed; raise
+`-ratelimit` if the shared budget is too small for your deployment.
+
+A second case looks the same but is not: under a sustained flood of distinct
+prefixes the bucket map hits its 65536 ceiling, and newly-seen clients are then
+charged to a single shared overflow bucket. That is the deliberate trade for a
+hard memory ceiling — see
+[configuration](#configuration).
 
 ### Everything is rate-limited into one bucket behind my proxy
 
-The limiter buckets by client IP, and by default the client IP is the
-connection's `RemoteAddr` — `X-Forwarded-For` is **not** trusted, because a
+The limiter buckets by the client address it observes, and by default that is
+the connection's `RemoteAddr` — `X-Forwarded-For` is **not** trusted, because a
 directly exposed client could otherwise rotate it to mint a fresh bucket per
-request. List your proxy in `-trusted-proxies` (IPs or CIDRs) and the left-most
-XFF hop is honoured, but only for requests whose direct peer is one of those
-proxies.
+request. List your proxy in `-trusted-proxies` (IPs or CIDRs) and XFF is
+honoured, but only for requests whose direct peer is one of those proxies. The
+hop taken is the **right-most** entry that is not itself a configured trusted
+proxy: standard proxies append rather than replace, so the genuine client sits
+to the right and the forgeable hops sit to the left.
 
 ### A browser call is blocked by CORS
 
@@ -300,7 +359,7 @@ The symptom is a connection error or a timeout against a server you can
 
 ### `429` from a sidecar that only I am talking to
 
-The `/api/` rate limiter, 120 requests/minute per IP, which is anti-scraping
+The `/api/` rate limiter, 120 requests/minute per client network prefix, which is anti-scraping
 for a public deployment and simply wrong for a loopback sidecar serving one
 process. The managed-sidecar packages start the child with
 `OPENRATE_RATELIMIT=0` for exactly this reason; if you started the process

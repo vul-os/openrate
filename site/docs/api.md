@@ -67,7 +67,7 @@ Convert an amount between two currencies, with full provenance for the rate used
 |---|---|---|
 | `from` | the server default base | Source currency |
 | `to` | the server default base | Target currency |
-| `amount` | `1` | Amount to convert. Unparseable values fall back to `1`; non-finite values (`Inf`/`NaN`) are rejected with `400`. |
+| `amount` | `1` | Amount to convert. Unparseable values (`notanumber`) fall back to `1`; non-finite (`Inf`/`NaN`) **and out-of-range (`1e999`)** values are rejected with `400`. |
 
 **Response**
 
@@ -82,8 +82,19 @@ Convert an amount between two currencies, with full provenance for the rate used
 ```
 
 Returns **`404`** with `{"error":"unknown or unreachable currency pair"}` when no
-path connects the two currencies in the current snapshot, and **`400`** with
-`{"error":"invalid amount"}` when `amount` is non-finite (`Inf`/`NaN`).
+path connects the two currencies in the current snapshot — **including when
+either code is one the snapshot has never heard of**. Since 0.1.5 that covers
+`?from=NOTACCY&to=NOTACCY`, which previously answered `200` with `rate: 1`,
+`hops: 0` and a quality grade of `B`: an invented rate for a currency that does
+not exist, dressed as a real one. `USD→USD` is unaffected — the code is known,
+so the identity is a true statement about it.
+
+Returns **`400`** with `{"error":"invalid amount"}` when `amount` is non-finite
+(`Inf`/`NaN`) or **out of float64 range** (`1e999`). The out-of-range case also
+changed in 0.1.5: `1e999` used to be silently converted as `1.0`, so a caller
+asking about 1e999 units got a successful-looking answer about one. An
+*unparseable* amount still falls back to `1` — that is long-standing documented
+behaviour and a typo should not 400 a dashboard.
 
 ---
 
@@ -176,7 +187,9 @@ did not write; the symptom is a connection error or a timeout against a sidecar
 that is demonstrably listening.
 
 **Neither `/healthz` nor `/readyz` is rate-limited, but everything under
-`/api/` is** — 120 requests/minute per IP by default. That is anti-scraping for
+`/api/` is** — 120 requests/minute per client network prefix by default (a `/64`
+for IPv6, a `/32` for IPv4; see
+[configuration](#configuration)). That is anti-scraping for
 a public deployment and simply wrong for a loopback sidecar serving one
 process, so the managed-sidecar packages start the server with
 `OPENRATE_RATELIMIT=0`. Set it to a number to put the limiter back.

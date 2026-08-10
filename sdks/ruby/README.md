@@ -74,13 +74,13 @@ and `Openrate.wait_ready(timeout: 30.0)` ask the same question of a server you
 did not start; `Openrate.healthy?` is liveness only.
 
 The poll is a fixed 150 ms with no backoff, which is fine because `/readyz` sits
-outside `/api/` and the per-IP limiter never sees it. And readiness means *some*
+outside `/api/` and the limiter never sees it. And readiness means *some*
 rates, not *all* sources: with several sources racing, the book flips ready when
 the first one lands, so a pair a slower source would have supplied can still be
 missing. Name one source if you need to depend on it.
 
 One default worth knowing about: the binary rate-limits the JSON API to **120
-requests a minute per IP**, which is anti-scraping for a public deployment and
+requests a minute per client network prefix**, which is anti-scraping for a public deployment and
 wrong for a loopback sidecar with exactly one client. There is no stranger here
 to throttle, and the budget is small enough that a legitimate batch of
 conversions can exhaust it and hand a later real call an HTTP 429.

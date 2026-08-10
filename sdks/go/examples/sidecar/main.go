@@ -23,10 +23,12 @@
 //     is GET /readyz — 503 with a reason until a conversion would succeed, 200
 //     once it would — and that is what waitReady polls. (The library's
 //     equivalent is Refresher.Ready.)
-//   - GET /api/v1/rates with an unknown base answers 200 with an empty book,
-//     where the library returns ErrUnknownBase. That is the one deliberate
-//     difference between the two surfaces, and a client that only checks the
-//     status code will read "no rates" as success.
+//   - GET /api/v1/rates with an unknown base is a 404 carrying the same text
+//     the library's ErrUnknownBase does. It used to be a 200 with an empty
+//     book, which a client checking only the status code read as "no rates" —
+//     and which is also exactly what a server that has not fetched yet answers.
+//     The two surfaces now agree; this example demonstrates it rather than
+//     describing it.
 //
 // Run it:
 //
@@ -131,14 +133,15 @@ func run() error {
 	}
 	fmt.Printf("rates(%s): %d pairs, built_at %s\n", *base, len(rates.Rates), rates.BuiltAt)
 
-	// The deliberate difference, demonstrated rather than described: an unknown
-	// base is an ERROR in the library and a 200 with an empty book here.
+	// The alignment, demonstrated rather than described: an unknown base is an
+	// error on BOTH surfaces. Over HTTP that is a 404 whose body carries
+	// ErrUnknownBase's own text, so one string matches in either mode.
 	bogus, err := sc.rates(ctx, "XXX")
-	if err != nil {
-		return fmt.Errorf("rates(XXX): %w", err)
+	if err == nil {
+		return fmt.Errorf("rates(XXX): the server answered with %d pairs; an unknown base is a 404, "+
+			"exactly as Engine.Rates returns ErrUnknownBase", len(bogus.Rates))
 	}
-	fmt.Printf("rates(XXX): HTTP 200 with %d pairs — the library would have "+
-		"returned ErrUnknownBase. Check the book, not the status code.\n", len(bogus.Rates))
+	fmt.Printf("rates(XXX): refused — %v\n", err)
 
 	return nil
 }

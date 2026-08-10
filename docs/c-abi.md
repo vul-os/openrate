@@ -188,6 +188,53 @@ configured-but-unused.
 Closing an engine closes every refresher built over it, so closing in the
 obvious order cannot leave a ticker running.
 
+## Lifecycle: what close guarantees
+
+0.1.5 wrote these down and fixed the three cases where the library did not
+honour them. They are what a binding author has to be able to rely on.
+
+**`openrate_close()` is terminal, and it waits.** When it returns, any
+background loop on that handle has been cancelled *and* has exited, so a host
+that closes everything and then unloads the library has no thread of ours left
+in its address space. `"stop"` is the reversible one: a stopped refresher can be
+started again, a closed one cannot.
+
+**`"start"` on a closed handle is an error** — `handle N is not open` — not a
+second loop and not a silent success. Before 0.1.5 a `"start"` racing
+`openrate_close` on the same handle could leave a refresh loop that nothing
+could reach to stop; it was reproduced making 5,166 requests in the half-second
+*after* close returned, with `openrate_open_handles()` already reporting 0.
+Starting an already-running refresher is also an error rather than a second
+loop.
+
+**A close racing a call resolves one of exactly two ways and never a third:**
+either the call runs to completion and the close then tears the object down, or
+the close wins and the call returns the ordinary `handle N is not open`. Nothing
+this library started outlives the handle that authorized it, and
+`openrate_refresher_new()` racing the close of its engine either returns a
+fully-owned refresher or fails — never a handle nobody can close.
+
+None of this was visible to `-race`, because none of it is a data race. It is
+held down by [`ffi/abi/lifecycle_test.go`](../ffi/abi/lifecycle_test.go), which
+runs each race twelve thousand times and asserts what a host can actually
+observe: `openrate_open_handles()` back where it started, and the library's
+request count frozen once the last close returned.
+
+**`meta`'s `sources` covers every *open* refresher over that engine.** Closing a
+refresher drops it out of the list: its last fetch status can never change
+again, and it would otherwise be reported under a handle you can no longer
+address.
+
+**Every millisecond field is bounded by 9223372036854** (about 292 years, which
+is everything a duration can hold). `interval_ms` and `fetch_timeout_ms` on a
+refresher config **refuse** anything larger, with `*err` set; `timeout_ms` on a
+per-call request is *clamped* instead, since a 292-year deadline is
+indistinguishable from the one you asked for. The bound is not pedantry — the
+multiply into nanoseconds wraps, and it does not wrap to something you would
+notice: `interval_ms` of 288230376151711745 came out as exactly 1 ms, turning
+the most conservative cadence a host can ask for into a loop hammering every
+configured source a thousand times a second.
+
 ## The JSON is the JSON you already know
 
 `openrate_call` takes a method name and a JSON request and returns a JSON

@@ -66,7 +66,7 @@ wait runs out:
 openrate has no rates after 30s: no rates yet: no source has returned a usable quote (ecb: Get "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
 ```
 
-Neither endpoint is under `/api/`, and the per-IP limiter guards only `/api/`,
+Neither endpoint is under `/api/`, and the limiter guards only `/api/`,
 so polling readiness costs nothing from the budget the first real call wants —
 which is why the poll is a flat 150 ms with no backoff. The child is spawned
 with `OPENRATE_RATELIMIT=0` for the same family of reasons: it serves exactly

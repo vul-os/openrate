@@ -73,10 +73,10 @@ meta:      base=EUR currencies=30 built_at=2026-08-09T21:01:27.922149Z
   ecb        ok, 29 edges
 convert:   100.00 EUR = 115.3500 USD (rate 1.153500, 1 hop(s) via [EUR USD], grade C)
 rates(EUR): 29 pairs, built_at 2026-08-09T21:01:27.922149Z
-rates(XXX): HTTP 200 with 0 pairs — the library would have returned ErrUnknownBase.
+rates(XXX): refused — 404 Not Found /api/v1/rates?base=XXX: {"error":"unknown base currency"}
 ```
 
-## Three places the two surfaces genuinely differ
+## Two places the two surfaces genuinely differ
 
 Not stylistic. Each of these has bitten something.
 
@@ -87,13 +87,7 @@ Not stylistic. Each of these has bitten something.
 A client that reads `rate` as a number fails to decode. The sidecar example in
 this directory got exactly that wrong on its first run.
 
-**2. An unknown base is an error in Go and a 200 with an empty book over HTTP.**
-`Engine.Rates("XXX")` returns `ErrUnknownBase`. `GET /api/v1/rates?base=XXX`
-answers `200` with `"rates": {}`. A caller checking only the status code reads
-"no rates available" as success. The example demonstrates this rather than
-describing it.
-
-**3. `/healthz` is liveness, not readiness — each surface has its own readiness
+**2. `/healthz` is liveness, not readiness — each surface has its own readiness
 signal, and they are not the same call.**
 
 In-process, `Refresher.Ready(ctx)` blocks until the engine holds at least one
@@ -130,7 +124,8 @@ Three things to carry into your own client:
   `/api/`, and `guard()` rate-limits `/api/` paths only, so a readiness loop
   cannot spend the budget it is waiting to use. The version of this example
   that polled `/api/v1/meta` — which *is* limited — needed exponential backoff
-  to stay under **120 requests per minute per IP**; that constraint is gone.
+  to stay under **120 requests per minute per client network prefix**; that
+  constraint is gone.
   (`/api/v1/meta` is still the place to ask what the server is serving:
   `/readyz` reports `currencies` as a count and does not name the default base.)
 

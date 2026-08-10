@@ -113,7 +113,7 @@ proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused)
 did not start; `Client.healthy()` is still there and still means liveness only.
 
 Two things worth knowing about the poll. It runs at a fixed 100 ms, which is
-fine because `/readyz` sits outside `/api/` and the per-IP limiter never sees
+fine because `/readyz` sits outside `/api/` and the limiter never sees
 it. And readiness means *some* rates, not *all* sources: with several sources
 racing, the book flips ready as soon as the first one lands, so a pair a slower
 source would have supplied can still be missing. Name one source if you need to

@@ -39,7 +39,7 @@ eurofxref-daily.xml": proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connectio
 ```
 
 `:timeout` bounds the wait for the listener, `:ready_timeout` the wait for
-rates. Neither endpoint sits under `/api/`, and the per-IP limiter guards only
+rates. Neither endpoint sits under `/api/`, and the limiter guards only
 `/api/`, so both polls are flat short intervals with no backoff — there is no
 budget to conserve. The earlier version of this SDK waited for `/healthz` and
 left readiness to the examples, which polled `/api/v1/meta` until it reported a
@@ -98,7 +98,7 @@ go build -o sdks/elixir/priv/bin/openrate ./cmd/openrate
 (ms to then wait for rates, default `30_000`).
 
 `:ratelimit` **defaults to 0 here, and the binary's own default is 120** API
-requests a minute per IP. That limit is anti-scraping for a public deployment
+requests a minute per client network prefix. That limit is anti-scraping for a public deployment
 and wrong for a loopback sidecar with exactly one client: it is small enough
 that a legitimate batch of conversions can exhaust it and hand a later
 real call an HTTP 429, which is how this was found. Pass `ratelimit: 120` to put

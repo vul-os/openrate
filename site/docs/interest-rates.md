@@ -54,6 +54,16 @@ Every series carries a `quality` block, tuned for interest rates (not FX):
 - **caveats** — definitional notes: US policy is a target-range midpoint, managed
   regimes (CN), high-inflation volatility (AR, TR), index-vs-rate, single-source.
 
+Corroboration counts only levels inside **`[-1e12, 1e12]`**; anything outside —
+`NaN`, `±Inf`, or a finite but absurd magnitude — is excluded from the min, max,
+mean and dispersion rather than poisoning them. The band is symmetric about
+zero because a level is a percentage and is routinely negative, and `1e12`
+leaves nine orders of magnitude over any index reading a feed publishes, so
+anything past it is a parse or scaling error rather than a rate. Since 0.1.5;
+before it, corroboration had no filter at all and one nonsense value from one
+source made `(max − min) × 100` non-finite, which `json.Marshal` refuses — a 500
+on a whole series because of a single bad observation.
+
 Grades: **A** ≥ 0.90 · **B** ≥ 0.78 · **C** ≥ 0.60 · **D** < 0.60. `grade` is
 derived from the same rounded `confidence` that is published, so the two never
 disagree.

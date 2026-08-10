@@ -68,11 +68,15 @@ before assuming. `/readyz` sits outside `/api/`, so unlike the `/api/v1/meta`
 poll it replaces, readiness polling never touches the rate limiter. In-process
 the equivalent is `Refresher.Ready(ctx)`, with no polling at all.
 
-**The JSON API rate-limits `/api/` to 120 requests/minute per IP.** That is
-anti-scraping for a public deployment and wrong for a loopback sidecar serving
-one client, so the managed-sidecar packages pass `OPENRATE_RATELIMIT=0`; pass a
-value to put it back. Neither `/healthz` nor `/readyz` is limited — only `/api/`
-paths are — so neither a liveness check nor a readiness poll can spend it.
+**The JSON API rate-limits `/api/` to 120 requests/minute per client network
+prefix.** Since 0.1.5 that is a `/64` for IPv6 and a `/32` for IPv4, not an
+individual address — so **clients sharing a `/64` share a budget**. It matters
+for a public deployment, not for the loopback sidecars this page is about, where
+the limiter is anti-scraping for strangers who are not there: the
+managed-sidecar packages pass `OPENRATE_RATELIMIT=0`; pass a value to put it
+back. Neither `/healthz` nor `/readyz` is limited — only `/api/` paths are — so
+neither a liveness check nor a readiness poll can spend it. Full rules:
+[configuration](../docs/configuration.md#trusted-proxies--client-identity).
 
 ## Prebuilt libraries — what actually exists
 

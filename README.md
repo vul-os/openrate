@@ -383,7 +383,7 @@ cmd/openrate        entrypoint: wires Engine + Refresher + serve (+ UI) together
 serve               the optional HTTP shell: JSON API, rate limiting, hardening
 serve/web           serve/web/ui.html — the embedded UI; compiled out entirely under -tags noui
 serve/interest      policy-rate endpoints, /api/v1/interest/*
-serve/ratelimit     the per-IP rate limiter
+serve/ratelimit     the rate limiter (buckets by network prefix: /64 v6, /32 v4)
 ffi                 the C shared library other languages load (its own Go module,
                     named openrate-ffi so the internal/ wall applies to it too)
 sdks                fifteen language packages (bun, c, cpp, deno, dotnet, elixir, go,
