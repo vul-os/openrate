@@ -1,7 +1,7 @@
 {
   "name": "openrate",
   "version": "0.1.8",
-  "description": "Currency conversion with an auditable rate path — the openrate sidecar, or libopenrate in-process.",
+  "description": "Currency conversion with an auditable rate path \u2014 the openrate sidecar, or libopenrate in-process.",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
@@ -16,8 +16,21 @@
     "./package.json": "./package.json"
   },
   "license": "MIT OR Apache-2.0",
-  "keywords": ["currency", "exchange-rate", "fx", "conversion", "ffi"],
-  "files": ["index.js", "index.d.ts", "direct.js", "direct.d.ts", "sidecar.js", "sidecar.d.ts"],
+  "keywords": [
+    "currency",
+    "exchange-rate",
+    "fx",
+    "conversion",
+    "ffi"
+  ],
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "direct.js",
+    "direct.d.ts",
+    "sidecar.js",
+    "sidecar.d.ts"
+  ],
   "peerDependencies": {
     "koffi": ">=2.9.0"
   },
@@ -30,6 +43,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "prepare": "tsc -p tsconfig.build.json",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "typecheck:examples": "tsc -p examples/tsconfig.json --noEmit",
