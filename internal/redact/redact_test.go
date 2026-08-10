@@ -50,10 +50,21 @@ func TestErrorFromRealURLError(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet,
 		"http://127.0.0.1:1/snapshot?apiKey=TOPSECRET", nil)
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	srv.Close() // closed listener → guaranteed connection error carrying the URL
+	// The error comes from port 1 being unreachable, NOT from this close: the
+	// request above is aimed at 127.0.0.1:1 and srv is borrowed only for its
+	// Client. Closing it is tidiness. The comment used to credit the close,
+	// which sent me mutating the wrong line to test this.
+	srv.Close()
 	_, err := srv.Client().Do(req)
 	if err == nil {
-		t.Skip("expected a connection error")
+		// Not a reason to skip. This test's only assertion is that a real
+		// *url.Error carrying a key gets scrubbed; with no error there is
+		// nothing to scrub and nothing is verified. Skipping reports success
+		// for a run that checked the secret was safe by never looking at it.
+		t.Fatal("no connection error, so redaction was never exercised. This test " +
+			"needs a guaranteed failure to produce the *url.Error it scrubs — if the " +
+			"closed-listener trick has stopped working, fix the setup rather than " +
+			"letting the run pass having asserted nothing.")
 	}
 	if strings.Contains(Error(err).Error(), "TOPSECRET") {
 		t.Fatalf("secret leaked: %q", Error(err).Error())
