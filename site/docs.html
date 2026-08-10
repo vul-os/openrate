@@ -32,7 +32,11 @@
    site.js, because site.js is deferred and anything deferred runs after the
    first paint — which is the flash this exists to prevent. */
 try {
-  var t = localStorage.getItem("or-theme");
+  /* Only a value marked by "or-theme-set" counts as a choice. Both this site
+     and the app at /ui used to write "or-theme" on every load, so a reader who
+     merely visited is carrying a theme they never picked — and it would
+     otherwise outrank their machine forever. Unmarked falls through to the OS. */
+  var t = localStorage.getItem("or-theme-set") === "1" ? localStorage.getItem("or-theme") : null;
   if (t !== "light" && t !== "dark") {
     t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : null;
   }

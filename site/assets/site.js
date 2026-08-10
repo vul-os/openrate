@@ -46,7 +46,13 @@
   }
   function chooseTheme(t) {
     applyTheme(t);
-    try { localStorage.setItem("or-theme", t); } catch (e) { /* private mode */ }
+    try {
+      localStorage.setItem("or-theme", t);
+      /* The marker is what makes the value a choice. "or-theme" alone was
+         written on every load by both this site and the app at /ui, so an
+         unmarked value is probably an accident — see the head script. */
+      localStorage.setItem("or-theme-set", "1");
+    } catch (e) { /* private mode */ }
   }
 
   /* ── product screenshots ─────────────────────────────────────────────────
@@ -93,7 +99,11 @@
     var mql = window.matchMedia("(prefers-color-scheme: light)");
     var onSystem = function () {
       var stored = null;
-      try { stored = localStorage.getItem("or-theme"); } catch (e) { /* private mode */ }
+      try {
+        if (localStorage.getItem("or-theme-set") === "1") stored = localStorage.getItem("or-theme");
+      } catch (e) { /* private mode */ }
+      /* An unmarked stored theme must not stop the page following the machine
+         live, or the readers this repair is for would still be stuck. */
       if (stored === "light" || stored === "dark") return;
       applyTheme(mql.matches ? "light" : "dark");
     };
