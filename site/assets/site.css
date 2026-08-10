@@ -287,19 +287,47 @@ code { font-family: var(--mono); font-size: max(11px, .88em); color: var(--teal)
   .brand .word { font-size: 18px; }
 }
 
-.icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 44px; height: 44px; flex: none; /* was 34px — under the 44px tap-target floor */
-  border: 1px solid var(--line-2); border-radius: 50%;
-  background: transparent; color: var(--text-3); cursor: pointer;
-  transition: color .2s var(--ease), border-color .2s var(--ease), background .2s var(--ease);
+/* ── the header's three utility controls ──────────────────────────────────
+   They used to be three different objects standing shoulder to shoulder: the
+   Vulos mark a bare image at 72% opacity, GitHub a bare glyph, and the theme
+   switch a bordered circle. Three treatments for three adjacent controls —
+   and the first of them all but invisible, because the suite mark is a single
+   flat ink colour drawn for paper and at .72 on #06090E it measured 1.6:1.
+
+   One object now: a single hairline-ruled group of three 44px cells, divided
+   by the same hairline the stat rail and the instrument cells are divided by.
+   It reads as one cluster of utilities rather than three strays, it separates
+   them from the seven text links beside them, and it is narrower than three
+   free-standing controls were — which matters at 320, where this bar is the
+   only thing on either page that has ever pushed the document over. */
+.tools {
+  display: flex; align-items: center; flex: none;
+  border: 1px solid var(--line-2); border-radius: 100px; overflow: hidden;
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
 }
-.icon-btn:hover { color: var(--text); border-color: var(--line-3); background: var(--paper-3); }
-.icon-btn.bare { border: none; }
-/* The one Vulos mark this page carries above the footer — see the header.
-   A plain square logo needs its own rounding; sized down from the source
-   PNG rather than shipping a second cropped asset. */
-.icon-btn img { width: 18px; height: 18px; border-radius: 5px; display: block; }
+.tools > * {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; flex: none;  /* was 34px — under the 44px tap-target floor */
+  border: 0; background: transparent; color: var(--text-3); cursor: pointer;
+  transition: color .2s var(--ease), background .2s var(--ease);
+}
+.tools > * + * { border-left: 1px solid var(--line-2); }
+.tools > *:hover, .tools > *:focus-visible { color: var(--text); background: var(--paper-3); }
+/* The shared .vulos-home block below sets its own box, opacity and hover
+   lift; inside the group those are the group's job, so they are overridden
+   here by specificity rather than by being edited out of the block that has
+   to stay identical across the suite. */
+.tools .vulos-home { width: 44px; height: 44px; border-radius: 0; opacity: 1; }
+.tools .vulos-home:hover, .tools .vulos-home:focus-visible { transform: none; }
+.tools .vulos-home img { width: 18px; height: 18px; border-radius: 0; }
+/* On ink the mark has to be the surface's foreground, not its own paper ink —
+   the same treatment patala's landing already gives it. brightness(0) flattens
+   the glyph to black and invert(1) lifts it to white; the shape is untouched,
+   and the opacity lands it at the same weight as the two glyphs beside it. */
+:root:not([data-theme="light"]) .tools .vulos-home img,
+:root:not([data-theme="light"]) .vulos-foot img { filter: brightness(0) invert(1); opacity: .66; }
+:root:not([data-theme="light"]) .tools .vulos-home:hover img,
+:root:not([data-theme="light"]) .vulos-foot:hover img { opacity: .92; }
 
 .btn {
   display: inline-flex; align-items: center; gap: 9px;
@@ -955,8 +983,19 @@ html:not(.js) #content { display: none; }
      content's min-content size, so any non-wrapping child raises the track
      above the viewport width and takes the whole page into horizontal scroll
      with it. That is how the old pill bar blew the page out to 887px on a
-     768px viewport. */
-  .docs { grid-template-columns: minmax(0, 1fr); }
+     768px viewport.
+
+     `.docs.no-rail` is named here as well as `.docs`, and it has to be. A
+     media query adds no specificity: `.docs.no-rail` above is (0,2,0) and
+     beats a bare `.docs` inside any @media, at any width. With scripting on
+     the viewer removes `no-rail` as soon as it has a rail to show, so this
+     rule won this argument by accident. With scripting OFF `no-rail` is the
+     shipped default and never leaves, and the two-track desktop grid survived
+     into a 390px phone: the index sat in a 256px column with the document
+     crushed into the ~110px beside it, one word per line. Readable with
+     JavaScript off is a requirement of these pages, and this was the one
+     place it was not met. */
+  .docs, .docs.no-rail { grid-template-columns: minmax(0, 1fr); }
   .docs-side {
     position: sticky; top: 66px; z-index: 45;
     /* height:auto undoes the desktop rail's full-viewport height — here the

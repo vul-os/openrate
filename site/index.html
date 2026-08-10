@@ -99,11 +99,17 @@ document.documentElement.classList.add("js");
     <a href="#api">API</a>
     <a href="./docs.html">Docs</a>
   </nav>
-  <a class="vulos-home" href="https://vulos.org" target="_blank" rel="noopener" title="Vulos — open, self-hostable software" aria-label="Vulos — open, self-hostable software"><img src="./assets/vulos-logo.png" alt="" width="22" height="22"></a>
-  <a class="icon-btn bare" href="https://github.com/vul-os/openrate" target="_blank" rel="noopener" aria-label="GitHub">
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.41 7.86 10.94.58.1.79-.25.79-.56v-2.02c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.19a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.19 3.17-1.19.63 1.59.23 2.76.12 3.05.74.81 1.18 1.85 1.18 3.11 0 4.44-2.7 5.42-5.28 5.7.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.74 18.27.5 12 .5z"/></svg>
-  </a>
-  <button class="icon-btn" data-theme-toggle type="button" aria-label="Toggle theme"></button>
+  <!-- One group, three cells: see .tools in site.css for why these three stopped
+       being three separate objects. The toggle ships its icon in the markup
+       rather than waiting for site.js to write one — with scripting off it was
+       a control with nothing in it. -->
+  <div class="tools">
+    <a class="vulos-home" href="https://vulos.org" target="_blank" rel="noopener" title="Vulos — open, self-hostable software" aria-label="Vulos — open, self-hostable software"><img src="./assets/vulos-logo.png" alt="" width="22" height="22"></a>
+    <a href="https://github.com/vul-os/openrate" target="_blank" rel="noopener" aria-label="GitHub">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.41 7.86 10.94.58.1.79-.25.79-.56v-2.02c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.19a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.19 3.17-1.19.63 1.59.23 2.76.12 3.05.74.81 1.18 1.85 1.18 3.11 0 4.44-2.7 5.42-5.28 5.7.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.74 18.27.5 12 .5z"/></svg>
+    </a>
+    <button data-theme-toggle type="button" aria-label="Switch to paper theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2M12 19.6v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.4 12h2M19.6 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg></button>
+  </div>
 </header>
 
 <!-- ══ hero ══════════════════════════════════════════════════════════════
@@ -177,19 +183,23 @@ document.documentElement.classList.add("js");
         </div>
       </figure>
     </div>
+  </div>
+</section>
 
+<!-- ══ the ledger: four readings, then the four feeds behind them ════════
+     One block, two registers, on one set of four columns. The stat rail used
+     to close the hero and the feeds strip used to open the page below it,
+     which put the section's whole bottom padding — 108px of nothing — between
+     two rows that share their column rules and read as one instrument. They
+     are the same object; they are now drawn as one. ══════════════════════ -->
+<div class="band">
+  <div class="band-in">
     <div class="stats">
       <div class="stat"><b class="num count">43</b><span class="lbl">currency codes<br>39 fiat · 4 crypto</span></div>
       <div class="stat on"><b class="num count">4</b><span class="lbl">sources on by default<br>no key, no account</span></div>
       <div class="stat"><b class="num count">0</b><span class="lbl">third-party Go<br>dependencies</span></div>
       <div class="stat"><b class="num count">1</b><span class="lbl">binary<br>no database</span></div>
     </div>
-  </div>
-</section>
-
-<!-- ══ the open feeds ════════════════════════════════════════════════════ -->
-<div class="band">
-  <div class="band-in">
     <div class="band-grid">
       <div class="band-cell">
         <span class="nm">ecb</span>
@@ -757,12 +767,12 @@ document.documentElement.classList.add("js");
       <div class="shead rv">
         <span class="eyebrow"><span class="lbl">Self-host</span></span>
         <h2>One binary. <em>No database</em>.</h2>
-        <p class="lede"><a href="./LICENSE.txt">MIT OR Apache-2.0</a>, at your option.</p>
         <p class="lede">
           The engine, the JSON API and the web UI are one Go binary with the interface
           embedded, built on the standard library and nothing else. Nothing to sign up for,
           no API key, no account — and no telemetry phoning home.
         </p>
+        <p class="fine"><a href="./LICENSE.txt">MIT OR Apache-2.0</a>, at your option.</p>
       </div>
 
       <div class="split wide-left rv">
@@ -845,31 +855,64 @@ c, err = e.Convert("USD", "ZAR", 100) // now answers from what r fetched</code><
 
       <!-- ── not Go ────────────────────────────────────────────────────────
            The three preceding blocks all assume a Go program or a terminal,
-           and openrate now answers a reader who has neither. The order of
-           these cells is the order of the recommendation, not the order of
-           the engineering: the sidecar first, because it is the right answer
-           for most non-Go hosts, and the shared library last with the cost
-           that most often rules it out stated in the cell rather than behind
-           the link. Same .cells strip §06 uses. ─────────────────────────── -->
+           and openrate answers a reader who has neither — in fifteen
+           languages, which this block used to name nine of.
+
+           The headline measure is 0, not the 3.7 µs it was. Microseconds are
+           noise beside a real network call, and they are not what makes the
+           direct mode worth having: what makes it worth having is that an
+           engine handle REFUSES `refresh`, checked in Go and again in C, so a
+           host can construct one with fetching off and provably send nothing.
+           The latency figure keeps its place in the cell it belongs in.
+
+           The four registers run masthead → the ABI guarantee → the three
+           ways in → every package, grouped by which way it takes by default.
+           The grouping is the one fact from sdks/README.md's table worth
+           restating here; the table itself stays in the index, linked. ──── -->
       <div class="instr bleed rv" style="margin-top:clamp(22px,3vw,34px)">
         <div class="instr-top">
           <div>
             <span class="pair">Not a Go program?</span>
-            <span class="sub">Two ways in · nine bindings · same JSON</span>
+            <span class="sub">Fifteen packages · two ways in · same JSON</span>
           </div>
           <div class="instr-measure">
-            <b>3.7 µs</b>
-            <!-- No unit in this label. .lbl is text-transform: uppercase, and CSS
-                 uppercases "µs" to "ΜS" — a capital Greek Mu, which renders as an
-                 M and turns microseconds into milliseconds at a glance. The
-                 comparison is stated as a ratio here and the 33.5 µs figure lives
-                 in the cell below, which is not uppercased. -->
-            <span class="lbl">per conversion, in-process · 9× a loopback call</span>
+            <!-- No unit in this label, and none in the figure. .lbl is
+                 text-transform: uppercase, and CSS uppercases "µs" to "ΜS" — a
+                 capital Greek Mu, which renders as an M and turns microseconds
+                 into milliseconds at a glance. Nothing here is in µs now, and
+                 the 3.7/33.5 pair lives in the cell below, which is not
+                 uppercased. -->
+            <b>0</b>
+            <span class="lbl">packets an engine can send</span>
           </div>
         </div>
+
+        <div class="instr-note">
+          <p>
+            <b>An engine handle refuses <code>refresh</code>.</b> <code>openrate_new</code> starts
+            no goroutine, opens no socket and reads no environment — it answers from whatever
+            snapshot it holds. Fetching is a second, explicit handle, and asking an engine for it
+            is an error the ABI returns rather than a call it quietly makes. That refusal is
+            checked in Go and again in C, which is what turns “the feature is off, so nothing is
+            sent” from a promise in a comment into a property of the interface — and it is
+            why <b>beepbite</b> could delete its HTTP client outright.
+            <a href="./docs.html#c-abi">The C ABI</a> ·
+            <a href="./docs.html#zero-network">how the zero is held</a>.
+          </p>
+        </div>
+
         <div class="cells">
           <div>
-            <span class="ct">Sidecar · the default</span>
+            <span class="ct">Go · no FFI at all</span>
+            <p style="font-size:13px;line-height:1.6;color:var(--text-4)">
+              A package import, and that is the whole story: no shared library, no
+              <code>cgo</code>, no platform matrix, nothing to install and nothing to ship
+              beside your binary. <code>go get</code>, and the engine is a type in your process.
+              It is the cleanest path openrate has.
+            </p>
+          </div>
+          <div>
+            <span class="ct">Sidecar · the default elsewhere</span>
             <p style="font-size:13px;line-height:1.6;color:var(--text-4)">
               Run the binary, talk to it over loopback. No toolchain, no linking, no Go
               runtime inside your process. Every language already has an HTTP client, and
@@ -886,16 +929,48 @@ c, err = e.Convert("USD", "ZAR", 100) // now answers from what r fetched</code><
               after it.
             </p>
           </div>
-          <div>
-            <span class="ct">Bindings</span>
-            <p style="font-size:13px;line-height:1.6;color:var(--text-4)">
-              C, C++, Go, Python, Ruby, PHP, Rust, Java, Elixir — each implementing
-              <em>both</em> modes behind one API, so changing your mind later is a constructor
-              argument. <a href="./docs.html#deployment-modes" style="color:var(--teal)">Which
-              mode should I choose</a> · <a href="./docs.html#c-abi" style="color:var(--teal)">the
-              C ABI</a>.
-            </p>
+        </div>
+
+        <div class="langs">
+          <div class="lang-row">
+            <span class="lk">Direct by default</span>
+            <div class="chips">
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/go" target="_blank" rel="noopener">go</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/c" target="_blank" rel="noopener">c</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/cpp" target="_blank" rel="noopener">cpp</a>
+            </div>
           </div>
+          <div class="lang-row">
+            <span class="lk">Sidecar by default</span>
+            <div class="chips">
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/node" target="_blank" rel="noopener">node</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/deno" target="_blank" rel="noopener">deno</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/bun" target="_blank" rel="noopener">bun</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/python" target="_blank" rel="noopener">python</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/java" target="_blank" rel="noopener">java</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/kotlin" target="_blank" rel="noopener">kotlin</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/dotnet" target="_blank" rel="noopener">dotnet</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/php" target="_blank" rel="noopener">php</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/elixir" target="_blank" rel="noopener">elixir</a>
+            </div>
+          </div>
+          <div class="lang-row">
+            <span class="lk">Either · see the README</span>
+            <div class="chips">
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/rust" target="_blank" rel="noopener">rust</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/swift" target="_blank" rel="noopener">swift</a>
+              <a href="https://github.com/vul-os/openrate/tree/main/sdks/ruby" target="_blank" rel="noopener">ruby</a>
+            </div>
+          </div>
+          <div class="lang-foot"><p>
+            Every one of the fifteen implements <em>both</em> modes behind one API, so changing
+            your mind later is a constructor argument — the default above is only where its
+            README starts you. Elixir is the single exception, and says so: sidecar only, because
+            a NIF cannot be killed or timed out.
+            <a href="https://github.com/vul-os/openrate/blob/main/sdks/README.md" target="_blank" rel="noopener">The package index</a>
+            carries the binding each one uses ·
+            <a href="./docs.html#deployment-modes">which mode should I choose</a>.
+          </p></div>
         </div>
       </div>
     </div>

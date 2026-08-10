@@ -75,13 +75,26 @@
 .shead .eyebrow { margin-bottom: 16px; }
 .shead h2 { margin-bottom: 18px; }
 .shead .lede { max-width: 60ch; }
+/* Two ledes in one head had no space between them and read as one paragraph
+   with a stray line break in it. */
+.shead .lede + .lede { margin-top: 14px; }
+/* Fine print under a section head — §07's licence line, which was set at lede
+   size and sat directly on top of the lede, so the section opened with two
+   sentences of unrelated weight and no gap. It is a footnote, and it is now
+   set as one. */
+.shead .fine { margin-top: 16px; font-size: 13px; line-height: 1.6; color: var(--text-4); }
+.shead .fine a { color: var(--teal); }
 h2 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); }
 
 /* ── hero ─────────────────────────────────────────────────────────────────
    Two columns at desk width: the claim, and the claim's evidence. The
    evidence is a printed docket, because "with its receipts" should not be a
    metaphor on a page whose whole argument is that the working is available. */
-.hero { position: relative; padding: clamp(50px, 6.5vw, 96px) 0 var(--sp); overflow: clip; }
+/* The bottom padding is deliberately NOT --sp. --sp is the gap between two
+   sections that argue separately; what follows the hero is the ledger, which
+   is the hero's own evidence continuing onto ruled paper. A full section gap
+   there read as the page having finished. */
+.hero { position: relative; padding: clamp(50px, 6.5vw, 96px) 0 clamp(38px, 4.6vw, 68px); overflow: clip; }
 .hero .guilloche { top: -340px; right: -300px; width: 900px; height: 900px; opacity: .3; }
 [data-theme="light"] .hero .guilloche { opacity: .24; }
 .hero-grid {
@@ -190,14 +203,17 @@ html.js .hero .docket { animation-delay: .3s; }
 .seal.D { color: var(--red); }
 
 /* ── stat rail ────────────────────────────────────────────────────────────
-   The numbers ARE the display type here. Ruled top and bottom, edge to edge
-   inside the wrap, one hairline between each reading. */
+   The numbers ARE the display type here. One hairline between each reading,
+   and a rule under the row — which is also the rule over the feeds strip
+   directly beneath it, because the two are one block (see .band). The row
+   used to close the hero instead, and the hero's 108px of bottom padding then
+   fell between two rows drawn on the same four columns: the page stalled at
+   exactly the point the four numbers had earned a reader's attention. */
 .stats {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line);
-  margin-top: clamp(34px, 4.5vw, 58px);
+  border-bottom: 1px solid var(--line);
 }
-.stat { padding: 20px 18px 20px 0; position: relative; }
+.stat { padding: clamp(22px, 2.6vw, 32px) 18px clamp(20px, 2.4vw, 28px) 0; position: relative; }
 .stat + .stat { padding-left: clamp(14px, 2vw, 26px); border-left: 1px solid var(--line); }
 .stat b {
   display: block; font-family: var(--mono); font-variant-numeric: tabular-nums;
@@ -206,17 +222,23 @@ html.js .hero .docket { animation-delay: .3s; }
 }
 .stat.on b { color: var(--teal); }
 .stat .lbl { display: block; line-height: 1.45; letter-spacing: .1em; }
-@media (max-width: 760px) {
+/* 800, not 760: the feeds row below folds to two columns at 800, and the two
+   rows share their column rules. At 780 the readings were still in four
+   columns above feeds already in two, and the hairlines stopped lining up. */
+@media (max-width: 800px) {
   .stats { grid-template-columns: 1fr 1fr; }
   .stat:nth-child(3) { padding-left: 0; border-left: none; }
   .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
 }
 
-/* ── the sources band ─────────────────────────────────────────────────────
-   Full-bleed inside the wrap: the four feeds that are on before you
-   configure anything, each with the base it publishes in — which is the
-   whole point of the graph model, stated before the model is explained. */
-.band { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--ink-2); }
+/* ── the ledger: readings, then the feeds behind them ─────────────────────
+   Full-bleed ground, wrap-width contents: the four readings, then the four
+   feeds that are on before you configure anything, each with the base it
+   publishes in — which is the whole point of the graph model, stated before
+   the model is explained. One block on one set of columns; --line-2 on top
+   because that edge is the hero's close, and --line between the registers
+   because that one is internal. */
+.band { border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line); background: var(--ink-2); }
 .band-in { max-width: var(--max); margin: 0 auto; padding: 0 var(--gut); }
 .band-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .band-cell { padding: clamp(24px, 3vw, 38px) clamp(14px, 2vw, 26px) clamp(24px, 3vw, 38px) 0; }
@@ -456,6 +478,62 @@ html.js .hero .docket { animation-delay: .3s; }
 @media (max-width: 900px) {
   .cells { grid-template-columns: minmax(0, 1fr); }
   .cells > div + div { border-left: none; border-top: 1px solid var(--line); }
+}
+
+/* ── the instrument's prose register ──────────────────────────────────────
+   One paragraph between the masthead and the cells, for the case where the
+   headline figure needs a sentence to mean anything. The 0 above it is the
+   number of packets an engine can send, which is a claim about an interface
+   rather than a measurement, and a bare 0 does not carry that. */
+.instr-note { padding: clamp(18px, 2.4vw, 26px) clamp(18px, 2.6vw, 30px); border-bottom: 1px solid var(--line); }
+.instr-note p { font-size: 13.5px; line-height: 1.72; color: var(--text-3); max-width: 78ch; }
+.instr-note b { color: var(--text); font-weight: 600; }
+
+/* ── the package ledger ───────────────────────────────────────────────────
+   Fifteen packages, grouped by the mode their README starts you in. A row is
+   a mono label and a wrap of package names, ruled off from the next — the
+   same ledger idiom the stat rail and the cells use, and the reason this is
+   a strip of rows rather than a fifteen-cell grid: the group is the fact
+   worth reading, and a grid would flatten it back into a word list.
+
+   The names are the DIRECTORY names (cpp, dotnet), not the pretty ones. They
+   are also the link targets, so what a reader reads is what they will find
+   when they get there. */
+.langs { padding: clamp(16px, 2.2vw, 24px) clamp(18px, 2.6vw, 30px) clamp(18px, 2.4vw, 26px); }
+.lang-row {
+  display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr);
+  gap: 10px clamp(16px, 2.4vw, 30px); align-items: baseline;
+  padding: 13px 0;
+}
+.lang-row + .lang-row { border-top: 1px solid var(--line); }
+.lang-row .lk {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text-4);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chips a {
+  display: inline-flex; align-items: center; min-height: 28px; padding: 0 11px;
+  border: 1px solid var(--line-2); border-radius: 100px;
+  font-family: var(--mono); font-size: 12.5px; font-weight: 500; letter-spacing: .02em;
+  color: var(--text-2); text-decoration: none; white-space: nowrap;
+  transition: color .18s var(--ease), border-color .18s var(--ease), background .18s var(--ease);
+}
+.chips a:hover, .chips a:focus-visible {
+  color: var(--text); border-color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 9%, transparent); text-decoration: none;
+}
+/* The rule is on the wrapper and the measure is on the paragraph inside it.
+   With both on one element the foot's rule stopped at its 78th character
+   while the three rules above it ran the full width of the ledger — three
+   hairlines of three different lengths, in a block whose whole idiom is
+   ruled rows. */
+.lang-foot { margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--line); }
+.lang-foot p { font-size: 13px; line-height: 1.68; color: var(--text-4); max-width: 78ch; }
+.instr-note a, .lang-foot a { color: var(--teal); }
+/* Below ~640 a 15em label column leaves the chips about nine characters of
+   room. The label goes over its own row instead, which is what it is. */
+@media (max-width: 640px) {
+  .lang-row { grid-template-columns: minmax(0, 1fr); gap: 9px; }
 }
 
 /* money cell */
