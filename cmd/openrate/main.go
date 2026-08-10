@@ -27,6 +27,7 @@ import (
 	"github.com/vul-os/openrate/internal/ratestore"
 	"github.com/vul-os/openrate/serve"
 	"github.com/vul-os/openrate/serve/interest"
+	"github.com/vul-os/openrate/serve/web"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=vX.Y.Z".
@@ -104,7 +105,10 @@ func main() {
 	go func() {
 		log.Info("openrate listening",
 			slog.String("addr", *addr), slog.String("base", *base),
-			slog.Duration("refresh", *refresh), slog.Bool("ui", *ui))
+			slog.Duration("refresh", *refresh), slog.Bool("ui", uiServed(*ui)))
+		if *ui && !web.Embedded {
+			log.Info("the web console is not in this binary (built with -tags noui); / answers with a JSON stub")
+		}
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error("server failed", slog.String("error", err.Error()))
 			os.Exit(1)
@@ -117,6 +121,20 @@ func main() {
 	_ = srv.Shutdown(shutCtx)
 	log.Info("openrate stopped")
 }
+
+// uiServed reports whether the console will actually answer at / — the flag
+// asked for it AND this build carries it.
+//
+// What the flag asked for is not always what the binary can do. -tags noui
+// drops the console at compile time, and the startup line used to report the
+// FLAG: a noui build printed `ui=true` while serving a 194-byte JSON stub at
+// /, so the one place an operator looks to confirm the console is up told them
+// it was. web.Embedded is the compile-time truth.
+//
+// This is a function rather than an inline && so that main_test.go can pin it
+// in BOTH tag states — CI runs the suite tagged and untagged, so one test
+// covers both.
+func uiServed(flagUI bool) bool { return flagUI && web.Embedded }
 
 // loadDotEnv reads a .env file (if present) and sets any KEY=VALUE pairs that
 // aren't already in the environment. Dependency-free; real env vars win.

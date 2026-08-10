@@ -821,13 +821,18 @@ document.documentElement.classList.add("js");
 $ git clone https://github.com/vul-os/openrate
 $ cd openrate
 $ go run ./cmd/openrate
+INFO interest rates enabled sources=2 refresh=6h0m0s
+INFO openrate listening addr=:8080 base=ZAR refresh=1h0m0s ui=true
 
 # or install the command directly
 $ go install github.com/vul-os/openrate/cmd/openrate@latest
 $ openrate -addr :8080 -base ZAR -refresh 5m
 
 # or in Docker
-$ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate</code></pre>
+$ docker build -t openrate . &amp;&amp; docker run -p 8080:8080 openrate
+
+# or API-only — no console compiled in; / answers with JSON
+$ go build -tags noui -o openrate ./cmd/openrate</code></pre>
         </div>
         <ol class="steps">
           <li><span class="n">01</span><div><b>Nothing to configure</b><span>The default source set — ECB, SARB, Coinbase, Luno — is free and needs no keys. It works on first run.</span></div></li>
