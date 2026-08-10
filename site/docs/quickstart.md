@@ -61,8 +61,8 @@ Before you run anything you downloaded, verify it against the release's
 `SHA256SUMS` manifest:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/vul-os/openrate/v0.1.3/scripts/verify.sh
-bash verify.sh --tag v0.1.3 --attest openrate_0.1.3_source.zip
+curl -fsSLO https://raw.githubusercontent.com/vul-os/openrate/v0.1.8/scripts/verify.sh
+bash verify.sh --tag v0.1.8 --attest openrate_0.1.8_source.zip
 ```
 
 It fails closed. There is no `--skip-verify`, and an absent manifest is an
