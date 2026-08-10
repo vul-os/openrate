@@ -330,7 +330,10 @@ const MEASURE = function measure(AA) {
   const bodyBg = parseColour(getComputedStyle(document.body).backgroundColor);
   const baseOpaque = !!((htmlBg && htmlBg.a === 1) || (bodyBg && bodyBg.a === 1));
 
-  for (const el of document.querySelectorAll("*")) {
+  // AA.only scopes the walk to a single element, so the hover resolver can
+  // re-measure one node through THIS function rather than a second copy of the
+  // compositing maths that could drift from it.
+  for (const el of document.querySelectorAll(AA.only || "*")) {
     let text = "";
     for (const n of el.childNodes) if (n.nodeType === 3) text += n.nodeValue;
     text = text.replace(/\s+/g, " ").trim();
@@ -399,6 +402,13 @@ const MEASURE = function measure(AA) {
       need: large ? AA.large : AA.normal,
       opacity: Math.round(ownOpacity * 1000) / 1000,
       px,
+      // Tag anything invisible so the driver can hover it. Some affordances
+      // are opacity:0 until hover by design (a heading's "#" permalink); the
+      // rest is text nobody can see, and the two are only distinguishable by
+      // trying it.
+      probe: (!AA.only && ownOpacity < 0.05)
+        ? (el.setAttribute("data-ccr-probe", String(rows.length)), rows.length)
+        : undefined,
     });
   }
 
@@ -409,9 +419,52 @@ const MEASURE = function measure(AA) {
   return { rows, exempt, unparseable, baseOpaque, textHash: h.toString(16), textLen: textAccum.length };
 };
 
+// ── hover-revealed affordances ──────────────────────────────────────────────
+// An element at cumulative opacity 0 is one of two very different things: a
+// reveal that never fired (a real defect — the reader gets nothing), or an
+// affordance that appears on hover, like the "#" permalink beside a docs
+// heading. Nothing in the computed style separates them, so the gate tries it:
+// hover one representative of each distinct class and see what happens. If it
+// appears, it still has to clear AA in that state — a hover affordance is text
+// too. If it does not appear, it stays a failure.
+//
+// One hover per distinct signature per run, cached, because llmux's docs put
+// nineteen identical permalinks on every chapter and hovering each of them
+// through eighteen chapters and four passes would be 1,368 hovers to learn one
+// fact.
+async function resolveHidden(page, rows, cache) {
+  const hidden = rows.filter((r) => r.probe !== undefined);
+  if (!hidden.length) return;
+  for (const row of hidden) {
+    if (cache.has(row.where)) { Object.assign(row, cache.get(row.where)); continue; }
+    let verdict;
+    try {
+      const el = page.locator(`[data-ccr-probe="${row.probe}"]`);
+      await el.hover({ timeout: 2000, force: true });
+      await page.waitForTimeout(180);
+      const re = await page.evaluate(MEASURE, {
+        normal: AA_NORMAL, large: AA_LARGE,
+        only: `[data-ccr-probe="${row.probe}"]`,
+      });
+      verdict = re.rows[0] || null;
+      await page.mouse.move(0, 0);
+    } catch {
+      verdict = null;
+    }
+    const resolved = verdict && verdict.opacity >= 0.05
+      ? { opacity: verdict.opacity, ratio: verdict.ratio, need: verdict.need, hoverRevealed: true }
+      : { hoverRevealed: false };
+    cache.set(row.where, resolved);
+    Object.assign(row, resolved);
+  }
+}
+
 // ── judging one measurement ─────────────────────────────────────────────────
 const failures = [];
 const passes = [];
+// Verdicts for hover-revealed affordances, keyed by class signature and shared
+// across every pass in the run — see resolveHidden().
+const hoverCache = new Map();
 
 function judge(where, res, minElements, { collectOnly = false } = {}) {
   const problems = [];
@@ -466,22 +519,27 @@ function judge(where, res, minElements, { collectOnly = false } = {}) {
     });
   }
 
-  const invisible = res.rows.filter((r) => r.opacity < 0.05);
+  // Still invisible after the hover probe: not a contrast failure, text nobody
+  // can see at all.
+  const invisible = res.rows.filter((r) => r.opacity < 0.05 && r.hoverRevealed !== true);
   if (invisible.length) {
     problems.push({
       kind: "invisible",
       code: E_CONTRAST,
       lines: [
-        `${where}: ${invisible.length} text element(s) render at cumulative opacity < 0.05.`,
-        "That is not a contrast failure, it is text nobody can see at all. Under reduced",
-        "motion the reveal rule (html.js .rv { opacity: 1 }) should have settled these.",
+        `${where}: ${invisible.length} text element(s) render at cumulative opacity < 0.05,`,
+        "and hovering them does not bring them back.",
+        "Under reduced motion the reveal rule (html.js .rv { opacity: 1 }) should have",
+        "settled these; if it has regressed, the words are gone for anyone with that setting.",
         ...invisible.slice(0, 5).map((r) => `  <${r.where}> ${JSON.stringify(r.text)}`),
       ],
     });
   }
 
+  // Hover-revealed affordances are measured in their revealed state — they are
+  // text, and a permalink nobody can read is still a permalink nobody can read.
   const under = res.rows
-    .filter((r) => r.opacity >= 0.05 && r.ratio < r.need)
+    .filter((r) => (r.opacity >= 0.05 || r.hoverRevealed === true) && r.ratio < r.need)
     .sort((a, b) => a.ratio - b.ratio);
   if (under.length) {
     problems.push({
@@ -543,6 +601,7 @@ async function runLanding(browser, base, extraCss, collectOnly) {
     for (const theme of THEMES) {
       const { ctx, page } = await openPage(browser, `${base}/index.html`, theme, width, extraCss);
       const res = await page.evaluate(MEASURE, { normal: AA_NORMAL, large: AA_LARGE });
+      await resolveHidden(page, res.rows, hoverCache);
       out.push(...judge(`index.html [${theme} ${width}px]`, res, MIN_ELEMENTS_LANDING, { collectOnly }));
       await ctx.close();
     }
@@ -582,6 +641,7 @@ async function runDocs(browser, base, extraCss, collectOnly) {
         }
         await page.waitForTimeout(80);
         const res = await page.evaluate(MEASURE, { normal: AA_NORMAL, large: AA_LARGE });
+        await resolveHidden(page, res.rows, hoverCache);
         hashes.set(slug, res.textHash);
         out.push(...judge(`docs.html#${slug} [${theme} ${width}px]`, res, MIN_ELEMENTS_DOCS_CHAPTER, { collectOnly }));
       }
@@ -618,25 +678,25 @@ async function runDocs(browser, base, extraCss, collectOnly) {
 const SELFTEST_CASES = [
   {
     name: "opacity fade on a text element (invisible to the token gate)",
-    css: ".lede { opacity: .30 }",
+    css: ".lede { opacity: .30 !important }",
     matches: ".lede",
     expect: "contrast",
   },
   {
     name: "opacity on an ANCESTOR, fading the subtree",
-    css: "section { opacity: .35 }",
+    css: "section { opacity: .35 !important }",
     matches: "section",
     expect: "contrast",
   },
   {
     name: "text colour with a low alpha in rgba()",
-    css: "p { color: rgba(255,255,255,.22) }",
+    css: "p { color: rgba(255,255,255,.22) !important }",
     matches: "p",
     expect: "contrast",
   },
   {
     name: "a flatly illegible text colour",
-    css: "p, li { color: #2f3436 }",
+    css: "p, li { color: #2f3436 !important }",
     matches: "p, li",
     expect: "contrast",
   },
@@ -648,7 +708,7 @@ const SELFTEST_CASES = [
   },
   {
     name: "a colour function the parser does not know",
-    css: "p { color: lab(52% 40 59) }",
+    css: "p { color: lab(52% 40 59) !important }",
     matches: "p",
     expect: "colour",
   },
@@ -659,7 +719,7 @@ const SELFTEST_CASES = [
     // stops being refused, aria-hidden has become a way to switch the gate off
     // one element at a time.
     name: "aria-hidden does not exempt real prose from the measurement",
-    css: "p { color: #2f3436 }",
+    css: "p { color: #2f3436 !important }",
     attr: true,
     matches: "p",
     expect: "contrast",
@@ -669,7 +729,8 @@ const SELFTEST_CASES = [
 async function selftest(browser, base) {
   let refused = 0;
   for (const c of SELFTEST_CASES) {
-    const { ctx, page } = await openPage(browser, `${base}/index.html`, "dark", 1440, c.css);
+    // Open CLEAN, so the page can be measured before and after the mutation.
+    const { ctx, page } = await openPage(browser, `${base}/index.html`, "dark", 1440, null);
 
     // The mutation must actually land on this page, or the case proves nothing.
     const hit = await page.evaluate((sel) => document.querySelectorAll(sel).length, c.matches);
@@ -682,12 +743,38 @@ async function selftest(browser, base) {
         "either way. Point the case at markup that exists.",
       );
     }
+
+    const before = await page.evaluate(MEASURE, { normal: AA_NORMAL, large: AA_LARGE });
+    if (c.css) await page.addStyleTag({ content: c.css });
     if (c.attr) {
       await page.evaluate((sel) => {
         for (const el of document.querySelectorAll(sel)) el.setAttribute("aria-hidden", "true");
       }, c.matches);
     }
+    await page.waitForTimeout(120);
     const res = await page.evaluate(MEASURE, { normal: AA_NORMAL, large: AA_LARGE });
+
+    // ...and it must actually have CHANGED something. A selector that matches
+    // is not a declaration that wins: `p { color: … }` matches all 71
+    // paragraphs here and is then out-specified by the rule that already
+    // colours them, so the page renders identically and "not refused" is the
+    // right answer to a question nobody asked. That is the same inert-mutation
+    // trap as a selector matching nothing, one level further in, and it is why
+    // this compares the measurement rather than trusting the CSS.
+    const sig = (m) => `${m.baseOpaque}|${m.rows.length}|${m.unparseable.length}|` +
+      m.rows.map((r) => r.ratio.toFixed(4)).join(",");
+    if (sig(before) === sig(res)) {
+      await ctx.close();
+      die(
+        E_SELFTEST,
+        `selftest: "${c.name}" changed nothing that this gate can measure.`,
+        "The page renders identically with and without it — the declaration is being",
+        "out-specified, or the attribute makes no difference here. Either way the case",
+        "proves nothing about the gate. Make the mutation bite (a more specific selector,",
+        "or !important) rather than accepting the verdict.",
+      );
+    }
+    await resolveHidden(page, res.rows, hoverCache);
     const problems = judge("selftest", res, MIN_ELEMENTS_LANDING, { collectOnly: true });
     await ctx.close();
     const got = problems.map((p) => p.kind);
@@ -705,10 +792,44 @@ async function selftest(browser, base) {
     }
   }
 
+  // The hover resolver has two branches and the landing exercises neither: it
+  // has no opacity:0 affordances. The docs page does — every heading carries a
+  // "#" permalink at opacity:0 until its heading is hovered — and the clean run
+  // passing is already evidence that the "hover brought it back" branch works,
+  // because those elements would otherwise be reported as invisible.
+  //
+  // This is the branch that matters more: hidden text that hovering does NOT
+  // bring back. If resolveHidden ever starts waving those through, text that
+  // no reader can reach passes as compliant.
+  {
+    const { ctx, page } = await openPage(browser, `${base}/docs.html`, "dark", 1440,
+      ".md p, .md li { opacity: 0 }");
+    const hit = await page.evaluate(() => document.querySelectorAll(".md p, .md li").length);
+    if (!hit) {
+      await ctx.close();
+      die(E_SELFTEST, "selftest: the docs case matches no .md prose, so it proves nothing.");
+    }
+    const res = await page.evaluate(MEASURE, { normal: AA_NORMAL, large: AA_LARGE });
+    await resolveHidden(page, res.rows, new Map()); // fresh cache: no verdict carried in
+    const problems = judge("selftest", res, MIN_ELEMENTS_DOCS_CHAPTER, { collectOnly: true });
+    await ctx.close();
+    if (!problems.some((p) => p.kind === "invisible")) {
+      die(
+        E_SELFTEST,
+        "selftest: prose at opacity:0 that hovering does not reveal was NOT refused.",
+        `  got: ${problems.map((p) => p.kind).join(", ") || "no problems at all"}`,
+        "  Text nobody can see would pass this gate as compliant.",
+      );
+    }
+    refused++;
+    process.stderr.write(`${GRN}  refused${RST} docs prose hidden at opacity:0 that hover never reveals ${DIM}(invisible)${RST}\n`);
+  }
+
   // A gate that fails everything also "refuses" every mutation. The positive
   // control is what separates a working check from a broken one.
   const { ctx, page } = await openPage(browser, `${base}/index.html`, "dark", 1440, null);
   const clean = await page.evaluate(MEASURE, { normal: AA_NORMAL, large: AA_LARGE });
+  await resolveHidden(page, clean.rows, hoverCache);
   const cleanProblems = judge("selftest", clean, MIN_ELEMENTS_LANDING, { collectOnly: true });
   await ctx.close();
   if (cleanProblems.length) {
@@ -719,7 +840,7 @@ async function selftest(browser, base) {
     );
   }
   process.stderr.write(`${GRN}  passed ${RST}the unmodified page ${DIM}(positive control: ${clean.rows.length} elements)${RST}\n`);
-  process.stderr.write(`${GRN}${BLD}selftest: ${refused}/${SELFTEST_CASES.length} deliberate breakages refused, clean page accepted${RST}\n`);
+  process.stderr.write(`${GRN}${BLD}selftest: ${refused}/${SELFTEST_CASES.length + 1} deliberate breakages refused, clean page accepted${RST}\n`);
 }
 
 // ── main ────────────────────────────────────────────────────────────────────
