@@ -8,19 +8,45 @@
   /* ── theme ────────────────────────────────────────────────────────────
      Keyed the same as the app ("or-theme"), so a reader who set the paper
      theme in the converter and then follows a link to the docs does not get
-     flipped back to ink. The initial value is applied by an inline script in
-     <head> to avoid a flash; this only wires the toggle. */
+     flipped back to ink. The resolved theme is decided by the inline script in
+     <head> — stored choice, else prefers-color-scheme, else the markup's
+     dark — because this file is deferred and therefore runs after the first
+     paint. This only wires the toggle.
+
+     The toggle is two-state and always writes an explicit value: once a reader
+     has clicked it, that choice is theirs and outranks the machine on every
+     later visit, in both directions. So a reader on a light machine who clicks
+     to ink and back ends on a STORED light, not on "follow the machine" — the
+     same pixels either way, and the button never has to report a state it has
+     no glyph for.
+
+     The sun/moon swap is done in CSS off [data-theme] (see .tools in
+     site.css), not here, so the glyph is right at first paint too.
+
+     applyTheme does NOT write to storage, and that separation is the whole
+     point: the old code called setTheme() once on every load, which stored
+     whatever the page happened to be showing. A reader who had merely VISITED
+     once was thereafter carrying an "explicit choice" they never made, and it
+     would outrank their machine's setting forever. Storage is written on click
+     and nowhere else. */
   var root = document.documentElement;
-  function setTheme(t) {
-    root.dataset.theme = t;
-    try { localStorage.setItem("or-theme", t); } catch (e) { /* private mode */ }
+  function applyTheme(t) {
+    // Guarded, so the run at load re-stamps nothing: data-theme is written
+    // exactly once, by the head script, before the first paint. An
+    // unconditional assignment of the same value still counts as an attribute
+    // change, and "the theme attribute is never touched after <head>" is the
+    // property that says there is no flash.
+    if (root.dataset.theme !== t) root.dataset.theme = t;
     var m = document.querySelector('meta[name="theme-color"]');
     if (m) m.setAttribute("content", t === "dark" ? "#06090E" : "#F2EFE6");
     document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
       b.setAttribute("aria-label", t === "dark" ? "Switch to paper theme" : "Switch to ink theme");
-      b.innerHTML = t === "dark" ? ICON.sun : ICON.moon;
     });
     paintShots();
+  }
+  function chooseTheme(t) {
+    applyTheme(t);
+    try { localStorage.setItem("or-theme", t); } catch (e) { /* private mode */ }
   }
 
   /* ── product screenshots ─────────────────────────────────────────────────
@@ -54,16 +80,26 @@
     im.addEventListener("error", function () { im.hidden = true; });
     im.addEventListener("load", function () { im.hidden = false; });
   });
-  var ICON = {
-    sun: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2M12 19.6v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.4 12h2M19.6 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>',
-    moon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 13.2A8.6 8.6 0 1 1 10.8 3.2a6.7 6.7 0 0 0 10 10z"/></svg>',
-  };
-  setTheme(root.dataset.theme || "dark");
+  applyTheme(root.dataset.theme === "light" ? "light" : "dark");
   document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
     b.addEventListener("click", function () {
-      setTheme(root.dataset.theme === "dark" ? "light" : "dark");
+      chooseTheme(root.dataset.theme === "light" ? "dark" : "light");
     });
   });
+  /* A reader who has not pinned a choice keeps following the machine, live —
+     flipping the OS to dark while the page is open flips the page. Once they
+     click, the stored value wins and this stops mattering. */
+  if (window.matchMedia) {
+    var mql = window.matchMedia("(prefers-color-scheme: light)");
+    var onSystem = function () {
+      var stored = null;
+      try { stored = localStorage.getItem("or-theme"); } catch (e) { /* private mode */ }
+      if (stored === "light" || stored === "dark") return;
+      applyTheme(mql.matches ? "light" : "dark");
+    };
+    if (mql.addEventListener) mql.addEventListener("change", onSystem);
+    else if (mql.addListener) mql.addListener(onSystem);
+  }
 
   /* ── guilloché ────────────────────────────────────────────────────────
      A hypotrochoid — the curve a geometric lathe traces, and the construction

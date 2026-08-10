@@ -31,15 +31,42 @@
 <meta name="twitter:image" content="https://vulos.org/projects/openrate/assets/og-card.png">
 
 <script>
-/* Apply the stored theme before first paint so the page never flashes ink at a
-   reader who chose paper. Shares the "or-theme" key with the app. The "js"
-   class is what gates the scroll-reveal animation (see .rv in landing.css) — it
-   is added here, before paint, specifically so a reader with JavaScript
-   disabled never gets it and the page falls back to its default (fully
-   visible, unanimated) state rather than content stuck at opacity: 0. */
+/* Resolve the theme before first paint — inline, in <head>, so nothing is ever
+   painted in the wrong one. Three states, in this order:
+
+     1. An explicit stored choice WINS. A reader who used the toggle has stated
+        a preference, and the machine's setting must not overrule it on the
+        next visit — in either direction.
+     2. No stored choice → follow prefers-color-scheme, so a reader whose
+        machine asks for paper is not handed ink on a first visit.
+     3. No stored choice and no OS preference → the default already in the
+        markup, data-theme="dark". `(prefers-color-scheme: light)` is tested
+        positively rather than `dark` being tested, so "no preference" and
+        "prefers dark" both land here, which is also exactly what a reader with
+        JavaScript off gets from the attribute on <html>.
+
+   The toggle writes only "light" or "dark" (assets/site.js), so the first
+   click pins an explicit choice and the button never has to report a third
+   "follows my machine" state it has no way to show. Anything else in storage —
+   a stale or hand-set value — is ignored rather than stamped on the root.
+   Shares the "or-theme" key with the app.
+
+   The "js" class is what gates the scroll-reveal animation (see .rv in
+   landing.css) — it is added here, before paint, specifically so a reader with
+   JavaScript disabled never gets it and the page falls back to its default
+   (fully visible, unanimated) state rather than content stuck at opacity: 0. */
 try {
   var t = localStorage.getItem("or-theme");
-  if (t) document.documentElement.dataset.theme = t;
+  if (t !== "light" && t !== "dark") {
+    t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : null;
+  }
+  if (t) {
+    document.documentElement.dataset.theme = t;
+    /* Keep the browser-UI colour with the theme from the first paint too; the
+       toggle in site.js maintains the same pair. */
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute("content", t === "dark" ? "#06090E" : "#F2EFE6");
+  }
 } catch (e) {}
 document.documentElement.classList.add("js");
 </script>
@@ -108,7 +135,7 @@ document.documentElement.classList.add("js");
     <a href="https://github.com/vul-os/openrate" target="_blank" rel="noopener" aria-label="GitHub">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.41 7.86 10.94.58.1.79-.25.79-.56v-2.02c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.26-1.28-5.26-5.71 0-1.26.45-2.3 1.19-3.11-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.19a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.19 3.17-1.19.63 1.59.23 2.76.12 3.05.74.81 1.18 1.85 1.18 3.11 0 4.44-2.7 5.42-5.28 5.7.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.74 18.27.5 12 .5z"/></svg>
     </a>
-    <button data-theme-toggle type="button" aria-label="Switch to paper theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2M12 19.6v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.4 12h2M19.6 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg></button>
+    <button data-theme-toggle type="button" aria-label="Switch to paper theme"><svg class="ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2M12 19.6v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.4 12h2M19.6 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg><svg class="ico-moon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 13.2A8.6 8.6 0 1 1 10.8 3.2a6.7 6.7 0 0 0 10 10z"/></svg></button>
   </div>
 </header>
 
@@ -347,7 +374,12 @@ document.documentElement.classList.add("js");
         </figure>
       </div>
 
-      <div class="split flip rv">
+      <!-- capfoot: the caption below runs under BOTH halves. It is the longest
+           caption on the page and it was what made this row lopsided — the
+           plate and the prose beside it are within 82px of each other, and
+           every bit of the 291px mismatch was the caption hanging off the
+           bottom of the left column alone. See .split.capfoot in landing.css. -->
+      <div class="split flip capfoot rv">
         <div class="copy">
           <h3>And a cross-rate is just a product</h3>
           <p>

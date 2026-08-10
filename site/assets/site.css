@@ -72,6 +72,14 @@
 }
 
 :root {
+  /* Ink is the default, and it has to be declared HERE and not only in the
+     <meta name="color-scheme">. The meta says which schemes the page supports
+     and lets the reader's machine pick — which is right until the reader pins
+     a choice: with only the meta, a reader who chose ink on a light machine
+     got the dark page inside a light scrollbar, light form controls and a
+     light overscroll gutter. The property below follows data-theme instead,
+     so the UA-painted furniture follows the page rather than the machine. */
+  color-scheme: dark;
   --ink: #06090E; --ink-2: #0B0F16; --paper: #0E141D; --paper-2: #131A25; --paper-3: #1A2230;
   --line: #1B222D; --line-2: #252E3C; --line-3: #354152;
   /* --text-4 lightened from #616D7E — it isn't only a decorative label colour,
@@ -138,6 +146,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --ink: #F2EFE6; --ink-2: #EAE6DA; --paper: #FBF9F4; --paper-2: #FFFFFF; --paper-3: #F1EDE2;
   --line: #E0DACB; --line-2: #D2CAB6; --line-3: #B8AF98;
   /* --text-4 darkened from #7C8695 — see the matching note in :root above;
@@ -265,6 +274,18 @@ code { font-family: var(--mono); font-size: max(11px, .88em); color: var(--teal)
   transition: color .2s var(--ease);
 }
 .hdr nav a:hover, .hdr nav a.on { color: var(--text); }
+/* The header is 82% paper over a 16px blur, so what is behind it is part of
+   what the nav is read against — and the code panels are FIXED dark in both
+   themes (see the code palette in :root). Measured on the composited pixels
+   rather than on the token: with a code panel scrolled under the glass the
+   backdrop lands on rgb(200,199,194), and --text-3 on that is 3.54:1 — under
+   the 4.5:1 AA floor, on seven real navigation links. Against flat --paper the
+   same token measures 5.2:1 and looks fine, which is exactly why this had to
+   be measured composited. --text-2 on the same backdrop measures 6.62:1, and
+   6.99:1 on flat paper. Only the light theme needs it: on ink the panels are
+   the same colour as everything else behind the glass, and --text-3 there
+   measures 5.9:1 composited. */
+[data-theme="light"] .hdr nav a { color: var(--text-2); }
 @media (max-width: 860px) { .hdr nav { display: none; } }
 /* 320px, measured in a browser rather than guessed at: the bar's own contents
    — the wordmark plus three 44px controls — came to 330px inside a 320px
@@ -312,6 +333,16 @@ code { font-family: var(--mono); font-size: max(11px, .88em); color: var(--teal)
   transition: color .2s var(--ease), background .2s var(--ease);
 }
 .tools > * + * { border-left: 1px solid var(--line-2); }
+/* The theme button names the theme ONE CLICK AWAY: a sun on ink, a moon on
+   paper. Both glyphs ship in the markup and CSS picks between them, rather
+   than site.js writing the right one in — site.js is deferred, so it runs
+   AFTER the first paint, and a reader whose machine asked for paper would
+   watch the button start on the wrong glyph and correct itself. The head
+   script settles data-theme before anything is painted, so this selector is
+   already true by then. */
+[data-theme-toggle] .ico-moon { display: none; }
+[data-theme="light"] [data-theme-toggle] .ico-sun { display: none; }
+[data-theme="light"] [data-theme-toggle] .ico-moon { display: block; }
 .tools > *:hover, .tools > *:focus-visible { color: var(--text); background: var(--paper-3); }
 /* The shared .vulos-home block below sets its own box, opacity and hover
    lift; inside the group those are the group's job, so they are overridden
