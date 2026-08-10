@@ -1,6 +1,15 @@
-# Bundled artifacts, built per platform; never committed
-openrate/bin/
-openrate/lib/
+# Bundled artifacts, built per platform; never committed.
+#
+# The CONTENTS are ignored, not the directories. pyproject.toml force-includes
+# both openrate/bin and openrate/lib into the wheel, and hatchling raises
+# FileNotFoundError when a forced path is missing — so ignoring the directories
+# themselves made `pip install -e sdks/python` fail on every clone, while
+# `pip install openrate` 404s. The package was uninstallable by any documented
+# route. The .gitkeep files are what make the paths exist in a checkout.
+openrate/bin/*
+!openrate/bin/.gitkeep
+openrate/lib/*
+!openrate/lib/.gitkeep
 __pycache__/
 *.egg-info/
 dist/

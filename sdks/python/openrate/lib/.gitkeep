@@ -1,0 +1,4 @@
+# Kept so the directory exists in a checkout: pyproject.toml force-includes
+# openrate/lib, and hatchling raises FileNotFoundError if it is absent, which made
+# `pip install -e sdks/python` fail on every clone. Contents are build
+# artifacts and are ignored.

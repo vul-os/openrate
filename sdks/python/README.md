@@ -59,15 +59,24 @@ mode that can be proved rather than promised.
 
 ## Install
 
+> **Not `pip install openrate`.** Nothing is published to PyPI under that name
+> (checked 2026-08-10; it 404s). The line that used to be here did not work, and
+> neither did the alternative — `pip install -e sdks/python` failed on *every*
+> clone, because `pyproject.toml` force-includes `openrate/bin` and
+> `openrate/lib` and hatchling raises `FileNotFoundError` when they are absent.
+> Both directories are now kept in the checkout, so this package was
+> uninstallable by any documented route and now installs.
+
 ```bash
-pip install openrate
+git clone https://github.com/vul-os/openrate
+pip install -e openrate/sdks/python
 ```
 
-Sidecar mode also needs the binary: platform wheels bundle it at
-`openrate/bin/openrate`; otherwise put `openrate` on `PATH` or set
-`OPENRATE_BINARY`. Direct mode needs the shared library: build it from a
-checkout with `scripts/build-ffi.sh` and point `OPENRATE_LIBRARY` at the result,
-or drop it at `openrate/lib/`.
+Sidecar mode also needs the binary. A platform wheel bundles it at
+`openrate/bin/openrate` — but no wheel is published, so from a checkout put
+`openrate` on `PATH` (`go build ./cmd/openrate`) or set `OPENRATE_BINARY`.
+Direct mode needs the shared library: build it with `scripts/build-ffi.sh` and
+point `OPENRATE_LIBRARY` at the result, or drop it in `openrate/lib/`.
 
 Nothing else. No dependencies: direct mode is `ctypes` and the sidecar client is
 `urllib`, both standard library.
