@@ -78,10 +78,22 @@ func TestConstructorsSendNothing(t *testing.T) {
 	r := openrate.NewRefresher(e, openrate.RefreshOptions{Sources: sources(src), Logger: quiet()})
 	_ = r
 
-	// Give anything that was going to start a chance to start.
+	// Give anything that was going to start a chance to start, then let the
+	// count SETTLE before reading it — the same treatment the baseline gets.
+	//
+	// Measuring the baseline carefully and then the result carelessly is what
+	// made this flaky in CI under -race. TestStartServesAndCloses runs a real
+	// engine against the real ECB source; the request is cancelled at Close,
+	// but net/http's dial and DNS goroutines for it (net.doBlockingWithCtx is
+	// parked in an uninterruptible syscall) outlive that by a wide margin under
+	// the race detector. A fixed 50ms sleep is not long enough, and those
+	// goroutines then get counted as something these two constructors started.
+	//
+	// Settling is the right answer rather than a longer sleep: the invariant is
+	// that a constructor starts nothing PERSISTENT, and anything transient from
+	// a neighbouring test is noise this must not read as signal.
 	time.Sleep(50 * time.Millisecond)
-	runtime.GC()
-	if after := runtime.NumGoroutine(); after > before {
+	if after := stableGoroutines(t); after > before {
 		t.Errorf("constructing an Engine and a Refresher started %d goroutine(s)", after-before)
 	}
 	if n := src.fetches.Load(); n != 0 {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/vul-os/openrate/fxsource"
@@ -65,6 +66,13 @@ type Local struct {
 	srv     *http.Server
 	api     *serve.Server
 	done    chan struct{}
+	// bg counts the background loops Start launches — the refresher, and the
+	// interest store when Interest is on. Close waits on it. Without this,
+	// Close cancelled their context and returned immediately, leaving a
+	// half-finished source Fetch in flight after the caller believed the engine
+	// was shut down. For a library whose central promise is that nothing runs
+	// until you ask, the symmetric promise has to hold too.
+	bg sync.WaitGroup
 }
 
 // Start builds the engine, launches it in a background goroutine, and returns
@@ -104,7 +112,18 @@ func Start(opts Options) (*Local, error) {
 	refresher := NewRefresher(engine, RefreshOptions{Sources: srcs, Interval: opts.Refresh})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() { _ = refresher.Run(ctx) }()
+
+	// The handle is built before the loops start so they can be tracked on it.
+	// Launching first and constructing after left the two goroutines below
+	// unowned by anything Close could wait for.
+	l := &Local{
+		BaseURL: "http://" + addr,
+		cancel:  cancel,
+		done:    make(chan struct{}),
+	}
+
+	l.bg.Add(1)
+	go func() { defer l.bg.Done(); _ = refresher.Run(ctx) }()
 
 	var extra []serve.Routable
 	if opts.Interest {
@@ -114,7 +133,8 @@ func Start(opts Options) (*Local, error) {
 		}
 		if intSrcs := ratesources.Build(opts.InterestSources); len(intSrcs) > 0 {
 			ist := ratestore.New(intRefresh, nil, intSrcs...)
-			go ist.Run(ctx)
+			l.bg.Add(1)
+			go func() { defer l.bg.Done(); ist.Run(ctx) }()
 			extra = append(extra, interest.New(ist, opts.CORSOrigin))
 		}
 	}
@@ -128,13 +148,8 @@ func Start(opts Options) (*Local, error) {
 		Extra:          extra,
 	})
 
-	l := &Local{
-		BaseURL: "http://" + addr,
-		cancel:  cancel,
-		srv:     &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second},
-		api:     api,
-		done:    make(chan struct{}),
-	}
+	l.srv = &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	l.api = api
 
 	go func() {
 		defer close(l.done)
@@ -158,7 +173,19 @@ func Start(opts Options) (*Local, error) {
 func (l *Local) APIBaseURL() string { return l.BaseURL + "/api/v1" }
 
 // Close stops refreshing, stops the rate-limiter sweeper (if active), shuts the
-// server down, and waits for it to stop.
+// server down, and waits for the server AND the background loops to stop.
+//
+// The second half of that used to be untrue. Close cancelled the refresher's
+// context and then waited only on the server's channel, so it returned while a
+// source Fetch could still be in flight — an outbound request outliving the
+// engine the caller had just shut down. It surfaced as a flaky test (a leaked
+// goroutine drifting into the next one) but the defect is the promise, not the
+// test: a library that makes a point of starting nothing until asked has to
+// finish everything when told.
+//
+// The wait is bounded. A source wedged in a fetch that ignores its context
+// must not turn Close into a hang; it returns an error naming what did not
+// stop instead.
 func (l *Local) Close() error {
 	l.cancel()
 	_ = l.api.Close()
@@ -166,6 +193,16 @@ func (l *Local) Close() error {
 	defer cancel()
 	err := l.srv.Shutdown(shutCtx)
 	<-l.done
+
+	stopped := make(chan struct{})
+	go func() { l.bg.Wait(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		if err == nil {
+			err = fmt.Errorf("openrate: background refresh did not stop within 5s of Close")
+		}
+	}
 	return err
 }
 
