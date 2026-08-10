@@ -66,12 +66,19 @@
  * All entry points are safe to call from multiple threads, INCLUDING against
  * the same handle, and including openrate_close() concurrently with a call on
  * the handle it is closing. A race between the two always resolves one of two
- * ways and never a third: either the call runs to completion and the close then
- * tears the object down, or the close wins and the call returns the ordinary
- * "handle N is not open" error. There is no interleaving in which work outlives
- * the handle that authorized it — in particular, openrate_call(h, "start")
- * racing openrate_close(h) can never leave a refresh loop running, whichever
- * order the two land in.
+ * ways and never a third: either the call runs to completion and the close
+ * WAITS for it before tearing the object down, or the close wins and the call
+ * returns the ordinary "handle N is not open" error. There is no interleaving
+ * in which work outlives the handle that authorized it:
+ *
+ *   - "start" racing openrate_close() can never leave a refresh loop running,
+ *     whichever order the two land in.
+ *   - "refresh" racing openrate_close() can never put a request on the wire
+ *     after openrate_close() has returned. A refresh already in flight is
+ *     cancelled and then WAITED FOR, so a fetch that does not stop promptly
+ *     delays the close rather than outliving it.
+ *   - "ready" is likewise cancelled by a close, and returns rather than
+ *     blocking out its timeout against a handle that no longer exists.
  *
  * What is NOT safe is using a handle you have already closed and then acting on
  * the error: that is well-defined (you get "not open") but it means some other
@@ -195,6 +202,8 @@ uint64_t openrate_refresher_new(uint64_t engine, const char *config_json, char *
  *   "status"   {} -> {"sources":[{"name","last_ok","last_error","edges"},...]}
  *   "refresh"  {"timeout_ms":30000} -> {"sources":[...]}
  *              One synchronous fetch of every source. THIS OPENS SOCKETS.
+ *              On a CLOSED handle it is "handle N is not open", and a close
+ *              that lands while it is running waits for it — see "Threads".
  *   "start"    {} -> {"running":true}   background loop on the configured
  *              interval. The only thread this library starts on its own.
  *              Starting an already-running refresher is an error, not a second
@@ -217,8 +226,11 @@ char *openrate_call(uint64_t h, const char *method, const char *request_json, ch
  * Closing an unknown or already-closed handle is a no-op.
  *
  * This is TERMINAL, and it waits: when it returns, any background loop on the
- * handle has been cancelled AND has exited, so a host that closes everything
- * and then unloads the library has no thread of ours left in its address space.
+ * handle has been cancelled AND has exited, and any blocking call in flight on
+ * it ("refresh", "ready") has been cancelled AND has returned — so a host that
+ * closes everything and then unloads the library has no thread of ours left in
+ * its address space. A fetch that ignores cancellation therefore delays this
+ * call; that is the guarantee working, not a hang.
  * It is also safe against a concurrent call on the same handle — see "Threads"
  * above for exactly which two outcomes are possible.
  */

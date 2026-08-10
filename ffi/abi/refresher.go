@@ -51,6 +51,66 @@ type refresherObj struct {
 	closed  bool
 	cancel  context.CancelFunc
 	stopped chan struct{}
+
+	// inflight is every BLOCKING call currently running on this object, keyed
+	// by a serial number, valued by the cancellation for that call's context.
+	// It is what makes close wait, and it is a refcount rather than a flag
+	// because a host may have several threads on one handle.
+	//
+	// A `closed` check at the top of refresh would not have been a fix. It is
+	// pure check-then-act: the check passes, close runs to completion, and the
+	// fetch then starts against a handle that is gone — one request, no loop,
+	// but still a use-after-close, and still a packet sent after
+	// openrate_close() returned. The interlock has to be "close cannot finish
+	// while a call is running", which needs a count and something to wait on.
+	inflight map[uint64]context.CancelFunc
+	nextCall uint64
+	// drained is created by close when it finds calls in flight, and closed by
+	// the last one to leave. Nil the rest of the time, so the common close —
+	// nothing running — allocates nothing and waits on nothing.
+	drained chan struct{}
+}
+
+// enter registers a blocking call and refuses if the handle is already closed.
+// The returned id is what leave takes back.
+//
+// cancel is stored so close can interrupt the call rather than merely outlast
+// it. Without that, closing a handle while a refresh is fetching would block
+// openrate_close() for as long as the slowest source takes — up to the 50s
+// per-source default — which is not a thing a host unloading a library can
+// afford. Cancelling is also the honest answer to the caller: the handle it
+// asked on no longer exists.
+func (o *refresherObj) enter(cancel context.CancelFunc) (uint64, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.closed {
+		return 0, errHandleNotOpen(o.handle)
+	}
+	o.nextCall++
+	if o.inflight == nil {
+		o.inflight = map[uint64]context.CancelFunc{}
+	}
+	o.inflight[o.nextCall] = cancel
+	return o.nextCall, nil
+}
+
+// leave retires a call, and releases close if it was the last one it was
+// waiting for.
+//
+// The channel is taken out of the struct in the SAME critical section that
+// decides to close it, so it is closed exactly once however many callers are
+// leaving at the same moment.
+func (o *refresherObj) leave(id uint64) {
+	o.mu.Lock()
+	delete(o.inflight, id)
+	var release chan struct{}
+	if o.closed && len(o.inflight) == 0 && o.drained != nil {
+		release, o.drained = o.drained, nil
+	}
+	o.mu.Unlock()
+	if release != nil {
+		close(release)
+	}
 }
 
 // newRefresherObj parses the config and constructs the Refresher. It performs
@@ -156,8 +216,8 @@ func (o *refresherObj) stopLoop() {
 }
 
 // close is TERMINAL: the registry has already retired this handle and nothing
-// may start a loop on this object again. It is the other half of the interlock
-// with start.
+// may start a loop on this object, or begin a call against it, again. It is the
+// other half of the interlock with start AND with every blocking method.
 //
 // Marking closed and reading the cancel happen in ONE critical section, which
 // is what makes the race unwinnable in either direction. Either start got the
@@ -168,15 +228,42 @@ func (o *refresherObj) stopLoop() {
 // and start then attached a goroutine to an object no handle pointed at — so
 // "stop" was unreachable, openrate_close() was a permanent no-op, and the loop
 // fetched forever while openrate_open_handles() reported zero.
+//
+// The same critical section takes the in-flight calls. A "refresh" that had
+// already resolved its handle used to run to completion after close returned —
+// one fetch, no loop, so far less severe than the escaped ticker above, but the
+// same shape: a packet sent by a handle that no longer exists, and a write into
+// an engine the host may already have closed. close now cancels those calls and
+// then WAITS for them, so when it returns the promise in include/openrate.h —
+// nothing of this refresher is still running — is true of the one-shot path too
+// and not only of the loop.
+//
+// Nothing here touches "stop", which stays a reversible pause: start-after-stop
+// and refresh-after-stop are both part of the contract.
 func (o *refresherObj) close() {
 	o.mu.Lock()
 	o.closed = true
 	cancel, stopped := o.cancel, o.stopped
 	o.cancel, o.stopped = nil, nil
+	var pending []context.CancelFunc
+	var drained chan struct{}
+	if len(o.inflight) > 0 {
+		drained = make(chan struct{})
+		o.drained = drained
+		for _, c := range o.inflight {
+			pending = append(pending, c)
+		}
+	}
 	o.mu.Unlock()
 	if cancel != nil {
 		cancel()
 		<-stopped
+	}
+	for _, c := range pending {
+		c()
+	}
+	if drained != nil {
+		<-drained
 	}
 	// After the lock is dropped: detach takes the engine's lock, which is the
 	// OUTER lock of the two. Holding o.mu across it would invert the order.
@@ -225,6 +312,10 @@ func (t timeoutRequest) context() (context.Context, context.CancelFunc) {
 // failed, then returns the resulting per-source status. This is the call that
 // opens sockets, and it is reachable only from a refresher handle that a host
 // explicitly created.
+//
+// enter/leave is what keeps it inside the handle's lifetime — see enter. A
+// close that lands after this call has resolved its handle refuses nothing
+// retroactively; it cancels ctx and waits here.
 func (o *refresherObj) refresh(req []byte) ([]byte, error) {
 	var r timeoutRequest
 	if err := decodeRequest(req, &r); err != nil {
@@ -232,6 +323,11 @@ func (o *refresherObj) refresh(req []byte) ([]byte, error) {
 	}
 	ctx, cancel := r.context()
 	defer cancel()
+	id, err := o.enter(cancel)
+	if err != nil {
+		return nil, err
+	}
+	defer o.leave(id)
 	if err := o.r.Refresh(ctx); err != nil {
 		return nil, fmt.Errorf("openrate: refresh: %w", err)
 	}
@@ -287,6 +383,13 @@ func (o *refresherObj) stop(req []byte) ([]byte, error) {
 // ready blocks until the engine holds a snapshot with at least one currency, or
 // the timeout expires. It does not itself fetch — something must be refreshing,
 // or it simply waits, which is exactly [openrate.Refresher.Ready]'s contract.
+//
+// It takes the same refcount as refresh. It sends no packets, so it is not the
+// use-after-close that mattered, but it is the other call that can still be
+// parked inside this library when a host decides to unload it — and a goroutine
+// in a shared object that has been dlclose'd is a segfault, not an error. close
+// cancels it, so it returns "context canceled" rather than blocking out its
+// timeout against a handle that no longer exists.
 func (o *refresherObj) ready(req []byte) ([]byte, error) {
 	var r timeoutRequest
 	if err := decodeRequest(req, &r); err != nil {
@@ -294,6 +397,11 @@ func (o *refresherObj) ready(req []byte) ([]byte, error) {
 	}
 	ctx, cancel := r.context()
 	defer cancel()
+	id, err := o.enter(cancel)
+	if err != nil {
+		return nil, err
+	}
+	defer o.leave(id)
 	if err := o.r.Ready(ctx); err != nil {
 		return nil, fmt.Errorf("openrate: ready: %w", err)
 	}

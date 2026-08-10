@@ -143,23 +143,38 @@ in an order nobody planned.
 All entry points are safe to call from multiple threads, including
 `openrate_close()` concurrently with a call on the handle it is closing. That
 race resolves one of exactly two ways and never a third: the call completes and
-the close then tears the object down, or the close wins and the call returns the
-ordinary `handle 7 is not open`. Nothing this library started can outlive the
-handle that authorized it — in particular `openrate_call(h, "start")` racing
-`openrate_close(h)` cannot leave a refresh loop running, whichever order they
-land in, and `openrate_refresher_new()` racing the close of its engine either
-returns a fully-owned refresher or fails, never a handle nobody can close.
+the close **waits for it** before tearing the object down, or the close wins and
+the call returns the ordinary `handle 7 is not open`. Nothing this library
+started can outlive the handle that authorized it:
 
-Those are not free properties and they were not free here: both were real
-defects, both were invisible to `-race` because neither was a data race, and
-they are held down by `abi/lifecycle_test.go`, which runs each race twelve
-thousand times and asserts what a host can actually observe —
+- `openrate_call(h, "start")` racing `openrate_close(h)` cannot leave a refresh
+  loop running, whichever order they land in.
+- `openrate_call(h, "refresh")` racing `openrate_close(h)` cannot put a request
+  on the wire after the close returned. A refresh already in flight is cancelled
+  and then waited for, so a fetch that ignores cancellation delays the close
+  instead of outliving it. `"ready"` is cancelled the same way.
+- `openrate_refresher_new()` racing the close of its engine either returns a
+  fully-owned refresher or fails, never a handle nobody can close.
+
+Those are not free properties and they were not free here: all three were real
+defects, all three were invisible to `-race` because none was a data race, and
+they are held down by `abi/lifecycle_test.go` and `abi/inflight_test.go`, which
+run each race thousands of times and assert what a host can actually observe —
 `openrate_open_handles()` back where it started, and the library's request count
-frozen once the last close returned.
+frozen at the instant each close returned.
+
+The refresh case is worth its own sentence, because the obvious fix is not one.
+A `closed` check at the top of `"refresh"` is pure check-then-act: the check
+passes, the close runs to completion, and the fetch starts anyway. Mutating the
+real fix down to that check still puts requests on the wire after
+`openrate_close()` returns, on about 1% of races. What holds is a refcount the
+close waits on.
 
 `openrate_close()` is terminal, and it waits: when it returns, any background
-loop on that handle has been cancelled *and* has exited. `"stop"` is the
-reversible one — a stopped refresher can be started again; a closed one cannot.
+loop on that handle has been cancelled *and* has exited, and any blocking call
+in flight on it has been cancelled *and* has returned. `"stop"` is the
+reversible one — a stopped refresher can be started again, and refreshed again;
+a closed one cannot.
 
 ### Two kinds of handle, and why
 
@@ -426,6 +441,7 @@ test names.
 | Every `//export` is declared in the hand-written header | same file |
 | Handles are never recycled, 50 cycles | `abi/module_test.go` |
 | Close racing start, and close racing construction, 12,000 times | `abi/lifecycle_test.go` |
+| Close racing refresh, 2,001 times, plus a held-open fetch | `abi/inflight_test.go` |
 | 40 checks through a really-dlopen'd library | `test/smoke.c` |
 | …and four mutations proving the smoke test can fail | `scripts/check-ffi.sh --selftest` |
 
