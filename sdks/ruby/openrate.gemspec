@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name = "openrate"
-  spec.version = "0.1.2"
+  spec.version = "0.1.8"
   spec.summary = "Open FX rates from open sources — embedded locally, as a managed sidecar or in-process."
   spec.description = "Thin Ruby wrapper around openrate: spawn and supervise the binary on a " \
     "loopback port, or load libopenrate in-process through fiddle. Same JSON either way."

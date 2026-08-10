@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "openrate"
-version = "0.1.0"
+version = "0.1.8"
 description = "Currency conversion with an auditable rate path — in your process, or as a local sidecar."
 readme = "README.md"
 requires-python = ">=3.8"

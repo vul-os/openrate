@@ -6,7 +6,7 @@
 
   <groupId>org.vulos</groupId>
   <artifactId>openrate</artifactId>
-  <version>0.1.2</version>
+  <version>0.1.8</version>
   <packaging>jar</packaging>
 
   <name>openrate</name>

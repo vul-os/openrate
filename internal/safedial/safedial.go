@@ -53,6 +53,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -120,6 +121,45 @@ func Blocked(ip net.IP) bool {
 	return false
 }
 
+// offDialCount counts dials to somewhere other than this machine. It exists so
+// a test suite can assert it made no outbound requests at all.
+//
+// Deliberately a COUNTER and nothing else. An earlier version of this idea was
+// a swappable transport, which was rejected: this file is the SSRF guard, and
+// fitting a security control with an injection point so tests can be tidier is
+// a bad trade. An atomic that only ever increments adds no bypass, no
+// configuration and no code path — it cannot be used to reach a destination
+// this would otherwise refuse.
+//
+// It is needed because the obvious alternative does not work. Running the suite
+// with no network at all proves the tests do not DEPEND on the network; it does
+// not prove they do not ATTEMPT it. Verified: pointing a test back at the live
+// ECB endpoint and running it under `--network none` still passed, because the
+// fetch failed, was logged, and the test never looked. The attempt is the thing
+// that was costing us — a third party in the loop, and a cancelled request
+// leaking its dial goroutines into the next test.
+var offDialCount atomic.Int64
+
+// OffMachineDials reports how many dials this process has made to a
+// destination that is not loopback. Zero is the only correct value for a unit
+// suite.
+func OffMachineDials() int64 { return offDialCount.Load() }
+
+// isLoopback reports whether addr names this machine. Anything else counts.
+// An unparseable address counts too: a dial this cannot classify is one the
+// caller should have to look at rather than one that quietly does not count.
+func isLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // DialContext wraps d's dial with the policy above. The returned function is
 // what an http.Transport's DialContext field wants.
 //
@@ -128,6 +168,9 @@ func Blocked(ip net.IP) bool {
 func DialContext(d *net.Dialer) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	base := *d
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if !isLoopback(addr) {
+			offDialCount.Add(1)
+		}
 		dialer := base
 		if guarded(addr) {
 			dialer.Control = refusePrivate

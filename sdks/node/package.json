@@ -1,6 +1,6 @@
 {
   "name": "openrate",
-  "version": "0.1.2",
+  "version": "0.1.8",
   "description": "Currency conversion with an auditable rate path — the openrate sidecar, or libopenrate in-process.",
   "main": "index.js",
   "types": "index.d.ts",

@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <PackageId>OpenRate</PackageId>
-    <Version>0.1.2</Version>
+    <Version>0.1.8</Version>
     <Description>Currency and interest rates with provenance — embedded, or as a local sidecar.</Description>
     <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://vulos.org/projects/openrate/</PackageProjectUrl>
