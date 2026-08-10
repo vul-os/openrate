@@ -1,5 +1,5 @@
 {
-  "name": "openrate",
+  "name": "@vulos/openrate",
   "version": "0.1.8",
   "description": "Currency conversion with an auditable rate path \u2014 the openrate sidecar, or libopenrate in-process.",
   "main": "index.js",

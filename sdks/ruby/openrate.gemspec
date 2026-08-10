@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 Gem::Specification.new do |spec|
-  spec.name = "openrate"
+  spec.name = "vulos-openrate"
   spec.version = "0.1.8"
   spec.summary = "Open FX rates from open sources — embedded locally, as a managed sidecar or in-process."
   spec.description = "Thin Ruby wrapper around openrate: spawn and supervise the binary on a " \

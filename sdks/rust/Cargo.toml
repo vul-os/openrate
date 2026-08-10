@@ -1,5 +1,7 @@
 [package]
-name = "openrate"
+# Published as vulos-openrate — crates.io has no namespaces, and the whole
+# suite is scoped under Vulos. See [lib]: the library is still `openrate`.
+name = "vulos-openrate"
 version = "0.1.8"
 edition = "2021"
 description = "Currency conversion with provenance — embedded in-process over the C ABI, or as a supervised sidecar."
@@ -8,6 +10,11 @@ homepage = "https://openrate.to"
 repository = "https://github.com/vul-os/openrate"
 keywords = ["currency", "exchange-rate", "fx", "forex", "conversion"]
 categories = ["api-bindings", "finance"]
+
+# Published name vs library name: `use openrate::...` is unchanged.
+[lib]
+name = "openrate"
+path = "src/lib.rs"
 
 [dependencies]
 # The one dependency, and only the direct path needs it. `dlopen`/`LoadLibrary`
