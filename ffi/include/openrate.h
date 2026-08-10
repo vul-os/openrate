@@ -119,7 +119,7 @@ extern "C" {
  * value by `go generate ./...` (see /internal/abiheader). scripts/check-ffi.sh
  * refuses to build a library from a checkout where the two disagree.
  */
-#define OPENRATE_ABI_VERSION "0.1.6"
+#define OPENRATE_ABI_VERSION "0.1.7"
 
 /*
  * Construct an ENGINE. Returns a handle, or 0 with *err set.

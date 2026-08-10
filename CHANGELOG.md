@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-08-10
+
+### Changed
+
+- **The C ABI version string is derived, not declared.** `ffi/abi/version.go`
+  used to hold a hand-typed `const Version`, and in v0.1.3 it came apart from
+  `VERSION`: the release was tagged with the constant a patch behind, so the
+  library told every host it was old when it was current. It now reads
+  `openrate.Version`, `go:embed`ed from `VERSION` at compile time. The runtime
+  string can no longer drift.
+
+  **The header macro is a different case, and the distinction is worth stating.**
+  A C consumer needs a literal to `strcmp` the runtime string against, and the
+  preprocessor cannot read a file — so one literal is unavoidable. What is gone
+  is a *human* typing it: `OPENRATE_ABI_VERSION` is generated from
+  `openrate.Version` via `go generate ./...`, and four independent things now
+  fail on a stale header — `check-ffi.sh` before any library is built, the C
+  smoke test's own `strcmp`, a root-module test asserting regeneration is a
+  no-op, and `ffi/abi`'s independent re-read. That is **detected, not
+  impossible**, and it is the honest limit.
+
+### Fixed
+
+- **The release workflow's tag check could not fail.** It built with
+  `-X main.Version=${TAG#v}` and then asserted the binary reported `${TAG#v}` —
+  it injected the value it went on to check, so a tag disagreeing with `VERSION`
+  passed. Now the tag is compared to the `VERSION` file first. **This can fail
+  where it previously could not**; artifacts are otherwise byte-identical.
+
 ## [0.1.6] - 2026-08-10
 
 ### Changed
@@ -560,7 +589,8 @@ reason.
 
 Initial release.
 
-[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/vul-os/openrate/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/vul-os/openrate/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/vul-os/openrate/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/vul-os/openrate/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/vul-os/openrate/compare/v0.1.3...v0.1.4
